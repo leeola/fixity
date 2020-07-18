@@ -1,0 +1,16 @@
+[package]
+name = "fixi_web"
+version = "0.1.0"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+edition = "2018"
+
+[features]
+
+[dependencies]
+structopt = { optional = true, version = "0.3" }
+log = "0.4"
+thiserror = "1.0"
+tokio = "0.2"
+# using master to get async.
+rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }

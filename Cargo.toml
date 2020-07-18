@@ -1,0 +1,80 @@
+[package]
+name = "fixity"
+version = "0.1.0"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+edition = "2018"
+
+[features]
+default = [
+  "deser_borsh",
+  "deser_json",
+  # Enabling more costly debug checks for all initial prototypes.
+  # Benchmarking should be run without default features for this
+  # reason.
+  "debug_checks",
+]
+# Whether or not to enable moderately costly runtime safety checks of
+# store content, tree structure integrity checks, etc.
+debug_checks = []
+# An eventual series of alternate serialize for performance options.
+#
+# WARN: All of the canonical json libraries i've seen so far are in
+# various states of abandon. This lib should not be trusted until we
+# can fork and establish some trust.
+deser_json = ["serde", "cjson", "serde_json"]
+deser_borsh = ["borsh"]
+
+[[bench]]
+name = "memory"
+harness = false
+
+[dependencies]
+# feature: deser_borsh
+borsh = { version = "0.7", optional = true }
+# feature: deser_json
+cjson= { version = "0.1", optional = true }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+serde_json = { version = "1.0", optional = true }
+# optionally include structopt on config structures for CLI lib users.
+structopt = { version = "0.3", optional = true }
+# non-feature oriented deps.
+fbuzhash = { path = "./fbuzhash" }
+log = "0.4"
+thiserror = "1.0.21"
+blake3 = "0.3"
+fastcdc = "1.0"
+multibase = "0.8"
+async-trait = "0.1"
+speedy = "0.7.0"
+tokio = { version = "1.2.0", features = ["macros", "fs", "io-util", "sync"] }
+tokio-stream = "0.1.3"
+async-recursion = "0.3.1"
+lru = "0.6.0"
+nom = "6.0.0"
+chrono = "0.4.19"
+dyn-clone = "1.0.4"
+# TODO: Remove once the linked issue[1] is fixed.
+#
+# Solely added as a workaround to bitvec failing to compile, which is a dep of nom.
+# See also: [1]
+#
+# [1]: https://github.com/bitvecto-rs/bitvec/issues/105#issuecomment-778570981
+funty = "=1.1.0"
+
+[dev-dependencies]
+env_logger = "0.7"
+rand = "0.7.3"
+replace_with = "0.1.7"
+proptest = "0.10.1"
+tempfile = "3.2.0"
+tokio = { version = "1.2.0", features = ["test-util", "rt-multi-thread"] }
+criterion = { version = "0.3.4", features = ["async_tokio"] }
+
+[workspace]
+members = [
+  "fixi_cli",
+  "fixi_web",
+  "fbuzhash",
+  "git_fixi",
+]
+
