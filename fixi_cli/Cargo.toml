@@ -1,0 +1,13 @@
+[package]
+name = "fixi_cli"
+version = "0.1.0"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "fixi"
+path = "src/bin/fixi.rs"
+
+[dependencies]
+fixity = { path = ".." }
+structopt = "0.3"

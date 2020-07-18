@@ -1,13 +1,10 @@
-pub type Result<T> = std::result::Result<T, ()>;
+use crate::Result;
 pub trait Fixity {
-    fn new() -> Ident;
-    fn push<T>(content: T, id: Option<Ident>) -> Result<Commit>;
+    fn new() -> Id;
+    fn push<T>(content: T, id: Option<Id>) -> Result<Commit>;
     fn clone() -> ();
 }
-pub struct Blob {
-    pub blob: String,
-}
-pub struct Ident {
+pub struct Id {
     pub rand: String,
     pub signature: String,
 }
@@ -17,28 +14,34 @@ pub struct Claim {
     pub signature: String,
 }
 pub enum Commit {
-    Init,
+    Init { pubkey: String },
     Append { body: CommitBody, prev_commit: Addr },
 }
 pub enum CommitBody {
     InsertContent {
-        ident: Ident,
+        id: Id,
         content: Addr,
         prev_content: Option<Addr>,
     },
     DeleteContent {
-        ident: Ident,
+        id: Id,
     },
 }
+pub enum ContentType {
+    Json,
+    User(String),
+}
 pub struct BytesHeader {
+    pub content_type: ContentType,
+    pub metadata: Option<()>,
     pub bytes_count: usize,
     pub parts_count: usize,
-    pub chunks_count: usize,
+    pub blobs_count: usize,
     pub first_part: Addr,
 }
 pub struct BytesPart {
     pub part_bytes_count: usize,
     pub part_chunks_count: u16,
-    pub chunks: Vec<Addr>,
+    pub blobs: Vec<Addr>,
     pub next_part: Option<Addr>,
 }
