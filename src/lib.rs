@@ -4,8 +4,8 @@ pub mod storage;
 pub mod store;
 
 pub use {
+    self::fixity::Fixity,
     error::{Error, Result},
-    fixity::Fixity,
     store::Store,
 };
 

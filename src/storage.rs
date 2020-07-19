@@ -1,4 +1,5 @@
 pub mod memory;
+pub use memory::Memory;
 use std::io::{self, BufWriter, Read, Write};
 pub trait Storage: StorageRead + StorageWrite {}
 pub trait StorageRead {
