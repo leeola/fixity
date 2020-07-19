@@ -30,10 +30,14 @@ impl StorageRead for Memory {
     }
 }
 impl StorageWrite for Memory {
-    fn write(&self, hash: String, r: &mut dyn Read) -> Result<usize, Error> {
+    fn write<S>(&self, hash: S, r: &mut dyn Read) -> Result<usize, Error>
+    where
+        S: AsRef<str>,
+    {
+        let hash = hash.as_ref();
         let mut b = Vec::new();
         r.read_to_end(&mut b).map_err(|err| Error::Io {
-            hash: hash.clone(),
+            hash: hash.to_owned(),
             err,
         })?;
         let len = b.len();
@@ -42,7 +46,7 @@ impl StorageWrite for Memory {
             .map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire store lock: {0}", err),
             })?
-            .insert(hash, b);
+            .insert(hash.to_owned(), b);
         Ok(len)
     }
 }

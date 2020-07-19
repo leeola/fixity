@@ -1,12 +1,16 @@
 use {
-    crate::{storage::Storage, Addr, Error, Result, Store},
+    crate::{storage::Storage, Addr, BytesLayerPart, BytesHeader, BytesPart, Error, Result, Store},
     fastcdc::Chunk,
     multibase::Base,
-    std::io::{Read, Write},
+    std::{
+        io::{Read, Write},
+        mem,
+    },
 };
 pub const CDC_MIN: usize = 1024 * 16;
 pub const CDC_AVG: usize = 1024 * 32;
 pub const CDC_MAX: usize = 1024 * 64;
+const MAX_ADDRS: usize = u8::MAX as usize;
 pub struct Fixity<S> {
     storage: S,
     cdc_min: usize,
@@ -28,14 +32,14 @@ where
         // to test it. Ideally we want multihash prefix suppport.
         let hash = <[u8; 32]>::from(blake3::hash(&chunk));
         let addr = multibase::encode(Base::Base58Btc, &chunk);
-        let size = self.storage.write(&addr, &chunk)?;
+        let size = self.storage.write(&addr, &mut chunk)?;
         if size != chunk.len() {
             return Err(Error::IncompleteWrite {
                 got: size,
                 expected: chunk.len(),
             });
         }
-        todo!()
+        Ok(addr.into())
     }
     fn put(&self, r: &mut dyn Read) -> Result<Addr> {
         let mut b = Vec::new();
@@ -46,16 +50,42 @@ where
         // TODO: use chunked streaming once this [1] is fixed/merged:
         // [1]: https://github.com/nlfiedler/fastcdc-rs/issues/3
         let chunker = fastcdc::FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
-        for Chunk { offset, length } in chunker {
+        let mut first_part = None;
+        let mut bytes_count;
+        let mut blob_count;
+        let mut parts_bytes_count;
+        let mut part_bytes_count;
+        let mut layer = Vec::new();
+        let mut parts = Vec::new();
+        let mut blobs = Vec::new();
+        let mut layer = 1;
+        let mut blob_layer_limit = MAX_ADDRS.pow(layer);
+        for (i, Chunk { offset, length }) in chunker.enumerate() {
+            blob_count += 1;
+            part_bytes_count += length;
             let chunk = &b[offset..offset + length];
-            // TODO: integrate blake3 into multihash repo, but using blake3 for now
-            // to test it. Ideally we want multihash prefix suppport.
-            let hash = <[u8; 32]>::from(blake3::hash(chunk));
-            let addr = multibase::encode(Base::Base58Btc, chunk);
-            log::trace!("chunk addr:{}, offset:{}, size:{}", addr, offset, length);
-            addrs_w.write_all(addr.as_bytes())?;
+            let addr = self.put_chunk(&chunk)?;
+            log::trace!(
+                "chunk#{} addr:{:?}, offset:{}, size:{}",
+                i,
+                addr,
+                offset,
+                length
+            );
+            blobs.push(addr);
+            if blobs.len() == MAX_ADDRS {
+                parts_bytes_count += part_bytes_count;
+                parts.push(BytesPart {
+                    bytes_count: part_bytes_count,
+                    blobs,
+                })
+                if blobs_count  == MAX_ADDRS.pow(
+            if parts.len() == MAX_ADDRS {
+
+            }
+            }
         }
-        Ok(len)
+        todo!()
     }
 }
 pub struct Builder<S> {

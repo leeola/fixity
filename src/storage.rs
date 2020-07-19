@@ -27,8 +27,13 @@ pub trait StorageRead {
     }
 }
 pub trait StorageWrite {
-    fn write<S>(&self, hash: &String, r: &mut dyn Read) -> Result<usize, Error>;
-    fn write_string(&self, hash: &String, s: String) -> Result<usize, Error> {
+    fn write<S>(&self, hash: S, r: &mut dyn Read) -> Result<usize, Error>
+    where
+        S: AsRef<str>;
+    fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
+    where
+        S: AsRef<str>,
+    {
         let mut b = s.as_bytes();
         let len = b.len();
         self.write(hash, &mut b)?;

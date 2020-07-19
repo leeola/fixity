@@ -14,7 +14,13 @@ pub struct Id {
     pub rand: String,
     pub signature: String,
 }
+#[derive(Debug)]
 pub struct Addr(String);
+impl From<String> for Addr {
+    fn from(hash: String) -> Self {
+        Self(hash)
+    }
+}
 pub struct Claim {
     pub commit: Commit,
     pub signature: String,
@@ -37,17 +43,26 @@ pub enum ContentType {
     Json,
     User(String),
 }
+#[derive(Debug, Default)]
 pub struct BytesHeader {
     pub content_type: ContentType,
     pub metadata: Option<()>,
     pub bytes_count: usize,
     pub parts_count: usize,
     pub blobs_count: usize,
-    pub first_part: Addr,
+    // pub first_part: BytesLayer,
 }
+pub enum BytesLayer {
+    Blobs(Vec<Addr>),
+    Parts(Vec<Addr>),
+}
+#[derive(Debug, Default)]
 pub struct BytesPart {
-    pub part_bytes_count: usize,
-    pub part_chunks_count: u16,
+    pub bytes_count: usize,
     pub blobs: Vec<Addr>,
-    pub next_part: Option<Addr>,
+}
+#[derive(Debug, Default)]
+pub struct BytesLayerPart {
+    pub bytes_count: usize,
+    pub parts: Vec<Addr>,
 }
