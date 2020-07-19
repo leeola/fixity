@@ -1,8 +1,5 @@
 use {
-    crate::{
-        error::StoreError as Error,
-        store::{StoreRead, StoreWrite},
-    },
+    super::{Error, StorageRead, StorageWrite},
     std::{
         collections::HashMap,
         io::{Read, Write},
@@ -16,14 +13,13 @@ impl Memory {
         Self::default()
     }
 }
-impl StoreRead for Memory {
+impl StorageRead for Memory {
     fn read<S>(&self, hash: S, w: &mut dyn Write) -> Result<(), Error>
     where
         S: AsRef<str>,
     {
         let hash = hash.as_ref();
-        let store = self.0.lock().map_err(|err| Error::Storage {
-            hash: hash.into(),
+        let store = self.0.lock().map_err(|err| Error::Unhandled {
             message: format!("unable to acquire store lock: {0}", err),
         })?;
         let r: &Vec<u8> = store.get(hash).ok_or_else(|| Error::NotFound {
@@ -33,7 +29,7 @@ impl StoreRead for Memory {
         Ok(())
     }
 }
-impl StoreWrite for Memory {
+impl StorageWrite for Memory {
     fn write(&self, hash: String, r: &mut dyn Read) -> Result<usize, Error> {
         let mut b = Vec::new();
         r.read_to_end(&mut b).map_err(|err| Error::Io {
@@ -43,8 +39,7 @@ impl StoreWrite for Memory {
         let len = b.len();
         self.0
             .lock()
-            .map_err(|err| Error::Storage {
-                hash: hash.clone(),
+            .map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire store lock: {0}", err),
             })?
             .insert(hash, b);
