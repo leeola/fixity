@@ -43,26 +43,27 @@ pub enum ContentType {
     Json,
     User(String),
 }
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BytesHeader {
     pub content_type: ContentType,
     pub metadata: Option<()>,
     pub bytes_count: usize,
     pub parts_count: usize,
     pub blobs_count: usize,
-    // pub first_part: BytesLayer,
+    // pub addrs: BytesAddrs,
 }
-pub enum BytesLayer {
+#[derive(Debug)]
+pub enum BytesAddrs {
     Blobs(Vec<Addr>),
     Parts(Vec<Addr>),
 }
 #[derive(Debug, Default)]
-pub struct BytesPart {
+pub struct BytesBlobs {
     pub bytes_count: usize,
     pub blobs: Vec<Addr>,
 }
-#[derive(Debug, Default)]
-pub struct BytesLayerPart {
+#[derive(Debug)]
+pub struct BytesPart {
     pub bytes_count: usize,
-    pub parts: Vec<Addr>,
+    pub addrs: BytesAddrs,
 }

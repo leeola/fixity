@@ -1,5 +1,5 @@
 use {
-    crate::{storage::Storage, Addr, BytesLayerPart, BytesHeader, BytesPart, Error, Result, Store},
+    crate::{storage::Storage, Addr, BytesLayerPart, BytesHeader, BytesPart, Error, Result, Store, Addr},
     fastcdc::Chunk,
     multibase::Base,
     std::{
@@ -79,7 +79,6 @@ where
                     bytes_count: part_bytes_count,
                     blobs,
                 })
-                if blobs_count  == MAX_ADDRS.pow(
             if parts.len() == MAX_ADDRS {
 
             }
@@ -88,6 +87,17 @@ where
         todo!()
     }
 }
+fn part(&self, b: &[u8], chunks: Iter) -> Result<BytesPart> {
+    chunks.take_n(MAX_ADDRS).map(|Chunk{offset, length}| {
+            let chunk = &b[offset..offset + length];
+            let addr = self.put_chunk(&chunk)?;
+(length, addr)
+    }).fold((0,Vec<Addr>), |(part_bytes_count, mut addrs), (blob_bytes_count, addr)| {
+        addrs.push(addr);
+(part_bytes_count+blob_bytes_count, addrs)
+    });
+}
+fn layer(&self, b: &[u8], chunks: Iter) -> Result<BytesLayerPart>
 pub struct Builder<S> {
     storage: Option<S>,
 }
