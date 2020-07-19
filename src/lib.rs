@@ -6,6 +6,7 @@ pub mod store;
 pub use {
     self::fixity::Fixity,
     error::{Error, Result},
+    storage::Storage,
     store::Store,
 };
 

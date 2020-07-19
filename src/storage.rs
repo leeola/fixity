@@ -2,6 +2,7 @@ pub mod memory;
 pub use memory::Memory;
 use std::io::{self, BufWriter, Read, Write};
 pub trait Storage: StorageRead + StorageWrite {}
+impl<T> Storage for T where T: StorageRead + StorageWrite {}
 pub trait StorageRead {
     fn read<S>(&self, hash: S, w: &mut dyn Write) -> Result<(), Error>
     where
@@ -26,8 +27,8 @@ pub trait StorageRead {
     }
 }
 pub trait StorageWrite {
-    fn write(&self, hash: String, r: &mut dyn Read) -> Result<usize, Error>;
-    fn write_string(&self, hash: String, s: String) -> Result<usize, Error> {
+    fn write<S>(&self, hash: &String, r: &mut dyn Read) -> Result<usize, Error>;
+    fn write_string(&self, hash: &String, s: String) -> Result<usize, Error> {
         let mut b = s.as_bytes();
         let len = b.len();
         self.write(hash, &mut b)?;
