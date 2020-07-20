@@ -54,7 +54,14 @@ pub struct BytesHeader {
     pub bytes_count: usize,
     pub parts_count: usize,
     pub blobs_count: usize,
-    // pub addrs: BytesAddrs,
+    pub primary_nodes: Vec<ContentAddr>,
+    pub root_node: ContentThing,
+}
+#[derive(Debug)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+pub enum ContentAddr {
+    Bytes(Addr),
+    Node(Addr),
 }
 #[derive(Debug)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]

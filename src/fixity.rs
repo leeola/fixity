@@ -33,14 +33,20 @@ where
     fn recursive_tree(
         &self,
         depth: usize,
+        init_child: Option<BytesPart>,
         data: &[u8],
         iter: &mut impl Iterator<Item = Chunk>,
     ) -> Result<BytesPart> {
         if depth > 0 {
             let mut bytes_count = 0;
             let mut addrs = Vec::with_capacity(self.branch_width);
-            for _ in 0..self.branch_width {
-                let part = self.recursive_tree(depth - 1, data, iter)?;
+            if let Some(init_child) = init_child {
+                bytes_count += init_child.bytes_count;
+                let addr = self.put(&init_child)?;
+                addrs.push(addr);
+            }
+            for _ in addrs.len()..self.branch_width {
+                let part = self.recursive_tree(depth - 1, None, data, iter)?;
                 if part.addrs.is_empty() {
                     break;
                 }
@@ -72,6 +78,19 @@ where
             bytes_count: bytes_count as u64,
             addrs: BytesAddrs::Blobs(leafs),
         })
+    }
+    fn foo(&self, data: &[u8], iter: &mut impl Iterator<Item = Chunk>) -> Result<BytesPart> {
+        let depth = 0;
+        let child = None;
+        loop {
+            let node = self.recursive_tree(depth, child, data, iter)?;
+            if node.addrs.len() == self.branch_width {
+                break Ok(node);
+            } else {
+                child = Some(node);
+                depth += 1;
+            }
+        }
     }
     fn branch(&self, data: &[u8], iter: &mut impl Iterator<Item = Chunk>) -> Result<BytesPart> {
         let mut bytes_count = 0;
