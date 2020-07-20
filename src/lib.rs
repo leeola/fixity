@@ -48,20 +48,38 @@ pub enum ContentType {
     User(String),
 }
 #[derive(Debug)]
-pub struct BytesHeader {
+pub struct ContentHeader {
     pub content_type: ContentType,
     pub metadata: Option<()>,
-    pub bytes_count: usize,
-    pub parts_count: usize,
-    pub blobs_count: usize,
-    pub primary_nodes: Vec<ContentAddr>,
-    pub root_node: ContentThing,
+    pub size: usize,
+    pub nodes_count: usize,
+    pub chunks_count: usize,
+    pub primary_nodes: Vec<Addr>,
+    pub root_node: ContentNode,
 }
 #[derive(Debug)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-pub enum ContentAddr {
-    Bytes(Addr),
-    Node(Addr),
+pub struct ContentNode {
+    pub size: u64,
+    pub children: ContentAddrs,
+}
+#[derive(Debug)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+pub enum ContentAddrs {
+    Chunks(Vec<Addr>),
+    Nodes(Vec<Addr>),
+}
+impl ContentAddrs {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Chunks(v) | Self::Nodes(v) => v.len(),
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Chunks(v) | Self::Nodes(v) => v.is_empty(),
+        }
+    }
 }
 #[derive(Debug)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
