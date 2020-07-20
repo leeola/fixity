@@ -85,10 +85,10 @@ where
         loop {
             let node = self.recursive_tree(depth, child, data, iter)?;
             if node.addrs.len() == self.branch_width {
-                break Ok(node);
-            } else {
                 child = Some(node);
                 depth += 1;
+            } else {
+                break Ok(node);
             }
         }
     }
