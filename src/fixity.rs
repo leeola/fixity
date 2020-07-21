@@ -1,7 +1,7 @@
 use {
     crate::{
-        storage::Storage, store::StoreBorsh, Addr, Addr, BytesAddrs, BytesBlobs, BytesHeader,
-        BytesNode, BytesPart, Error, Result, Store,
+        hash_tree, storage::Storage, store::StoreBorsh, Addr, Addr, ContentAddrs, ContentHeader,
+        ContentNode, Error, Result, Store,
     },
     fastcdc::Chunk,
     multibase::Base,
@@ -30,7 +30,8 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    fn recursive_tree(
+    /*
+    fn store_(
         &self,
         depth: usize,
         init_child: Option<BytesPart>,
@@ -127,6 +128,7 @@ where
             blobs,
         })
     }
+    */
     fn put_chunk(&self, chunk: &dyn AsRef<[u8]>) -> Result<Addr> {
         let chunk = chunk.as_ref();
         // TODO: integrate blake3 into multihash repo, but using blake3 for now
@@ -148,14 +150,15 @@ where
     S: Storage,
 {
     fn put_read(&self, r: &dyn Read) -> Result<Addr> {
-        // let mut b = Vec::new();
-        // // I don't think len can ever differ from the Vec len..?
-        // let _ = r
-        //     .read_to_end(&mut b)
-        //     .map_err(|err| Error::IoInputRead { err })?;
-        // // TODO: use chunked streaming once this [1] is fixed/merged:
-        // // [1]: https://github.com/nlfiedler/fastcdc-rs/issues/3
-        // let chunker = fastcdc::FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
+        let mut b = Vec::new();
+        // I don't think len can ever differ from the Vec len..?
+        let _ = r
+            .read_to_end(&mut b)
+            .map_err(|err| Error::IoInputRead { err })?;
+        // TODO: use chunked streaming once this [1] is fixed/merged:
+        // [1]: https://github.com/nlfiedler/fastcdc-rs/issues/3
+        let chunker = fastcdc::FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
+
         // let mut first_part = None;
         // let mut bytes_count;
         // let mut blob_count;

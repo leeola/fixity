@@ -1,5 +1,6 @@
 pub mod error;
 pub mod fixity;
+mod hash_tree;
 pub mod storage;
 pub mod store;
 
@@ -60,7 +61,6 @@ pub struct ContentHeader {
 #[derive(Debug)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct ContentNode {
-    pub size: u64,
     pub children: ContentAddrs,
 }
 #[derive(Debug)]
@@ -80,38 +80,4 @@ impl ContentAddrs {
             Self::Chunks(v) | Self::Nodes(v) => v.is_empty(),
         }
     }
-}
-#[derive(Debug)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-pub enum BytesAddrs {
-    Blobs(Vec<Addr>),
-    Parts(Vec<Addr>),
-}
-impl BytesAddrs {
-    pub fn len(&self) -> usize {
-        match self {
-            Self::Blobs(v) | Self::Parts(v) => v.len(),
-        }
-    }
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Blobs(v) | Self::Parts(v) => v.is_empty(),
-        }
-    }
-}
-pub enum BytesNode {
-    Blobs(BytesBlobs),
-    Part(BytesPart),
-}
-#[derive(Debug, Default)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-pub struct BytesBlobs {
-    pub bytes_count: u64,
-    pub blobs: Vec<Addr>,
-}
-#[derive(Debug)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-pub struct BytesPart {
-    pub bytes_count: u64,
-    pub addrs: BytesAddrs,
 }
