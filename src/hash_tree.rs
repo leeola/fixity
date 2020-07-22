@@ -16,13 +16,14 @@ impl HashTree {
         }
     }
     pub fn push<A: Into<Addr>>(hash: A) -> Option<ContentNode> {
-        // let hash = Addr::from(hash);
-        // self.root_node.push(hash);
+        let hash = Addr::from(hash);
+        let (expand, content_node) = self.root_node.push(hash);
+
         todo!()
     }
 }
 #[derive(Debug)]
-pub struct Node {
+struct Node {
     depth: usize,
     max_hashes: usize,
     hashes: Vec<Addr>,
@@ -39,45 +40,56 @@ impl Node {
             state: NodeState::ReceiveHash,
         }
     }
-    pub fn into_parent(self) -> Self {
-        todo!()
+    pub fn expand(&mut self) {
+        self.depth += 1;
+        if let Some(child) = self.child.as_mut() {
+            child.expand();
+        } else {
+            self.child = Some(Node::new(self.max_hashes, None));
+        }
     }
-    pub fn push(&mut self, hash: Addr) -> Option<ContentNode> {
+    pub fn push(&mut self, hash: Addr) -> (bool, Option<ContentNode>) {
         match (self.depth, self.state) {
             (0, NodeState::ReceiveHash) => {
                 self.hashes.push(hash);
                 if self.hashes.len() == self.max_hashes {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
-                    return Some(ContentNode {
-                        children: ContentAddrs::Chunks(hashes),
-                    });
+                    return (
+                        true,
+                        Some(ContentNode {
+                            children: ContentAddrs::Chunks(hashes),
+                        }),
+                    );
                 }
-                return None;
+                return (false, None);
             }
             (_, NodeState::ReceiveHash) => {
                 self.state = NodeState::ProxyHash;
                 self.hashes.push(hash);
                 if self.hashes.len() == self.max_hashes {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
-                    return Some(ContentNode {
-                        children: ContentAddrs::Nodes(hashes),
-                    });
+                    return (
+                        false,
+                        Some(ContentNode {
+                            children: ContentAddrs::Nodes(hashes),
+                        }),
+                    );
                 }
-                return None;
+                return (false, None);
             }
             (0, NodeState::ProxyHash) => unreachable!(),
             (_, NodeState::ProxyHash) => {
                 let child = self.child.as_mut().expect("proxy missing child");
-                let hashes = child.push(hash);
+                let (_, hashes) = child.push(hash);
                 if hashes.is_some() {
                     self.state = NodeState::ReceiveHash;
                 }
+                return (false, None);
             }
         }
-        todo!()
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum NodeState {
     ReceiveHash,
     ProxyHash,
