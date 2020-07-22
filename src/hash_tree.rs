@@ -15,11 +15,20 @@ impl HashTree {
             root_node: Node::new(max_hashes, None),
         }
     }
-    pub fn push<A: Into<Addr>>(hash: A) -> Option<ContentNode> {
+    pub fn push<A: Into<Addr>>(self, hash: A) -> (Self, Option<ContentNode>) {
         let hash = Addr::from(hash);
         let (expand, content_node) = self.root_node.push(hash);
-
-        todo!()
+        if expand {
+            let Self {
+                mut depth,
+                root_node,
+            } = self;
+            depth += 1;
+            let root_node = Node::new(depth, max_hashes, root_node);
+            (Self { depth, root_node }, content_node)
+        } else {
+            (self, content_node)
+        }
     }
 }
 #[derive(Debug)]
@@ -31,21 +40,13 @@ struct Node {
     state: NodeState,
 }
 impl Node {
-    pub fn new(max_hashes: usize, child: Option<Node>) -> Self {
+    pub fn new(depth: usize, max_hashes: usize, child: Option<Node>) -> Self {
         Self {
-            depth: 0,
+            depth,
             max_hashes,
             child: child.map(Box::new),
             hashes: Vec::new(),
             state: NodeState::ReceiveHash,
-        }
-    }
-    pub fn expand(&mut self) {
-        self.depth += 1;
-        if let Some(child) = self.child.as_mut() {
-            child.expand();
-        } else {
-            self.child = Some(Node::new(self.max_hashes, None));
         }
     }
     pub fn push(&mut self, hash: Addr) -> (bool, Option<ContentNode>) {
