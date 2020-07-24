@@ -6,13 +6,16 @@ use {
 #[derive(Debug)]
 pub struct HashTree {
     depth: usize,
+    max_hashes,
     root_node: Node,
 }
 impl HashTree {
     pub fn new(max_hashes: usize) -> Self {
+        let depth = 0;
         Self {
-            depth: 0,
-            root_node: Node::new(max_hashes, None),
+            depth,
+            max_hashes,
+            root_node: Node::new(depth, max_hashes, None),
         }
     }
     pub fn push<A: Into<Addr>>(self, hash: A) -> (Self, Option<ContentNode>) {
@@ -24,7 +27,7 @@ impl HashTree {
                 root_node,
             } = self;
             depth += 1;
-            let root_node = Node::new(depth, max_hashes, root_node);
+            let root_node = Node::new(depth, max_hashes, Some(root_node));
             (Self { depth, root_node }, content_node)
         } else {
             (self, content_node)
@@ -49,43 +52,45 @@ impl Node {
             state: NodeState::ReceiveHash,
         }
     }
-    pub fn push(&mut self, hash: Addr) -> (bool, Option<ContentNode>) {
-        match (self.depth, self.state) {
-            (0, NodeState::ReceiveHash) => {
+    pub fn push(&mut self, hash: Addr) -> (usize, Option<ContentNode>) {
+        match (self.state, self.child.as_mut()) {
+            (NodeState::ReceiveHash, None) => {
                 self.hashes.push(hash);
                 if self.hashes.len() == self.max_hashes {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
                     return (
-                        true,
+                        self.depth,
                         Some(ContentNode {
                             children: ContentAddrs::Chunks(hashes),
                         }),
                     );
                 }
-                return (false, None);
+                return (self.depth, None);
             }
-            (_, NodeState::ReceiveHash) => {
+            (NodeState::ReceiveHash, Some(_)) => {
                 self.state = NodeState::ProxyHash;
                 self.hashes.push(hash);
                 if self.hashes.len() == self.max_hashes {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
                     return (
-                        false,
+                        self.depth,
                         Some(ContentNode {
                             children: ContentAddrs::Nodes(hashes),
                         }),
                     );
                 }
-                return (false, None);
+                return (self.depth, None);
             }
-            (0, NodeState::ProxyHash) => unreachable!(),
-            (_, NodeState::ProxyHash) => {
-                let child = self.child.as_mut().expect("proxy missing child");
-                let (_, hashes) = child.push(hash);
-                if hashes.is_some() {
+            (NodeState::ProxyHash, None) => unreachable!(),
+            (NodeState::ProxyHash, Some(child)) => {
+                let (depth, content_node) = child.push(hash);
+                // if the child directly below this node finished a node, this
+                // node needs to receive the next hash.
+                if content_node.is_some() &&
+                depth == self.depth-1 {
                     self.state = NodeState::ReceiveHash;
                 }
-                return (false, None);
+                return (depth, content_node);
             }
         }
     }
