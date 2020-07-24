@@ -6,7 +6,7 @@ use {
 #[derive(Debug)]
 pub struct HashTree {
     depth: usize,
-    max_hashes,
+    max_hashes: usize,
     root_node: Node,
 }
 impl HashTree {
@@ -18,17 +18,24 @@ impl HashTree {
             root_node: Node::new(depth, max_hashes, None),
         }
     }
-    pub fn push<A: Into<Addr>>(self, hash: A) -> (Self, Option<ContentNode>) {
-        let hash = Addr::from(hash);
-        let (expand, content_node) = self.root_node.push(hash);
-        if expand {
+    pub fn push<A: Into<Addr>>(mut self, hash: A) -> (Self, Option<ContentNode>) {
+        let (child_depth, content_node) = self.root_node.push(hash.into());
+        if child_depth == self.depth {
             let Self {
                 mut depth,
+                max_hashes,
                 root_node,
             } = self;
             depth += 1;
             let root_node = Node::new(depth, max_hashes, Some(root_node));
-            (Self { depth, root_node }, content_node)
+            (
+                Self {
+                    depth,
+                    max_hashes,
+                    root_node,
+                },
+                content_node,
+            )
         } else {
             (self, content_node)
         }
@@ -86,8 +93,7 @@ impl Node {
                 let (depth, content_node) = child.push(hash);
                 // if the child directly below this node finished a node, this
                 // node needs to receive the next hash.
-                if content_node.is_some() &&
-                depth == self.depth-1 {
+                if content_node.is_some() && depth == self.depth - 1 {
                     self.state = NodeState::ReceiveHash;
                 }
                 return (depth, content_node);
