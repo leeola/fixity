@@ -250,8 +250,7 @@ pub mod test {
             .with_storage(Memory::default())
             .build()
             .unwrap();
-        let mut hashes = Vec::new();
-        fixi.put(&mut "foobarbaz".as_bytes(), &mut hashes).unwrap();
-        dbg!(String::from_utf8(hashes).unwrap());
+        let hash = fixi.put_read(&mut "foobarbaz".as_bytes()).unwrap();
+        dbg!(hash);
     }
 }

@@ -17,12 +17,17 @@ pub struct Id {
     pub rand: String,
     pub signature: String,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct Addr(String);
 impl From<String> for Addr {
     fn from(hash: String) -> Self {
         Self(hash)
+    }
+}
+impl From<&str> for Addr {
+    fn from(hash: &str) -> Self {
+        hash.to_owned().into()
     }
 }
 pub struct Claim {
@@ -58,12 +63,12 @@ pub struct ContentHeader {
     pub primary_nodes: Vec<Addr>,
     pub root_node: ContentNode,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct ContentNode {
     pub children: ContentAddrs,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub enum ContentAddrs {
     Chunks(Vec<Addr>),

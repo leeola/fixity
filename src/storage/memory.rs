@@ -58,7 +58,7 @@ pub mod test {
         let mem = Memory::default();
         let key = "foo";
         let io_in = "bar".to_owned();
-        mem.write_string(key.into(), io_in.clone()).unwrap();
+        mem.write_string(key, io_in.clone()).unwrap();
         let io_out = mem.read_string(key).unwrap();
         assert_eq!(io_out, io_in);
     }

@@ -6,16 +6,16 @@ use {
 #[derive(Debug)]
 pub struct HashTree {
     depth: usize,
-    max_hashes: usize,
+    width: usize,
     root_node: Node,
 }
 impl HashTree {
-    pub fn new(max_hashes: usize) -> Self {
+    pub fn new(width: usize) -> Self {
         let depth = 0;
         Self {
             depth,
-            max_hashes,
-            root_node: Node::new(depth, max_hashes, None),
+            width,
+            root_node: Node::new(depth, width, None),
         }
     }
     pub fn push<A: Into<Addr>>(mut self, hash: A) -> (Self, Option<ContentNode>) {
@@ -23,15 +23,15 @@ impl HashTree {
         if child_depth == self.depth {
             let Self {
                 mut depth,
-                max_hashes,
+                width,
                 root_node,
             } = self;
             depth += 1;
-            let root_node = Node::new(depth, max_hashes, Some(root_node));
+            let root_node = Node::new(depth, width, Some(root_node));
             (
                 Self {
                     depth,
-                    max_hashes,
+                    width,
                     root_node,
                 },
                 content_node,
@@ -44,16 +44,16 @@ impl HashTree {
 #[derive(Debug)]
 struct Node {
     depth: usize,
-    max_hashes: usize,
+    width: usize,
     hashes: Vec<Addr>,
     child: Option<Box<Node>>,
     state: NodeState,
 }
 impl Node {
-    pub fn new(depth: usize, max_hashes: usize, child: Option<Node>) -> Self {
+    pub fn new(depth: usize, width: usize, child: Option<Node>) -> Self {
         Self {
             depth,
-            max_hashes,
+            width,
             child: child.map(Box::new),
             hashes: Vec::new(),
             state: NodeState::ReceiveHash,
@@ -63,7 +63,7 @@ impl Node {
         match (self.state, self.child.as_mut()) {
             (NodeState::ReceiveHash, None) => {
                 self.hashes.push(hash);
-                if self.hashes.len() == self.max_hashes {
+                if self.hashes.len() == self.width {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
                     return (
                         self.depth,
@@ -77,7 +77,7 @@ impl Node {
             (NodeState::ReceiveHash, Some(_)) => {
                 self.state = NodeState::ProxyHash;
                 self.hashes.push(hash);
-                if self.hashes.len() == self.max_hashes {
+                if self.hashes.len() == self.width {
                     let hashes = mem::replace(&mut self.hashes, Vec::new());
                     return (
                         self.depth,
@@ -105,4 +105,31 @@ impl Node {
 enum NodeState {
     ReceiveHash,
     ProxyHash,
+}
+#[cfg(test)]
+pub mod test {
+    use {
+        super::*,
+        crate::storage::{Memory, StorageRead, StorageWrite},
+    };
+    macro_rules! assert_eq_push {
+        ($push_ret:expr, $expect_node:expr) => {{
+            let (tree, node) = $push_ret;
+            assert_eq!(node, $expect_node);
+            tree
+        }};
+    }
+    #[test]
+    fn small_writes() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+
+        let tree = HashTree::new(2);
+        let tree = assert_eq_push!(tree.push("foo"), None);
+        let tree = assert_eq_push!(tree.push("foo"), None);
+    }
 }
