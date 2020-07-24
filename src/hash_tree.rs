@@ -20,7 +20,7 @@ impl HashTree {
     }
     pub fn push<A: Into<Addr>>(mut self, hash: A) -> (Self, Option<ContentNode>) {
         let (child_depth, content_node) = self.root_node.push(hash.into());
-        if child_depth == self.depth {
+        if content_node.is_some() && child_depth == self.depth {
             let Self {
                 mut depth,
                 width,
@@ -40,6 +40,10 @@ impl HashTree {
             (self, content_node)
         }
     }
+    #[cfg(test)]
+    fn calculate_depth(&self) -> (usize, usize) {
+        (self.depth, self.root_node.calculate_depth())
+    }
 }
 #[derive(Debug)]
 struct Node {
@@ -58,6 +62,13 @@ impl Node {
             hashes: Vec::new(),
             state: NodeState::ReceiveHash,
         }
+    }
+    #[cfg(test)]
+    fn calculate_depth(&self) -> usize {
+        self.child
+            .as_ref()
+            .map(|child| child.calculate_depth() + 1)
+            .unwrap_or_default()
     }
     pub fn push(&mut self, hash: Addr) -> (usize, Option<ContentNode>) {
         match (self.state, self.child.as_mut()) {
@@ -112,12 +123,29 @@ pub mod test {
         super::*,
         crate::storage::{Memory, StorageRead, StorageWrite},
     };
-    macro_rules! assert_eq_push {
-        ($push_ret:expr, $expect_node:expr) => {{
+    macro_rules! assert_push {
+        ($push_ret:expr, $depth:expr, $expect_addrs:expr) => {{
             let (tree, node) = $push_ret;
-            assert_eq!(node, $expect_node);
+            assert_eq!(node, $expect_addrs.map(|children| ContentNode { children }));
+            assert_eq!(
+                tree.calculate_depth(),
+                ($depth, $depth),
+                "unexpected tree depth"
+            );
             tree
         }};
+    }
+    fn chunks<T>(addrs: Vec<T>) -> Option<ContentAddrs>
+    where
+        T: Into<Addr>,
+    {
+        Some(ContentAddrs::chunks_from(addrs))
+    }
+    fn nodes<T>(addrs: Vec<T>) -> Option<ContentAddrs>
+    where
+        T: Into<Addr>,
+    {
+        Some(ContentAddrs::nodes_from(addrs))
     }
     #[test]
     fn small_writes() {
@@ -129,7 +157,13 @@ pub mod test {
         let _ = env_builder.try_init();
 
         let tree = HashTree::new(2);
-        let tree = assert_eq_push!(tree.push("foo"), None);
-        let tree = assert_eq_push!(tree.push("foo"), None);
+        assert_eq!(tree.calculate_depth(), (0, 0));
+        let tree = assert_push!(tree.push("foo"), 0, None);
+        let tree = assert_push!(tree.push("bar"), 1, chunks(vec!["foo", "bar"]));
+        let tree = assert_push!(tree.push("foobar"), 1, None);
+        let tree = assert_push!(tree.push("bfoo"), 1, None);
+        let tree = assert_push!(tree.push("bbar"), 2, chunks(vec!["bfoo", "bbar"]));
+        let tree = assert_push!(tree.push("cfoo"), 2, None);
+        dbg!(&tree);
     }
 }

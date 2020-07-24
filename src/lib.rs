@@ -75,6 +75,18 @@ pub enum ContentAddrs {
     Nodes(Vec<Addr>),
 }
 impl ContentAddrs {
+    pub fn chunks_from<T>(addrs: Vec<T>) -> Self
+    where
+        T: Into<Addr>,
+    {
+        Self::Chunks(addrs.into_iter().map(|t| t.into()).collect())
+    }
+    pub fn nodes_from<T>(addrs: Vec<T>) -> Self
+    where
+        T: Into<Addr>,
+    {
+        Self::Nodes(addrs.into_iter().map(|t| t.into()).collect())
+    }
     pub fn len(&self) -> usize {
         match self {
             Self::Chunks(v) | Self::Nodes(v) => v.len(),
