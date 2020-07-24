@@ -1,6 +1,6 @@
 use {
     crate::{
-        hash_tree, storage::Storage, store::StoreBorsh, Addr, Addr, ContentAddrs, ContentHeader,
+        hash_tree, storage::Storage, store::StoreBorsh, Addr, ContentAddrs, ContentHeader,
         ContentNode, Error, Result, Store,
     },
     fastcdc::Chunk,
@@ -130,7 +130,7 @@ where
     }
     */
     fn put_chunk(&self, chunk: &dyn AsRef<[u8]>) -> Result<Addr> {
-        let chunk = chunk.as_ref();
+        let mut chunk = chunk.as_ref();
         // TODO: integrate blake3 into multihash repo, but using blake3 for now
         // to test it. Ideally we want multihash prefix suppport.
         let hash = <[u8; 32]>::from(blake3::hash(&chunk));
@@ -149,7 +149,7 @@ impl<S> Store for Fixity<S>
 where
     S: Storage,
 {
-    fn put_read(&self, r: &dyn Read) -> Result<Addr> {
+    fn put_read(&self, r: &mut dyn Read) -> Result<Addr> {
         let mut b = Vec::new();
         // I don't think len can ever differ from the Vec len..?
         let _ = r

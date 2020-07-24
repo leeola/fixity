@@ -5,7 +5,7 @@ use {
     std::io::{Read, Write},
 };
 pub trait Store {
-    fn put_read(&self, bytes: &dyn Read) -> Result<Addr>;
+    fn put_read(&self, bytes: &mut dyn Read) -> Result<Addr>;
     // fn new() -> Id;
     // fn push(content: T, id: Option<Id>) -> Result<Commit>;
     // fn clone() -> ();
