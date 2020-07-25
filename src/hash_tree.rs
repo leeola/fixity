@@ -124,14 +124,9 @@ pub mod test {
         crate::storage::{Memory, StorageRead, StorageWrite},
     };
     macro_rules! assert_push {
-        ($push_ret:expr, $depth:expr, $expect_addrs:expr) => {{
+        ($push_ret:expr, $expect_addrs:expr) => {{
             let (tree, node) = $push_ret;
             assert_eq!(node, $expect_addrs.map(|children| ContentNode { children }));
-            assert_eq!(
-                tree.calculate_depth(),
-                ($depth, $depth),
-                "unexpected tree depth"
-            );
             tree
         }};
     }
@@ -158,12 +153,47 @@ pub mod test {
 
         let tree = HashTree::new(2);
         assert_eq!(tree.calculate_depth(), (0, 0));
-        let tree = assert_push!(tree.push("foo"), 0, None);
-        let tree = assert_push!(tree.push("bar"), 1, chunks(vec!["foo", "bar"]));
-        let tree = assert_push!(tree.push("foobar"), 1, None);
-        let tree = assert_push!(tree.push("bfoo"), 1, None);
-        let tree = assert_push!(tree.push("bbar"), 2, chunks(vec!["bfoo", "bbar"]));
-        let tree = assert_push!(tree.push("cfoo"), 2, None);
-        dbg!(&tree);
+        let tree = assert_push!(tree.push("a"), None);
+        let tree = assert_push!(tree.push("b"), chunks(vec!["a", "b"]));
+        let tree = assert_push!(tree.push("ab"), None);
+
+        let tree = assert_push!(tree.push("c"), None);
+        let tree = assert_push!(tree.push("d"), chunks(vec!["c", "d"]));
+        let tree = assert_push!(tree.push("cd"), nodes(vec!["ab", "cd"]));
+        let tree = assert_push!(tree.push("depth 2 hash 1"), None);
+
+        let tree = assert_push!(tree.push("a"), None);
+        let tree = assert_push!(tree.push("b"), chunks(vec!["a", "b"]));
+        let tree = assert_push!(tree.push("ab"), None);
+        let tree = assert_push!(tree.push("c"), None);
+        let tree = assert_push!(tree.push("d"), chunks(vec!["c", "d"]));
+        let tree = assert_push!(tree.push("cd"), nodes(vec!["ab", "cd"]));
+        let tree = assert_push!(
+            tree.push("depth 2 hash 2"),
+            nodes(vec!["depth 2 hash 1", "depth 2 hash 2"])
+        );
+        let tree = assert_push!(tree.push("depth 3 hash 1"), None);
+
+        let tree = assert_push!(tree.push("a"), None);
+        let tree = assert_push!(tree.push("b"), chunks(vec!["a", "b"]));
+        let tree = assert_push!(tree.push("ab"), None);
+        let tree = assert_push!(tree.push("c"), None);
+        let tree = assert_push!(tree.push("d"), chunks(vec!["c", "d"]));
+        let tree = assert_push!(tree.push("cd"), nodes(vec!["ab", "cd"]));
+        let tree = assert_push!(tree.push("depth 2 hash 1"), None);
+        let tree = assert_push!(tree.push("a"), None);
+        let tree = assert_push!(tree.push("b"), chunks(vec!["a", "b"]));
+        let tree = assert_push!(tree.push("ab"), None);
+        let tree = assert_push!(tree.push("c"), None);
+        let tree = assert_push!(tree.push("d"), chunks(vec!["c", "d"]));
+        let tree = assert_push!(tree.push("cd"), nodes(vec!["ab", "cd"]));
+        let tree = assert_push!(
+            tree.push("depth 2 hash 2"),
+            nodes(vec!["depth 2 hash 1", "depth 2 hash 2"])
+        );
+        let tree = assert_push!(
+            tree.push("depth 3 hash 2"),
+            nodes(vec!["depth 3 hash 1", "depth 3 hash 2"])
+        );
     }
 }
