@@ -1,4 +1,7 @@
-use crate::storage::{Storage, StorageRead, StorageWrite};
+use {
+    crate::storage::{Storage, StorageRead, StorageWrite},
+    std::collections::HashMap,
+};
 pub enum Node {
     NodeRefs(Vec<NodeRef>),
     Values(Vec<Value>),
@@ -43,14 +46,21 @@ impl Prolly {
     {
         todo!()
     }
-    pub fn new_list(&mut self) -> List {
+    pub fn new_list(&mut self) -> List<T> {
         todo!()
     }
 }
-pub struct List {}
-impl List {
+pub struct List<T> {
+    len: usize,
+    // inserted: HashMap<usize, T>,
+    appended: Vec<T>,
+}
+impl<T> List<T> {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            len: usize,
+            appended: Vec::new(),
+        }
     }
     pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
     where
@@ -61,6 +71,35 @@ impl List {
     pub fn append<T>(&mut self, value: T)
     where
         T: Into<Value>,
+    {
+        todo!()
+    }
+}
+enum MapChange {
+    Insert((Key, Value)),
+    Remove(Key),
+}
+pub struct Map {
+    len: usize,
+    staged: Vec<MapChange>,
+}
+impl<K, V> Map<K, V> {
+    pub fn new() -> Self {
+        Self {
+            len: usize,
+            staged: Vec::new(),
+        }
+    }
+    pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
+    where
+        S: Storage,
+    {
+        todo!()
+    }
+    pub fn insert<T, U>(&mut self, k: T, v: U)
+    where
+        T: Into<Key>,
+        U: Into<Value>,
     {
         todo!()
     }
@@ -80,10 +119,10 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let s = Memory::new();
+        let storage = Memory::new();
         // let mut p = Prolly::new();
-        let mut l = List::new();
-        l.append(1);
-        dbg!(l.commit(&s).unwrap());
+        let mut m = Map::new();
+        m.insert(1, 10);
+        dbg!(m.commit(&storage).unwrap());
     }
 }
