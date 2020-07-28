@@ -1,9 +1,15 @@
 use {
-    crate::storage::{Storage, StorageRead, StorageWrite},
+    crate::{
+        storage::{Storage, StorageRead, StorageWrite},
+        Addr,
+    },
     std::collections::HashMap,
 };
+pub enum ValueType {
+    Usize,
+}
 pub enum Node {
-    NodeRefs(Vec<NodeRef>),
+    Nodes(Vec<NodeRef>),
     Values(Vec<Value>),
 }
 pub struct NodeRef {
@@ -15,10 +21,15 @@ pub struct NodeValue {
     value: Value,
 }
 pub enum Key {
-    Bool,
-    Int,
-    String,
-    Blob,
+    // Bool,
+    Usize(usize),
+    // String,
+    // Blob,
+}
+impl From<usize> for Key {
+    fn from(t: usize) -> Self {
+        Self::Usize(t)
+    }
 }
 pub enum Value {
     // Bool,
@@ -32,9 +43,6 @@ impl From<usize> for Value {
         Self::Usize(t)
     }
 }
-pub enum Ref {
-    // Blob(Vec<u8>),
-}
 pub struct Prolly {}
 impl Prolly {
     pub fn new() -> Self {
@@ -46,19 +54,19 @@ impl Prolly {
     {
         todo!()
     }
-    pub fn new_list(&mut self) -> List<T> {
-        todo!()
-    }
+    // pub fn new_list(&mut self) -> List<T> {
+    //     todo!()
+    // }
 }
-pub struct List<T> {
+pub struct List {
     len: usize,
     // inserted: HashMap<usize, T>,
-    appended: Vec<T>,
+    appended: Vec<Value>,
 }
-impl<T> List<T> {
+impl List {
     pub fn new() -> Self {
         Self {
-            len: usize,
+            len: 0,
             appended: Vec::new(),
         }
     }
@@ -75,41 +83,65 @@ impl<T> List<T> {
         todo!()
     }
 }
-enum MapChange {
-    Insert((Key, Value)),
-    Remove(Key),
+enum MapChange<K, V> {
+    Insert((K, V)),
+    Remove(K),
 }
-pub struct Map {
-    len: usize,
-    staged: Vec<MapChange>,
+pub mod types {
+    pub struct Usize(usize);
 }
-impl<K, V> Map<K, V> {
+pub struct StagedMap<K, V> {
+    changes: Vec<MapChange<K, V>>,
+}
+impl<K, V> StagedMap<K, V> {
     pub fn new() -> Self {
         Self {
-            len: usize,
-            staged: Vec::new(),
+            changes: Vec::new(),
         }
     }
-    pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
-    where
-        S: Storage,
-    {
-        todo!()
-    }
+    // pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
+    // where
+    //     S: Storage,
+    // {
+    //     todo!()
+    // }
     pub fn insert<T, U>(&mut self, k: T, v: U)
     where
-        T: Into<Key>,
-        U: Into<Value>,
+        T: Into<K>,
+        U: Into<V>,
+    {
+        self.changes.push(MapChange::Insert((k.into(), v.into())));
+    }
+}
+pub struct Ref<T>;
+pub enum NodeItem<K, V, T> {
+    Refs(Vec<(K, Ref<T>)>),
+    Values(Vec<(K, V)>),
+}
+pub struct Map<K, V> {
+    items: Vec<NodeItem<K, V, Map<K, V>>>,
+}
+impl<K, V> Map<K, V> {
+    // TODO: make the map generic.
+    pub fn new<S>(storage: &S, map: HashMap<K, V>) -> Self
+    where
+        S: StorageWrite,
+    {
+        Self { items: Vec::new() }
+    }
+    pub fn load<S>(storage: &S, map_ref: Ref<Map<K, V>>) -> Self
+    where
+        S: StorageWrite,
     {
         todo!()
     }
 }
-
 #[cfg(test)]
 pub mod test {
     use {
         super::*,
         crate::storage::{Memory, Storage, StorageRead, StorageWrite},
+        maplit::hashmap,
     };
     #[test]
     fn poc() {
@@ -121,8 +153,11 @@ pub mod test {
         let _ = env_builder.try_init();
         let storage = Memory::new();
         // let mut p = Prolly::new();
-        let mut m = Map::new();
-        m.insert(1, 10);
-        dbg!(m.commit(&storage).unwrap());
+        let mut m = Map::new(
+            &storage,
+            hashmap! {
+                1 => 10,
+            },
+        );
     }
 }
