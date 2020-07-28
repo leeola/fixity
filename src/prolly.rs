@@ -18,33 +18,72 @@ pub enum Key {
     Blob,
 }
 pub enum Value {
-    Bool,
-    Int,
-    String,
-    Blob,
-    Ref { key: Vec<u8>, addr: Vec<u8> },
+    // Bool,
+    Usize(usize),
+    // String,
+    // Blob,
+    // Ref { key: Vec<u8>, addr: Vec<u8> },
+}
+impl From<usize> for Value {
+    fn from(t: usize) -> Self {
+        Self::Usize(t)
+    }
 }
 pub enum Ref {
-    Blob(Vec<u8>),
+    // Blob(Vec<u8>),
 }
 pub struct Prolly {}
 impl Prolly {
     pub fn new() -> Self {
         Self {}
     }
-    pub fn flush<S>(&mut self, storage: S) -> Result<(), ()>
+    pub fn commit<S>(&mut self, storage: S) -> Result<(), ()>
     where
         S: Storage,
     {
         todo!()
     }
-    pub fn list(&mut self) -> List {
+    pub fn new_list(&mut self) -> List {
         todo!()
     }
 }
-struct List {}
+pub struct List {}
 impl List {
-    pub fn append(&mut self, value: Value) {
+    pub fn new() -> Self {
+        Self {}
+    }
+    pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
+    where
+        S: Storage,
+    {
         todo!()
+    }
+    pub fn append<T>(&mut self, value: T)
+    where
+        T: Into<Value>,
+    {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use {
+        super::*,
+        crate::storage::{Memory, Storage, StorageRead, StorageWrite},
+    };
+    #[test]
+    fn poc() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        let s = Memory::new();
+        // let mut p = Prolly::new();
+        let mut l = List::new();
+        l.append(1);
+        dbg!(l.commit(&s).unwrap());
     }
 }
