@@ -1,7 +1,9 @@
+#[cfg(feature = "serialize_borsh")]
+use store::StoreBorsh;
 use {
     crate::{
-        hash_tree, storage::Storage, store::StoreBorsh, Addr, ContentAddrs, ContentHeader,
-        ContentNode, Error, Result, Store,
+        hash_tree, storage::Storage, Addr, ContentAddrs, ContentHeader, ContentNode, Error, Result,
+        Store,
     },
     fastcdc::Chunk,
     multibase::Base,
