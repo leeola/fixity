@@ -70,12 +70,12 @@ impl List {
             appended: Vec::new(),
         }
     }
-    pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
-    where
-        S: Storage,
-    {
-        todo!()
-    }
+    // pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
+    // where
+    //     S: Storage,
+    // {
+    //     todo!()
+    // }
     pub fn append<T>(&mut self, value: T)
     where
         T: Into<Value>,
@@ -113,7 +113,7 @@ impl<K, V> StagedMap<K, V> {
         self.changes.push(MapChange::Insert((k.into(), v.into())));
     }
 }
-pub struct Ref<T>;
+pub struct Ref<T>(T);
 pub enum NodeItem<K, V, T> {
     Refs(Vec<(K, Ref<T>)>),
     Values(Vec<(K, V)>),
@@ -121,13 +121,20 @@ pub enum NodeItem<K, V, T> {
 pub struct Map<K, V> {
     items: Vec<NodeItem<K, V, Map<K, V>>>,
 }
-impl<K, V> Map<K, V> {
+impl<K, V> Map<K, V>
+where
+    K: Ord,
+{
     // TODO: make the map generic.
-    pub fn new<S>(storage: &S, map: HashMap<K, V>) -> Self
+    pub fn new<S>(storage: &S, map: HashMap<K, V>) -> Result<Self, String>
     where
         S: StorageWrite,
     {
-        Self { items: Vec::new() }
+        let mut init_items = map.into_iter().map(|(k, v)| (k, v)).collect::<Vec<_>>();
+        init_items.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        let blocks = Vec::new();
+
+        Ok(Self { items: Vec::new() })
     }
     pub fn load<S>(storage: &S, map_ref: Ref<Map<K, V>>) -> Self
     where
