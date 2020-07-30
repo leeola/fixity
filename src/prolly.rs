@@ -153,6 +153,7 @@ where
                 current_block_items.clear();
                 let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
                 let block_addr = multibase::encode(Base::Base58Btc, &block_bytes);
+                storage.write(&block_addr, &*block_bytes);
                 headers.push((header_key, block_addr));
             }
         }
@@ -235,6 +236,7 @@ pub mod test {
             &storage,
             hashmap! {
                 1 => 10,
+                2 => 20,
             },
         );
         dbg!(storage);

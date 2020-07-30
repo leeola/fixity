@@ -14,9 +14,10 @@ impl Memory {
     }
 }
 impl StorageRead for Memory {
-    fn read<S>(&self, hash: S, w: &mut dyn Write) -> Result<(), Error>
+    fn read<S, W>(&self, hash: S, mut w: W) -> Result<(), Error>
     where
         S: AsRef<str>,
+        W: Write,
     {
         let hash = hash.as_ref();
         let store = self.0.lock().map_err(|err| Error::Unhandled {
@@ -30,9 +31,10 @@ impl StorageRead for Memory {
     }
 }
 impl StorageWrite for Memory {
-    fn write<S>(&self, hash: S, r: &mut dyn Read) -> Result<usize, Error>
+    fn write<S, R>(&self, hash: S, mut r: R) -> Result<usize, Error>
     where
         S: AsRef<str>,
+        R: Read,
     {
         let hash = hash.as_ref();
         let mut b = Vec::new();

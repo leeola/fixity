@@ -4,9 +4,10 @@ use std::io::{self, BufWriter, Read, Write};
 pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
 pub trait StorageRead {
-    fn read<S>(&self, hash: S, w: &mut dyn Write) -> Result<(), Error>
+    fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
     where
-        S: AsRef<str>;
+        S: AsRef<str>,
+        W: Write;
     fn read_string<S>(&self, hash: S) -> Result<String, Error>
     where
         S: AsRef<str>,
@@ -27,16 +28,17 @@ pub trait StorageRead {
     }
 }
 pub trait StorageWrite {
-    fn write<S>(&self, hash: S, r: &mut dyn Read) -> Result<usize, Error>
+    fn write<S, R>(&self, hash: S, r: R) -> Result<usize, Error>
     where
-        S: AsRef<str>;
+        S: AsRef<str>,
+        R: Read;
     fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
     where
         S: AsRef<str>,
     {
-        let mut b = s.as_bytes();
+        let b = s.as_bytes();
         let len = b.len();
-        self.write(hash, &mut b)?;
+        self.write(hash, &*b)?;
         Ok(len)
     }
 }
