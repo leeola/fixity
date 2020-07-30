@@ -232,13 +232,16 @@ pub mod test {
         let _ = env_builder.try_init();
         let storage = Memory::new();
         // let mut p = Prolly::new();
-        let mut m = Map::new(
+        let _m = Map::new(
             &storage,
             hashmap! {
                 1 => 10,
                 2 => 20,
             },
         );
-        dbg!(storage);
+        dbg!(&storage);
+        let data = (0..20).map(|i| (i, i * 10)).collect::<HashMap<_, _>>();
+        let m = Map::new(&storage, data);
+        dbg!(&storage);
     }
 }
