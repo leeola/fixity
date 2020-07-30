@@ -150,14 +150,26 @@ where
                 // TODO: serialize the block as a Map node or possibly node items.
                 let block_bytes =
                     cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
+                current_block_items.clear();
                 let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
                 let block_addr = multibase::encode(Base::Base58Btc, &block_bytes);
                 headers.push((header_key, block_addr));
             }
-            // TODO: consume final block items.
+        }
+        // TODO: reduce this code duplication.
+        if !current_block_items.is_empty() {
+            let header_key = current_block_items[0].0.clone();
+            // TODO: serialize the block as a Map node or possibly node items.
+            let block_bytes =
+                cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
+            current_block_items.clear();
+            let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
+            let block_addr = multibase::encode(Base::Base58Btc, &block_bytes);
+            headers.push((header_key, block_addr));
         }
         Ok(Self { items: Vec::new() })
     }
+    // fn boundary
     pub fn load<S>(storage: &S, map_ref: Ref<Map<K, V>>) -> Self
     where
         S: StorageWrite,
