@@ -7,7 +7,7 @@ use {
     },
 };
 #[derive(Debug, Default, Clone)]
-pub struct Memory(Arc<Mutex<HashMap<String, Vec<u8>>>>);
+pub struct Memory(Arc<Mutex<HashMap<String, String>>>);
 impl Memory {
     pub fn new() -> Self {
         Self::default()
@@ -22,10 +22,10 @@ impl StorageRead for Memory {
         let store = self.0.lock().map_err(|err| Error::Unhandled {
             message: format!("unable to acquire store lock: {0}", err),
         })?;
-        let r: &Vec<u8> = store.get(hash).ok_or_else(|| Error::NotFound {
+        let r: &String = store.get(hash).ok_or_else(|| Error::NotFound {
             hash: hash.to_owned(),
         })?;
-        w.write_all(&r).unwrap();
+        w.write_all(&r.as_bytes()).unwrap();
         Ok(())
     }
 }
@@ -41,12 +41,15 @@ impl StorageWrite for Memory {
             err,
         })?;
         let len = b.len();
+        let s = String::from_utf8(b).map_err(|err| Error::Unhandled {
+            message: format!("{} is not valid utf8", hash),
+        })?;
         self.0
             .lock()
             .map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire store lock: {0}", err),
             })?
-            .insert(hash.to_owned(), b);
+            .insert(hash.to_owned(), s);
         Ok(len)
     }
 }
