@@ -13,6 +13,15 @@ impl Memory {
         Self::default()
     }
 }
+#[cfg(test)]
+impl std::cmp::PartialEq<Self> for Memory {
+    fn eq(&self, other: &Self) -> bool {
+        self.0
+            .lock()
+            .expect("failed to lock Lhs")
+            .eq(&*other.0.lock().expect("failed to lock Rhs"))
+    }
+}
 impl StorageRead for Memory {
     fn read<S, W>(&self, hash: S, mut w: W) -> Result<(), Error>
     where
