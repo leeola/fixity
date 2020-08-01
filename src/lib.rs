@@ -1,7 +1,7 @@
 pub mod error;
 pub mod fixity;
-pub mod prolly;
 mod hash_tree;
+pub mod prolly;
 pub mod storage;
 pub mod store;
 
@@ -20,6 +20,7 @@ pub struct Id {
 }
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Addr(String);
 impl From<String> for Addr {
     fn from(hash: String) -> Self {
