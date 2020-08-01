@@ -118,17 +118,23 @@ impl<K, V> StagedMap<K, V> {
         self.changes.push(MapChange::Insert((k.into(), v.into())));
     }
 }
-pub struct Ref<T>(T);
-pub enum NodeItem<K, V, T> {
-    Refs(Vec<(K, Ref<T>)>),
+pub struct Ref {
+    ref_type: RefType,
+    addr: Addr,
+}
+pub enum RefType {
+    Map,
+}
+pub enum NodeItem<K, V> {
+    Refs(Vec<(K, Addr)>),
     Values(Vec<(K, V)>),
 }
 pub struct Map<K, V> {
-    items: Vec<NodeItem<K, V, Map<K, V>>>,
+    items: Vec<NodeItem<K, V>>,
 }
 impl<K, V> Map<K, V>
 where
-    K: Serialize + Ord + Clone,
+    K: std::fmt::Debug + Serialize + Ord + Clone,
     V: Serialize,
 {
     // TODO: make the map generic.
