@@ -1,6 +1,7 @@
 pub mod error;
 pub mod fixity;
 mod hash_tree;
+pub mod node;
 pub mod prolly;
 pub mod storage;
 pub mod store;

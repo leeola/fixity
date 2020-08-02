@@ -133,6 +133,14 @@ pub enum NodeItem<K, V> {
     Refs(Vec<(K, Addr)>),
     Values(Vec<(K, V)>),
 }
+impl<K, V> NodeItem<K, V> {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Refs(v) => v.is_empty(),
+            Self::Values(v) => v.is_empty(),
+        }
+    }
+}
 #[cfg(all(feature = "cjson", feature = "serde"))]
 impl<K, V> NodeItem<K, V>
 where
@@ -148,7 +156,68 @@ where
         }
         let mut roller = RollHasher::new(4);
         let mut headers = Vec::new();
-        let mut first_block = None;
+        let mut first_block: Option<Vec<(K, V)>> = None;
+        let mut current_block_items = Vec::new();
+        for (k, v) in sorted_kvs {
+            let boundary =
+                roller.roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
+            current_block_items.push((k, v));
+            if boundary {
+                if first_block.is_some() {
+                    let header_key = current_block_items[0].0.clone();
+                    // TODO: serialize the block as a Map node or possibly node items.
+                    let block_bytes =
+                        cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
+                    current_block_items.clear();
+                    let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
+                    let block_addr = multibase::encode(Base::Base58Btc, &block_hash);
+                    storage.write(&block_addr, &*block_bytes).unwrap();
+                    headers.push((header_key, block_addr));
+                } else {
+                    let first_block_inner = std::mem::replace(&mut current_block_items, Vec::new());
+                    first_block.replace(first_block_inner);
+                }
+            }
+        }
+        // TODO: reduce this code duplication / centralize this logic.
+        if !current_block_items.is_empty() {
+            if first_block.is_some() {
+                let header_key = current_block_items[0].0.clone();
+                // TODO: serialize the block as a Map node or possibly node items.
+                let block_bytes =
+                    cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
+                current_block_items.clear();
+                let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
+                let block_addr = multibase::encode(Base::Base58Btc, &block_hash);
+                storage.write(&block_addr, &*block_bytes).unwrap();
+                headers.push((header_key, block_addr));
+            } else {
+                let first_block_inner = std::mem::replace(&mut current_block_items, Vec::new());
+                first_block.replace(first_block_inner);
+            }
+        }
+        // if there are no sibling block headers, there is only a single block - the
+        // `first_block`. In that event return it as Self, as there is nothing to do.
+        //
+        // This is the recursive exit.
+        if headers.is_empty() {
+            return Ok(Self::Values(
+                first_block.expect("first block impossibly missing"),
+            ));
+        }
+        // Self::resurse_addrs(
+            todo!()
+    }
+    fn resurse_addrs<S>(storage: &S, sorted_kvs: Vec<(K, Addr)>) -> Result<Self, String>
+    where
+        S: StorageWrite,
+    {
+        if sorted_kvs.is_empty() {
+            return Ok(Self::Values(Vec::new()));
+        }
+        let mut roller = RollHasher::new(4);
+        let mut headers = Vec::new();
+        let mut first_block: Option<NodeItem<K, V>> = None;
         let mut current_block_items = Vec::new();
         for (k, v) in sorted_kvs {
             let boundary =
