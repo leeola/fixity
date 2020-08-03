@@ -83,8 +83,20 @@ where
         let keys_at_boundary: bool = match &mut self.block {
             Block::Branch { child, block } => {
                 // self.handle_child_resp(child.push(item)?)
+                let node = match child.push((k, v))? {
+                    Some(node) => node,
+                    None => return Ok(None),
+                };
+                // if this child returns a node, we have a new key
+                // to track in *this* node. So hash the child node,
+                // so store the key with the hash of the child node.
+                let block_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+
                 // TODO: hash child
                 // TODO: write child to storage
+                let boundary = self
+                    .roller
+                    .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
                 // TODO: rolling hash key
                 todo!("child branch")
             }
