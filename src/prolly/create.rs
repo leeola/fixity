@@ -7,7 +7,7 @@ use {
         Addr,
     },
     multibase::Base,
-    std::collections::HashMap,
+    std::{collections::HashMap, mem},
 };
 /// A temp error type
 type Error = String;
@@ -21,8 +21,8 @@ pub enum Node<K, V> {
     Leaf(Vec<(K, V)>),
 }
 impl<K, V> Node<K, V> {
-    /// Return the first key in this node, if any.
-    pub fn first_key(&self) -> Option<&K> {
+    /// Return the key for this whole node, aka the first element's key.
+    pub fn key(&self) -> Option<&K> {
         match self {
             Self::Branch(v) => v.get(0).map(|(k, _)| k),
             Self::Leaf(v) => v.get(0).map(|(k, _)| k),
@@ -76,42 +76,83 @@ where
     K: Serialize + Clone,
     V: Serialize,
 {
-    pub fn flush(&mut self) -> Result<Option<Node<K, V>>, Error> {
-        todo!("flush")
-    }
-    pub fn push(&mut self, (k, v): (K, V)) -> Result<Option<Node<K, V>>, Error> {
-        let keys_at_boundary: bool = match &mut self.block {
+    pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
+        match self.block {
             Block::Branch { child, block } => {
-                // self.handle_child_resp(child.push(item)?)
-                let node = match child.push((k, v))? {
+                let node = match child.flush()? {
                     Some(node) => node,
-                    None => return Ok(None),
+                    None => todo!("eh?"),
                 };
-                // if this child returns a node, we have a new key
-                // to track in *this* node. So hash the child node,
-                // so store the key with the hash of the child node.
-                let block_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-
-                // TODO: hash child
-                // TODO: write child to storage
+                let k = node.key().clone();
+                let child_node_addr = {
+                    let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+                    let node_addr = {
+                        let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+                        multibase::encode(Base::Base58Btc, &node_hash)
+                    };
+                    self.storage
+                        .write(&node_addr, &*node_bytes)
+                        .map_err(|err| format!("{:?}", err))?;
+                    node_addr
+                };
+                let kv = (k, Addr::from(child_node_addr));
                 let boundary = self
                     .roller
-                    .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
-                // TODO: rolling hash key
-                todo!("child branch")
+                    .roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+                block.push(kv);
+                if boundary {
+                    Ok(Some(Node::Branch(mem::replace(block, Vec::new()))))
+                } else {
+                    Ok(None)
+                }
+            }
+            Block::Leaf { block } => todo!(),
+        }
+        todo!("flush")
+    }
+    pub fn push(&mut self, kv: (K, V)) -> Result<Option<Node<K, V>>, Error> {
+        match &mut self.block {
+            Block::Branch { child, block } => {
+                let k = kv.0.clone();
+                let child_node_addr = {
+                    let node = match child.push(kv)? {
+                        Some(node) => node,
+                        None => return Ok(None),
+                    };
+                    // if this child returns a node, we have a new key to track in *this* node.
+                    // So hash the child node, so store the key with the hash of the child node.
+                    let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+                    let node_addr = {
+                        let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+                        multibase::encode(Base::Base58Btc, &node_hash)
+                    };
+                    self.storage
+                        .write(&node_addr, &*node_bytes)
+                        .map_err(|err| format!("{:?}", err))?;
+                    node_addr
+                };
+                let kv = (k, Addr::from(child_node_addr));
+                let boundary = self
+                    .roller
+                    .roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+                block.push(kv);
+                if boundary {
+                    Ok(Some(Node::Branch(mem::replace(block, Vec::new()))))
+                } else {
+                    Ok(None)
+                }
             }
             Block::Leaf { block } => {
                 let boundary = self
                     .roller
-                    .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
-                block.push((k, v));
-                boundary
+                    .roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+                block.push(kv);
+                if boundary {
+                    Ok(Some(Node::Leaf(mem::replace(block, Vec::new()))))
+                } else {
+                    Ok(None)
+                }
             }
-        };
-        if keys_at_boundary {
-            self.flush()
-        } else {
-            Ok(None)
         }
     }
 }
