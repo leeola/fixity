@@ -27,7 +27,7 @@ impl<K, V> Node<K, V> {
         }
     }
     /// Len of the underlying vec.
-    pub fn len(&self) -> Option<&K> {
+    pub fn len(&self) -> usize {
         match self {
             Self::Branch(v) => v.len(),
             Self::Leaf(v) => v.len(),
@@ -68,10 +68,10 @@ where
     K: Serialize + Clone,
     V: Serialize,
 {
-    pub fn flush(&mut self) -> Result<Option<Node>, Error> {
+    pub fn flush(&mut self) -> Result<Option<Node<K, V>>, Error> {
         todo!("flush")
     }
-    pub fn push(&mut self, item: (K, V)) -> Result<Option<Node>, Error> {
+    pub fn push(&mut self, (k,v): (K, V)) -> Result<Option<Node<K, V>>, Error> {
         let keys_at_boundary: bool = match &mut self.block {
             Block::Branch { child, block } => {
                 // self.handle_child_resp(child.push(item)?)
@@ -81,10 +81,9 @@ where
                 todo!("child branch")
             }
             Block::Leaf { block } => {
-                self.block.push(item);
-                // TODO: rolling hash key
                 self.roller
                     .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?)
+                self.block.push((k,v));
             }
         };
         if keys_at_boundary {
