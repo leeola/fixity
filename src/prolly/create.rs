@@ -11,6 +11,8 @@ use {
 };
 /// A temp error type
 type Error = String;
+// #[cfg(test)]
+const CHUNK_PATTERN: u32 = 1 << 8 - 1;
 /// The embed-friendly tree data structure, representing the root of the tree in either
 /// values or `Ref<Addr>`s.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -39,30 +41,36 @@ pub struct Tree<'s, S, K, V> {
     storage: &'s S,
     depth: usize,
     width: usize,
-    root: Layer<'s, S, K, V>,
+    root: Level<'s, S, K, V>,
 }
-struct Layer<'s, S, K, V> {
+struct Level<'s, S, K, V> {
     storage: &'s S,
+    roller: RollHasher,
     pattern: u32,
     block: Block<'s, S, K, V>,
 }
 enum Block<'s, S, K, V> {
     Branch {
-        child: Box<Layer<'s, S, K, V>>,
+        child: Box<Level<'s, S, K, V>>,
         block: Vec<(K, Addr)>,
     },
     Leaf {
         block: Vec<(K, V)>,
     },
 }
-impl<'s, S, K, V> Layer<'s, S, K, V> {
-    pub fn new(storage: &S) -> Self {
+impl<'s, S, K, V> Level<'s, S, K, V> {
+    pub fn new(storage: &'s S) -> Self {
         let mut roller = RollHasher::new(4);
-        todo!("layer::new")
+        Self {
+            storage,
+            pattern: CHUNK_PATTERN,
+            roller,
+            block: Block::Leaf { block: Vec::new() },
+        }
     }
 }
 #[cfg(all(feature = "cjson", feature = "serde"))]
-impl<K, V> Layer<'s, S, K, V>
+impl<'s, S, K, V> Level<'s, S, K, V>
 where
     S: StorageWrite,
     K: Serialize + Clone,
@@ -71,7 +79,7 @@ where
     pub fn flush(&mut self) -> Result<Option<Node<K, V>>, Error> {
         todo!("flush")
     }
-    pub fn push(&mut self, (k,v): (K, V)) -> Result<Option<Node<K, V>>, Error> {
+    pub fn push(&mut self, (k, v): (K, V)) -> Result<Option<Node<K, V>>, Error> {
         let keys_at_boundary: bool = match &mut self.block {
             Block::Branch { child, block } => {
                 // self.handle_child_resp(child.push(item)?)
@@ -81,9 +89,11 @@ where
                 todo!("child branch")
             }
             Block::Leaf { block } => {
-                self.roller
-                    .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?)
-                self.block.push((k,v));
+                let boundary = self
+                    .roller
+                    .roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
+                block.push((k, v));
+                boundary
             }
         };
         if keys_at_boundary {

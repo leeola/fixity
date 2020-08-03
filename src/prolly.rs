@@ -178,7 +178,7 @@ where
         Ok(Self { items: Vec::new() })
     }
     // fn boundary
-    pub fn load<S>(storage: &S, map_ref: Ref<Map<K, V>>) -> Self
+    pub fn load<S>(storage: &S, map_ref: Ref) -> Self
     where
         S: StorageWrite,
     {
