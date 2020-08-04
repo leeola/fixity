@@ -51,11 +51,45 @@ impl<'s, S, K, V> Tree<'s, S, K, V> {
             root: Level::new(storage),
         }
     }
-    pub fn flush(self) -> Result<(), Error> {
+}
+#[cfg(all(feature = "cjson", feature = "serde"))]
+impl<'s, S, K, V> Tree<'s, S, K, V>
+where
+    S: StorageWrite,
+    K: Serialize + Clone,
+    V: Serialize,
+{
+    pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
         todo!("tree flush")
     }
-    pub fn push(&mut self, kv: (K, V)) -> Result<Option<Node<K, V>>, Error> {
-        todo!("tree push")
+    pub fn push(self, kv: (K, V)) -> Result<Self, Error> {
+        let Self {
+            storage,
+            pattern,
+            mut root,
+        } = self;
+        let mut node_opt = root.push(kv)?;
+        while let Some(node) = node_opt {
+            let k = node
+                .key()
+                .ok_or_else(|| Error::from("child level returned empty node"))?
+                .clone();
+            let mut roller = RollHasher::new(4);
+            let child = Box::new(root);
+            let mut block = Vec::new();
+            node_opt = Level::push_branch_kv(storage, &mut roller, &mut block, node, k)?;
+            root = Level {
+                storage,
+                roller,
+                pattern,
+                block: LevelState::Branch { child, block },
+            }
+        }
+        Ok(Self {
+            storage,
+            pattern,
+            root,
+        })
     }
 }
 struct Level<'s, S, K, V> {
@@ -82,6 +116,49 @@ where
     K: Serialize + Clone,
     V: Serialize,
 {
+    pub fn with_child(storage: &'s S, child: Box<Self>) -> Self {
+        let mut roller = RollHasher::new(4);
+        Self {
+            storage,
+            pattern: CHUNK_PATTERN,
+            roller,
+            block: LevelState::Branch {
+                child,
+                block: Vec::new(),
+            },
+        }
+    }
+    #[must_use]
+    #[inline(always)]
+    fn push_branch_kv(
+        storage: &S,
+        roller: &mut RollHasher,
+        block: &mut Vec<(K, Addr)>,
+        node: Node<K, V>,
+        k: K,
+    ) -> Result<Option<Node<K, V>>, Error> {
+        let child_node_addr = {
+            // if this child returns a node, we have a new key to track in *this* node.
+            // So hash the child node, so store the key with the hash of the child node.
+            let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+            let node_addr = {
+                let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+                multibase::encode(Base::Base58Btc, &node_hash)
+            };
+            storage
+                .write(&node_addr, &*node_bytes)
+                .map_err(|err| format!("{:?}", err))?;
+            node_addr
+        };
+        let kv = (k, Addr::from(child_node_addr));
+        let boundary = roller.roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+        block.push(kv);
+        if boundary {
+            Ok(Some(Node::Branch(mem::replace(block, Vec::new()))))
+        } else {
+            Ok(None)
+        }
+    }
     pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
         match self.block {
             LevelState::Branch { child, mut block } => {
@@ -113,33 +190,11 @@ where
         match &mut self.block {
             LevelState::Branch { child, block } => {
                 let k = kv.0.clone();
-                let child_node_addr = {
-                    let node = match child.push(kv)? {
-                        Some(node) => node,
-                        None => return Ok(None),
-                    };
-                    // if this child returns a node, we have a new key to track in *this* node.
-                    // So hash the child node, so store the key with the hash of the child node.
-                    let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-                    let node_addr = {
-                        let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-                        multibase::encode(Base::Base58Btc, &node_hash)
-                    };
-                    self.storage
-                        .write(&node_addr, &*node_bytes)
-                        .map_err(|err| format!("{:?}", err))?;
-                    node_addr
+                let node = match child.push(kv)? {
+                    Some(node) => node,
+                    None => return Ok(None),
                 };
-                let kv = (k, Addr::from(child_node_addr));
-                let boundary = self
-                    .roller
-                    .roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
-                block.push(kv);
-                if boundary {
-                    Ok(Some(Node::Branch(mem::replace(block, Vec::new()))))
-                } else {
-                    Ok(None)
-                }
+                Self::push_branch_kv(&self.storage, &mut self.roller, block, node, k)
             }
             LevelState::Leaf { block } => {
                 let boundary = self
@@ -180,8 +235,10 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree = Tree::new(&storage);
-        dbg!(tree.push((1, 10)).unwrap());
-        dbg!(tree.push((2, 20)).unwrap());
+        let tree = Tree::new(&storage);
+        let tree = tree.push((1, 10)).unwrap();
+        let tree = tree.push((2, 20)).unwrap();
+        dbg!(tree.flush());
+        dbg!(&storage);
     }
 }
