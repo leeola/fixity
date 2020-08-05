@@ -222,6 +222,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c759c6cf5fb38a252c23803fbb757ebfeec20aa61d964cb878be7a7f904d3f3"
 
 [[package]]
+name = "fbuzhash"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "log",
+]
+
+[[package]]
 name = "fixi_cli"
 version = "0.1.0"
 dependencies = [

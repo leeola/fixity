@@ -34,5 +34,6 @@ maplit = "1.0"
 [workspace]
 members = [
   "fixi_cli",
+  "fbuzhash",
 ]
 
