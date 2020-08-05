@@ -60,7 +60,7 @@ where
     V: Serialize,
 {
     pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
-        todo!("tree flush")
+        self.root.flush()
     }
     pub fn push(self, kv: (K, V)) -> Result<Self, Error> {
         let Self {
@@ -235,9 +235,10 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let tree = Tree::new(&storage);
-        let tree = tree.push((1, 10)).unwrap();
-        let tree = tree.push((2, 20)).unwrap();
+        let mut tree = Tree::new(&storage);
+        for item in (0..100).map(|i| (i, i * 10)) {
+            tree = tree.push(item).unwrap();
+        }
         dbg!(tree.flush());
         dbg!(&storage);
     }
