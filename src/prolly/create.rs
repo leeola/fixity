@@ -70,14 +70,10 @@ where
         } = self;
         let mut node_opt = root.push(kv)?;
         while let Some(node) = node_opt {
-            let k = node
-                .key()
-                .ok_or_else(|| Error::from("child level returned empty node"))?
-                .clone();
             let mut roller = RollHasher::new(4);
             let child = Box::new(root);
             let mut block = Vec::new();
-            node_opt = Level::push_branch_kv(storage, &mut roller, &mut block, node, k)?;
+            node_opt = Level::push_branch_kv(storage, &mut roller, &mut block, node)?;
             root = Level {
                 storage,
                 roller,
@@ -135,8 +131,11 @@ where
         roller: &mut RollHasher,
         block: &mut Vec<(K, Addr)>,
         node: Node<K, V>,
-        k: K,
     ) -> Result<Option<Node<K, V>>, Error> {
+        let k = node
+            .key()
+            .ok_or_else(|| Error::from("child level returned empty node"))?
+            .clone();
         let child_node_addr = {
             // if this child returns a node, we have a new key to track in *this* node.
             // So hash the child node, so store the key with the hash of the child node.
@@ -189,12 +188,11 @@ where
     pub fn push(&mut self, kv: (K, V)) -> Result<Option<Node<K, V>>, Error> {
         match &mut self.block {
             LevelState::Branch { child, block } => {
-                let k = kv.0.clone();
                 let node = match child.push(kv)? {
                     Some(node) => node,
                     None => return Ok(None),
                 };
-                Self::push_branch_kv(&self.storage, &mut self.roller, block, node, k)
+                Self::push_branch_kv(&self.storage, &mut self.roller, block, node)
             }
             LevelState::Leaf { block } => {
                 let boundary = self
@@ -221,11 +219,7 @@ enum LevelState<'s, S, K, V> {
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::storage::{Memory, Storage, StorageRead, StorageWrite},
-        maplit::hashmap,
-    };
+    use {super::*, crate::storage::Memory};
     #[test]
     fn poc() {
         let mut env_builder = env_logger::builder();
@@ -236,7 +230,7 @@ pub mod test {
         let _ = env_builder.try_init();
         let storage = Memory::new();
         let mut tree = Tree::new(&storage);
-        for item in (0..100).map(|i| (i, i * 10)) {
+        for item in (0..203).map(|i| (i, i * 10)) {
             tree = tree.push(item).unwrap();
         }
         dbg!(tree.flush());
