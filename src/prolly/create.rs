@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use {
     crate::{
-        prolly::RollHasher,
+        prolly::roller::{Config as RollerConfig, Roller},
         storage::{Storage, StorageRead, StorageWrite},
         Addr,
     },
@@ -40,15 +40,18 @@ impl<K, V> Node<K, V> {
 /// The primary constructor implementation to distribute values
 pub struct Tree<'s, S, K, V> {
     storage: &'s S,
-    pattern: u32,
+    roller_config: RollerConfig,
     root: Level<'s, S, K, V>,
 }
 impl<'s, S, K, V> Tree<'s, S, K, V> {
     pub fn new(storage: &'s S) -> Self {
+        Self::with_roller(storage, RollerConfig::default())
+    }
+    pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
         Self {
             storage,
-            pattern: CHUNK_PATTERN,
-            root: Level::new(storage),
+            roller_config,
+            root: Level::new(storage, Roller::with_config(roller_config)),
         }
     }
 }
@@ -56,8 +59,8 @@ impl<'s, S, K, V> Tree<'s, S, K, V> {
 impl<'s, S, K, V> Tree<'s, S, K, V>
 where
     S: StorageWrite,
-    K: Serialize + Clone,
-    V: Serialize,
+    K: std::fmt::Debug + Serialize + Clone,
+    V: std::fmt::Debug + Serialize,
 {
     pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
         self.root.flush()
@@ -65,41 +68,37 @@ where
     pub fn push(self, kv: (K, V)) -> Result<Self, Error> {
         let Self {
             storage,
-            pattern,
+            roller_config,
             mut root,
         } = self;
         let mut node_opt = root.push(kv)?;
         while let Some(node) = node_opt {
-            let mut roller = RollHasher::new(4);
+            let mut roller = Roller::with_config(roller_config);
             let child = Box::new(root);
             let mut block = Vec::new();
             node_opt = Level::push_branch_kv(storage, &mut roller, &mut block, node)?;
             root = Level {
                 storage,
                 roller,
-                pattern,
                 block: LevelState::Branch { child, block },
             }
         }
         Ok(Self {
             storage,
-            pattern,
+            roller_config,
             root,
         })
     }
 }
 struct Level<'s, S, K, V> {
     storage: &'s S,
-    roller: RollHasher,
-    pattern: u32,
+    roller: Roller,
     block: LevelState<'s, S, K, V>,
 }
 impl<'s, S, K, V> Level<'s, S, K, V> {
-    pub fn new(storage: &'s S) -> Self {
-        let mut roller = RollHasher::new(4);
+    pub fn new(storage: &'s S, roller: Roller) -> Self {
         Self {
             storage,
-            pattern: CHUNK_PATTERN,
             roller,
             block: LevelState::Leaf { block: Vec::new() },
         }
@@ -109,14 +108,12 @@ impl<'s, S, K, V> Level<'s, S, K, V> {
 impl<'s, S, K, V> Level<'s, S, K, V>
 where
     S: StorageWrite,
-    K: Serialize + Clone,
-    V: Serialize,
+    K: std::fmt::Debug + Serialize + Clone,
+    V: std::fmt::Debug + Serialize,
 {
-    pub fn with_child(storage: &'s S, child: Box<Self>) -> Self {
-        let mut roller = RollHasher::new(4);
+    pub fn with_child(storage: &'s S, roller: Roller, child: Box<Self>) -> Self {
         Self {
             storage,
-            pattern: CHUNK_PATTERN,
             roller,
             block: LevelState::Branch {
                 child,
@@ -128,7 +125,7 @@ where
     #[inline(always)]
     fn push_branch_kv(
         storage: &S,
-        roller: &mut RollHasher,
+        roller: &mut Roller,
         block: &mut Vec<(K, Addr)>,
         node: Node<K, V>,
     ) -> Result<Option<Node<K, V>>, Error> {
@@ -220,6 +217,7 @@ enum LevelState<'s, S, K, V> {
 #[cfg(test)]
 pub mod test {
     use {super::*, crate::storage::Memory};
+    const DEFAULT_PATTERN: u32 = (1 << 8) - 1;
     #[test]
     fn poc() {
         let mut env_builder = env_logger::builder();
@@ -229,8 +227,14 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree = Tree::new(&storage);
-        for item in (0..203).map(|i| (i, i * 10)) {
+        let mut tree = Tree::with_roller(
+            &storage,
+            RollerConfig {
+                pattern: dbg!(DEFAULT_PATTERN),
+                window_size: 67,
+            },
+        );
+        for item in (0..30).map(|i| (i, i * 10)) {
             tree = tree.push(item).unwrap();
         }
         dbg!(tree.flush());

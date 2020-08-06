@@ -1,39 +1,49 @@
-// #[cfg(test)]
-const CHUNK_PATTERN: u32 = 1 << 8 - 1;
+use fbuzhash::BuzHash;
 
-/// An eventual abstraction over the real rolled hashing impl.
-///
-/// Right now though, it's using a fake rolled hashing. Assume very poor performance.
-/// We'll add a buzhash eventually.
-///
-/// This is a really, really bad impl, on purpose. Need a proper roll.
+const DEFAULT_PATTERN: u32 = (1 << 12) - 1;
+const DEFAULT_WINDOW_SIZE: u32 = 67;
+
+#[derive(Copy, Clone)]
+pub struct Config {
+    pub pattern: u32,
+    pub window_size: u32,
+}
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            pattern: DEFAULT_PATTERN,
+            window_size: DEFAULT_WINDOW_SIZE,
+        }
+    }
+}
 pub struct Roller {
-    window_size: usize,
-    bytes: Vec<u8>,
+    pattern: u32,
+    buzhash: BuzHash,
 }
 impl Roller {
-    pub fn new(window_size: usize) -> Self {
-        Self {
+    pub fn new() -> Self {
+        Self::with_config(Config::default())
+    }
+    pub fn with_config(
+        Config {
+            pattern,
             window_size,
-            bytes: Vec::new(),
+        }: Config,
+    ) -> Self {
+        Self {
+            pattern,
+            buzhash: BuzHash::new(window_size),
         }
     }
     pub fn roll_byte(&mut self, b: u8) -> bool {
-        self.bytes.push(b);
-        if self.bytes.len() > self.window_size {
-            self.bytes.remove(0);
-        }
-        // super silly, but just making it compile before buzhash.
-        let hash = <[u8; 32]>::from(blake3::hash(&self.bytes));
-        let hash = u32::from_ne_bytes([hash[0], hash[1], hash[2], hash[3]]);
-        hash & CHUNK_PATTERN == CHUNK_PATTERN
+        self.buzhash.hash_byte(b) & self.pattern == self.pattern
     }
     pub fn roll_bytes(&mut self, bytes: &[u8]) -> bool {
         for &b in bytes {
-            if !self.roll_byte(b) {
-                return false;
+            if self.roll_byte(b) {
+                return true;
             }
         }
-        true
+        false
     }
 }
