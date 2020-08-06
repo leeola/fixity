@@ -1,4 +1,4 @@
-//! A Rust implementation of a Go BuzHash, with the bare minimum of modifications.
+//! A (partial) Rust implementation of a Go BuzHash, with the bare minimum of modifications.
 //!
 //! Source reference and credit goes to: https://github.com/silvasur/buzhash
 //!
@@ -6,9 +6,10 @@
 //!
 //! The reference implementation has a [LICENSE](https://github.com/silvasur/buzhash/blob/master/LICENSE)
 //! that i'm not exactly sure what to do with.
+use std::io::{self, Write};
 
 /// 256 random uint32's to hash a single byte.
-const SEED_BYTES: [u32; 256] = [
+const BYTE_HASH: [u32; 256] = [
     0x12bd9527, 0xf4140cea, 0x987bd6e1, 0x79079850, 0xafbfd539, 0xd350ce0a, 0x82973931, 0x9fc32b9c,
     0x28003b88, 0xc30c13aa, 0x6b678c34, 0x5844ef1d, 0xaa552c18, 0x4a77d3e8, 0xd1f62ea0, 0x6599417c,
     0xfbe30e7a, 0xf9e2d5ee, 0xa1fca42e, 0x41548969, 0x116d5b59, 0xaeda1e1a, 0xc5191c17, 0x54b9a3cb,
@@ -48,22 +49,139 @@ pub struct BuzHash {
     state: u32,
     buf: Vec<u8>,
     n: u32,
-    bshiftn: usize,
-    bshiftm: usize,
-    bufpos: u32,
+    bshiftn: u32,
+    bshiftm: u32,
+    bufpos: usize,
     overflow: bool,
+}
+impl BuzHash {
+    pub fn new(n: u32) -> Self {
+        let bshiftn = n % 32;
+        let bshiftm = 32 - bshiftn;
+        Self {
+            state: 0,
+            buf: vec![0u8; n as usize],
+            n,
+            bshiftn,
+            bshiftm,
+            bufpos: 0,
+            overflow: false,
+        }
+    }
+    /// HashByte updates the hash with a single byte and returns the resulting sum
+    pub fn hash_byte(&mut self, b: u8) -> u32 {
+        if self.bufpos == self.n as usize {
+            self.overflow = true;
+            self.bufpos = 0;
+        }
+
+        let mut state = self.state;
+        state = (state << 1) | (state >> 31);
+
+        if self.overflow {
+            let toshift = BYTE_HASH[self.buf[self.bufpos] as usize];
+            state ^= {
+                let (i, _) = toshift.overflowing_shl(self.bshiftn);
+                i
+            } | {
+                let (i, _) = toshift.overflowing_shr(self.bshiftm);
+                i
+            }
+        }
+
+        self.buf[self.bufpos] = b;
+        self.bufpos += 1;
+
+        state ^= BYTE_HASH[b as usize];
+
+        self.state = state;
+        state
+    }
+    pub fn sum32(&self) -> u32 {
+        self.state
+    }
+    pub fn reset(&mut self) {
+        self.state = 0;
+        self.bufpos = 0;
+        self.overflow = false;
+    }
+}
+impl Write for BuzHash {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        for &b in buf {
+            let _ = self.hash_byte(b);
+        }
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
+
+    const LOREMIPSUM1: &str = "Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et
+magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis,
+ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis
+enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In
+enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis
+eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum
+semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu,
+consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra
+quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet.
+Quisque rutrum. Aenean imperdiet. Etiam ultricies nisi vel augue. Curabitur
+ullamcorper ultricies nisi. Nam eget dui.
+Etiam rhoncus. Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper
+libero, sit amet adipiscing sem neque sed ipsum. Nam quam nunc, blandit vel,
+luctus pulvinar, hendrerit id, lorem. Maecenas nec odio et ante tincidunt
+tempus. Donec vitae sapien ut libero venenatis faucibus. Nullam quis ante. Etiam
+sit amet orci eget eros faucibus tincidunt. Duis leo. Sed fringilla mauris sit
+amet nibh. Donec sodales sagittis magna. Sed consequat, leo eget bibendum
+sodales, augue velit cursus nunc, quis gravida magna mi a libero. Fusce
+vulputate eleifend sapien. Vestibulum purus quam, scelerisque ut, mollis sed,
+nonummy id, metus. Nullam accumsan lorem in dui. Cras ultricies mi eu turpis
+hendrerit fringilla. Vestibulum ante ipsum primis in faucibus orci luctus et
+ultrices posuere cubilia Curae; In ac dui quis mi consectetuer lacinia.";
+
+    const LOREMIPSUM2: &str = "Nam pretium turpis et arcu. Duis arcu tortor, suscipit eget,
+imperdiet nec, imperdiet iaculis, ipsum. Sed aliquam ultrices mauris. Integer
+ante arcu, accumsan a, consectetuer eget, posuere ut, mauris. Praesent
+adipiscing. Phasellus ullamcorper ipsum rutrum nunc. Nunc nonummy metus.
+Vestibulum volutpat pretium libero. Cras id dui. Aenean ut eros et nisl sagittis
+vestibulum. Nullam nulla eros, ultricies sit amet, nonummy id, imperdiet
+feugiat, pede. Sed lectus. Donec mollis hendrerit risus. Phasellus nec sem in
+justo pellentesque facilisis. Etiam imperdiet imperdiet orci. Nunc nec neque.
+Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi.
+Curabitur ligula sapien, tincidunt non, euismod vitae, posuere imperdiet, leo.
+Maecenas malesuada. Praesent congue erat at massa. Sed cursus turpis vitae
+tortor. Donec posuere vulputate arcu. Phasellus accumsan cursus velit.
+Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia
+Curae; Sed aliquam, nisi quis porttitor congue, elit erat euismod orci, ac
+placerat dolor lectus quis orci. Phasellus consectetuer vestibulum elit. Aenean
+tellus metus, bibendum sed, posuere ac, mattis non, nunc. Vestibulum fringilla
+pede sit amet augue. In turpis. Pellentesque posuere. Praesent turpis.";
+
     #[test]
-    fn poc() {
-        let mut env_builder = env_logger::builder();
-        env_builder.is_test(true);
-        if std::env::var("RUST_LOG").is_err() {
-            env_builder.filter(Some("fbuzhash"), log::LevelFilter::Debug);
+    fn rolling_hash() {
+        let phrase1 = "Aenean massa. Cum sociis natoque";
+        let phrase2 = "Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi";
+
+        let mut hasher1 = BuzHash::new(32);
+        hasher1.write_all(phrase1.as_bytes()).unwrap();
+        let p1sum = hasher1.sum32();
+
+        hasher1.reset();
+        let mut found = false;
+        for (idx, &b) in LOREMIPSUM1.as_bytes().iter().enumerate() {
+            let ssum = hasher1.hash_byte(b);
+            if (ssum == p1sum) && (idx - 32 == 91) {
+                found = true;
+                break;
+            }
         }
-        let _ = env_builder.try_init();
+        assert!(found, "phrase1 sum not found within loremipsum1");
     }
 }
