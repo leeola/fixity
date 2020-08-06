@@ -11,8 +11,6 @@ use {
 };
 /// A temp error type
 type Error = String;
-// #[cfg(test)]
-const CHUNK_PATTERN: u32 = 1 << 8 - 1;
 /// The embed-friendly tree data structure, representing the root of the tree in either
 /// values or `Ref<Addr>`s.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -237,10 +235,7 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree = Tree::with_roller(
-            &storage,
-            RollerConfig::with_pattern(DEFAULT_PATTERN),
-        );
+        let mut tree = Tree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
         for item in (0..61).map(|i| (i, i * 10)) {
             tree = tree.push(item).unwrap();
         }

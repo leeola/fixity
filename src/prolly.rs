@@ -1,5 +1,6 @@
 pub mod create;
 pub mod roller;
+pub mod update;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {
