@@ -247,6 +247,7 @@ dependencies = [
  "cjson",
  "env_logger",
  "fastcdc",
+ "fbuzhash",
  "log",
  "maplit",
  "multibase",

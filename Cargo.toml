@@ -17,6 +17,7 @@ serialize_borsh = ["borsh"]
 # An eventual cbor comparison encoding.
 
 [dependencies]
+fbuzhash = { path = "./fbuzhash" }
 log = "0.4"
 thiserror = "1.0"
 blake3 = "0.3"
