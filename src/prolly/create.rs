@@ -239,12 +239,9 @@ pub mod test {
         let storage = Memory::new();
         let mut tree = Tree::with_roller(
             &storage,
-            RollerConfig {
-                pattern: dbg!(DEFAULT_PATTERN),
-                window_size: 67,
-            },
+            RollerConfig::with_pattern(DEFAULT_PATTERN),
         );
-        for item in (0..30).map(|i| (i, i * 10)) {
+        for item in (0..61).map(|i| (i, i * 10)) {
             tree = tree.push(item).unwrap();
         }
         dbg!(tree.flush());

@@ -8,6 +8,14 @@ pub struct Config {
     pub pattern: u32,
     pub window_size: u32,
 }
+impl Config {
+    pub fn with_pattern(pattern: u32) -> Self {
+        Self {
+            pattern,
+            window_size: DEFAULT_WINDOW_SIZE,
+        }
+    }
+}
 impl Default for Config {
     fn default() -> Self {
         Self {
