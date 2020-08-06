@@ -177,9 +177,19 @@ where
                     };
                     block.push((k, Addr::from(child_node_addr)));
                 };
-                Ok(Some(Node::Branch(block)))
+                if block.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(Node::Branch(block)))
+                }
             }
-            LevelState::Leaf { block } => Ok(Some(Node::Leaf(block))),
+            LevelState::Leaf { block } => {
+                if block.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(Node::Leaf(block)))
+                }
+            }
         }
     }
     pub fn push(&mut self, kv: (K, V)) -> Result<Option<Node<K, V>>, Error> {
