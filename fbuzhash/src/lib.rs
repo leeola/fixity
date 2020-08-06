@@ -80,12 +80,18 @@ impl BuzHash {
 
         if self.overflow {
             let toshift = BYTE_HASH[self.buf[self.bufpos] as usize];
-            state ^= {
-                let (i, _) = toshift.overflowing_shl(self.bshiftn);
-                i
-            } | {
-                let (i, _) = toshift.overflowing_shr(self.bshiftm);
-                i
+            // I believe the assumption here is that the toshift always comes from
+            // BYTE_HASH, and thus left shifting via bshiftn can't overflow if all
+            // the values within BYTE_HASH are safe. Not positive.
+            //
+            // NOTE(leeola): be paranoid about this conversion from Go to Rust.
+            state ^= toshift << self.bshiftn | {
+                let (i, overflow) = toshift.overflowing_shr(self.bshiftm);
+                if overflow {
+                    0
+                } else {
+                    i
+                }
             }
         }
 
@@ -146,35 +152,32 @@ nonummy id, metus. Nullam accumsan lorem in dui. Cras ultricies mi eu turpis
 hendrerit fringilla. Vestibulum ante ipsum primis in faucibus orci luctus et
 ultrices posuere cubilia Curae; In ac dui quis mi consectetuer lacinia.";
 
-    /*
-        const LOREMIPSUM2: &str = "Nam pretium turpis et arcu. Duis arcu tortor, suscipit eget,
-    imperdiet nec, imperdiet iaculis, ipsum. Sed aliquam ultrices mauris. Integer
-    ante arcu, accumsan a, consectetuer eget, posuere ut, mauris. Praesent
-    adipiscing. Phasellus ullamcorper ipsum rutrum nunc. Nunc nonummy metus.
-    Vestibulum volutpat pretium libero. Cras id dui. Aenean ut eros et nisl sagittis
-    vestibulum. Nullam nulla eros, ultricies sit amet, nonummy id, imperdiet
-    feugiat, pede. Sed lectus. Donec mollis hendrerit risus. Phasellus nec sem in
-    justo pellentesque facilisis. Etiam imperdiet imperdiet orci. Nunc nec neque.
-    Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi.
-    Curabitur ligula sapien, tincidunt non, euismod vitae, posuere imperdiet, leo.
-    Maecenas malesuada. Praesent congue erat at massa. Sed cursus turpis vitae
-    tortor. Donec posuere vulputate arcu. Phasellus accumsan cursus velit.
-    Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia
-    Curae; Sed aliquam, nisi quis porttitor congue, elit erat euismod orci, ac
-    placerat dolor lectus quis orci. Phasellus consectetuer vestibulum elit. Aenean
-    tellus metus, bibendum sed, posuere ac, mattis non, nunc. Vestibulum fringilla
-    pede sit amet augue. In turpis. Pellentesque posuere. Praesent turpis.";
-    */
+    const LOREMIPSUM2: &str = "Nam pretium turpis et arcu. Duis arcu tortor, suscipit eget,
+imperdiet nec, imperdiet iaculis, ipsum. Sed aliquam ultrices mauris. Integer
+ante arcu, accumsan a, consectetuer eget, posuere ut, mauris. Praesent
+adipiscing. Phasellus ullamcorper ipsum rutrum nunc. Nunc nonummy metus.
+Vestibulum volutpat pretium libero. Cras id dui. Aenean ut eros et nisl sagittis
+vestibulum. Nullam nulla eros, ultricies sit amet, nonummy id, imperdiet
+feugiat, pede. Sed lectus. Donec mollis hendrerit risus. Phasellus nec sem in
+justo pellentesque facilisis. Etiam imperdiet imperdiet orci. Nunc nec neque.
+Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi.
+Curabitur ligula sapien, tincidunt non, euismod vitae, posuere imperdiet, leo.
+Maecenas malesuada. Praesent congue erat at massa. Sed cursus turpis vitae
+tortor. Donec posuere vulputate arcu. Phasellus accumsan cursus velit.
+Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia
+Curae; Sed aliquam, nisi quis porttitor congue, elit erat euismod orci, ac
+placerat dolor lectus quis orci. Phasellus consectetuer vestibulum elit. Aenean
+tellus metus, bibendum sed, posuere ac, mattis non, nunc. Vestibulum fringilla
+pede sit amet augue. In turpis. Pellentesque posuere. Praesent turpis.";
 
     #[test]
     fn rolling_hash() {
         let phrase1 = "Aenean massa. Cum sociis natoque";
-        // let phrase2 = "Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi";
+        let phrase2 = "Phasellus leo dolor, tempus non, auctor et, hendrerit quis, nisi";
 
         let mut hasher1 = BuzHash::new(32);
         hasher1.write_all(phrase1.as_bytes()).unwrap();
         let p1sum = hasher1.sum32();
-
         hasher1.reset();
         let mut found = false;
         for (idx, &b) in LOREMIPSUM1.as_bytes().iter().enumerate() {
@@ -185,5 +188,18 @@ ultrices posuere cubilia Curae; In ac dui quis mi consectetuer lacinia.";
             }
         }
         assert!(found, "phrase1 sum not found within loremipsum1");
+
+        hasher1.write_all(phrase2.as_bytes()).unwrap();
+        let p2sum = hasher1.sum32();
+        hasher1.reset();
+        let mut found = false;
+        for (idx, &b) in LOREMIPSUM2.as_bytes().iter().enumerate() {
+            let ssum = hasher1.hash_byte(b);
+            if (ssum == p2sum) && (idx - 64 == 592) {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "phrase2 sum not found within loremipsum2");
     }
 }
