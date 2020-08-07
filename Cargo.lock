@@ -69,48 +69,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "borsh"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81d42092adf8d207d987cb8d676f068305a80b3dd58487a06680e8586e7c4c25"
-dependencies = [
- "borsh-derive",
-]
-
-[[package]]
-name = "borsh-derive"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "912b5e5f545801db1290ea4f05c8af512db0805dade9b9af76798c5fc4a04164"
-dependencies = [
- "borsh-derive-internal",
- "borsh-schema-derive-internal",
- "syn",
-]
-
-[[package]]
-name = "borsh-derive-internal"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e75ae71ba613fe0b86556e910b053b040cb52b8c52c034370744f8760f176262"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "borsh-schema-derive-internal"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1de62f1b5fe76adc6510a4e7c3feb0172650f0088bbd5fead41c0c016db5c5ae"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -243,7 +201,6 @@ name = "fixity"
 version = "0.1.0"
 dependencies = [
  "blake3",
- "borsh",
  "cjson",
  "env_logger",
  "fastcdc",
@@ -252,7 +209,7 @@ dependencies = [
  "maplit",
  "multibase",
  "serde",
- "serde_cbor",
+ "serde_json",
  "thiserror",
 ]
 
@@ -265,12 +222,6 @@ dependencies = [
  "typenum",
  "version_check",
 ]
-
-[[package]]
-name = "half"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d36fab90f82edc3c747f9d438e06cf0a491055896f2a279638bb5beed6c40177"
 
 [[package]]
 name = "heck"
@@ -436,16 +387,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
 dependencies = [
  "serde_derive",
-]
-
-[[package]]
-name = "serde_cbor"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e18acfa2f90e8b735b2836ab8d538de304cbb6729a7360729ea5a895d15a622"
-dependencies = [
- "half",
- "serde",
 ]
 
 [[package]]

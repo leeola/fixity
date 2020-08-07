@@ -30,3 +30,10 @@ impl<K, V> Node<K, V> {
         }
     }
 }
+impl<K, V> RootNode for Node<K, V> {
+    type K = K;
+    type V = V;
+    fn node(&self) -> &Self {
+        &self
+    }
+}

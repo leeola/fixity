@@ -22,6 +22,11 @@ pub struct Id {
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Addr(String);
+impl AsRef<str> for Addr {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
 impl From<String> for Addr {
     fn from(hash: String) -> Self {
         Self(hash)

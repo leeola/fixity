@@ -26,27 +26,56 @@ impl<'s, S, A, R> Tree<'s, S, A, R> {
         }
     }
 }
-#[cfg(all(feature = "cjson", feature = "serde"))]
+#[cfg(all(feature = "serde", feature = "serde_json"))]
 impl<'s, S, A, R> Tree<'s, S, A, R>
 where
     S: StorageRead,
-    R: DeserializeOwned + RootNode,
+    A: AsRef<str>,
+    R: std::fmt::Debug + DeserializeOwned + RootNode,
 {
-    pub fn get<Q>(&mut self, _k: &Q) -> R::V
+    pub fn get_leaf<Q>(&mut self, k: &Q) -> Result<Option<Vec<R::V>>, Error>
     where
-        R::K: Borrow<Q>,
+        Q: PartialOrd,
+        R::K: PartialOrd + Borrow<Q>,
     {
-        todo!()
+        let root = match &self.root {
+            Some(root) => root,
+            None => {
+                let mut buf = Vec::new();
+                self.storage.read(self.addr.as_ref(), &mut buf)?;
+                let root: R = serde_json::from_slice(&buf).unwrap();
+                self.root.replace(root);
+                self.root.as_ref().expect("impossibly missing")
+            }
+        };
+        recur_get(&self.storage, k, root.node())?;
+        todo!("map results")
     }
 }
-fn recur_get<S, Q, K, V>(storage: &S, k: &Q, node: &Node<K, V>) -> Result<Option<Node<K, V>>, Error>
+#[cfg(all(feature = "serde", feature = "serde_json"))]
+fn recur_get<S, Q, K, V>(
+    storage: &S,
+    k: &Q,
+    node: &Node<K, V>,
+) -> Result<Option<Vec<(K, V)>>, Error>
 where
-    S: Storage,
-    K: Borrow<Q>,
+    S: StorageRead,
+    K: PartialOrd + Borrow<Q>,
+    Q: PartialOrd,
 {
     match node {
         Node::Branch(block) => {
-            // foo
+            // TODO: use iter, takewhile with a last.
+            let mut working_block_item = block.get(0).unwrap();
+            for item in block {
+                if item.0.borrow() > k {
+                    break;
+                } else {
+                    working_block_item = item
+                }
+            }
+            // storage.read(
+            // recur_get(storage, k, working_block_item
             todo!("branch")
         }
         Node::Leaf(block) => todo!("leaf"),
@@ -68,12 +97,17 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree =
-            CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-        for item in (0..61).map(|i| (i, i * 10)) {
-            tree = tree.push(item).unwrap();
-        }
-        dbg!(tree.commit().unwrap());
-        dbg!(&storage);
+        let addr = {
+            let mut tree =
+                CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
+            for item in (0..61).map(|i| (i, i * 10)) {
+                tree = tree.push(item).unwrap();
+            }
+            let addr = dbg!(tree.commit().unwrap().unwrap());
+            dbg!(&storage);
+            addr
+        };
+        let mut tree = Tree::<'_, _, _, Node<u32, u32>>::new(&storage, addr);
+        dbg!(tree.get_leaf(&1));
     }
 }
