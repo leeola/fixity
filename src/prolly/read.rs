@@ -36,7 +36,8 @@ where
     pub fn get_leaf<Q>(&mut self, k: &Q) -> Result<Option<Vec<R::V>>, Error>
     where
         Q: PartialOrd,
-        R::K: PartialOrd + Borrow<Q>,
+        R::K: DeserializeOwned + PartialOrd + Borrow<Q>,
+        R::V: DeserializeOwned,
     {
         let root = match &self.root {
             Some(root) => root,
@@ -60,7 +61,8 @@ fn recur_get<S, Q, K, V>(
 ) -> Result<Option<Vec<(K, V)>>, Error>
 where
     S: StorageRead,
-    K: PartialOrd + Borrow<Q>,
+    K: DeserializeOwned + PartialOrd + Borrow<Q>,
+    V: DeserializeOwned,
     Q: PartialOrd,
 {
     match node {
@@ -77,11 +79,12 @@ where
             let mut buf = Vec::new();
             storage.read(working_block_item.1.as_ref(), &mut buf)?;
             let node: Node<K, V> = serde_json::from_slice(&buf)?;
-            // storage.read(
-            // recur_get(storage, k, working_block_item
-            todo!("branch")
+            recur_get(storage, k, &node)
         }
-        Node::Leaf(block) => todo!("leaf"),
+        Node::Leaf(block) => {
+            //Ok(Some(block))
+            todo!("leaf")
+        }
     }
 }
 #[cfg(test)]
