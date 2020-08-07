@@ -17,4 +17,7 @@ pub enum Error {
         but was expected to write {expected} bytes"
     )]
     IncompleteWrite { got: usize, expected: usize },
+    #[cfg(feature = "serde_json")]
+    #[error("serde json error: `{0}`")]
+    SerdeJson(#[from] serde_json::error::Error),
 }

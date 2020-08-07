@@ -43,12 +43,12 @@ where
             None => {
                 let mut buf = Vec::new();
                 self.storage.read(self.addr.as_ref(), &mut buf)?;
-                let root: R = serde_json::from_slice(&buf).unwrap();
+                let root: R = serde_json::from_slice(&buf)?;
                 self.root.replace(root);
                 self.root.as_ref().expect("impossibly missing")
             }
         };
-        recur_get(&self.storage, k, root.node())?;
+        recur_get(self.storage, k, root.node())?;
         todo!("map results")
     }
 }
@@ -74,6 +74,9 @@ where
                     working_block_item = item
                 }
             }
+            let mut buf = Vec::new();
+            storage.read(working_block_item.1.as_ref(), &mut buf)?;
+            let node: Node<K, V> = serde_json::from_slice(&buf)?;
             // storage.read(
             // recur_get(storage, k, working_block_item
             todo!("branch")
