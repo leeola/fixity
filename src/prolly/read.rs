@@ -39,6 +39,19 @@ where
         todo!()
     }
 }
+fn recur_get<S, Q, K, V>(storage: &S, k: &Q, node: &Node<K, V>) -> Result<Option<Node<K, V>>, Error>
+where
+    S: Storage,
+    K: Borrow<Q>,
+{
+    match node {
+        Node::Branch(block) => {
+            // foo
+            todo!("branch")
+        }
+        Node::Leaf(block) => todo!("leaf"),
+    }
+}
 #[cfg(test)]
 pub mod test {
     use {
