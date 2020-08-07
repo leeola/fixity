@@ -3,11 +3,11 @@ use serde::{Deserialize, Serialize};
 use {
     crate::{
         prolly::roller::{Config as RollerConfig, Roller},
-        storage::{Storage, StorageRead, StorageWrite},
+        storage::StorageWrite,
         Addr,
     },
     multibase::Base,
-    std::{collections::HashMap, mem},
+    std::mem,
 };
 /// A temp error type
 type Error = String;
@@ -36,12 +36,12 @@ impl<K, V> Node<K, V> {
     }
 }
 /// The primary constructor implementation to distribute values
-pub struct Tree<'s, S, K, V> {
+pub struct CreateTree<'s, S, K, V> {
     storage: &'s S,
     roller_config: RollerConfig,
     root: Level<'s, S, K, V>,
 }
-impl<'s, S, K, V> Tree<'s, S, K, V> {
+impl<'s, S, K, V> CreateTree<'s, S, K, V> {
     pub fn new(storage: &'s S) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
@@ -54,7 +54,7 @@ impl<'s, S, K, V> Tree<'s, S, K, V> {
     }
 }
 #[cfg(all(feature = "cjson", feature = "serde"))]
-impl<'s, S, K, V> Tree<'s, S, K, V>
+impl<'s, S, K, V> CreateTree<'s, S, K, V>
 where
     S: StorageWrite,
     K: std::fmt::Debug + Serialize + Clone,
@@ -62,6 +62,29 @@ where
 {
     pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
         self.root.flush()
+    }
+    /// Flush this `CreateTree` and write the results to the internal storage,
+    /// consuming `Self`.
+    ///
+    /// This is useful for low level interactions with the tree who only want to store
+    /// a node without any root header data.
+    ///
+    /// # Errors
+    /// Fails if flush, serialization or calls to storage fail.
+    pub fn commit(self) -> Result<Option<Addr>, Error> {
+        let node = match self.root.flush()? {
+            Some(node) => node,
+            None => return Ok(None),
+        };
+        let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+        let node_addr = {
+            let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+            multibase::encode(Base::Base58Btc, &node_hash)
+        };
+        self.storage
+            .write(&node_addr, &*node_bytes)
+            .map_err(|err| format!("{:?}", err))?;
+        Ok(Some(node_addr.into()))
     }
     pub fn push(self, kv: (K, V)) -> Result<Self, Error> {
         let Self {
@@ -109,16 +132,6 @@ where
     K: std::fmt::Debug + Serialize + Clone,
     V: std::fmt::Debug + Serialize,
 {
-    pub fn with_child(storage: &'s S, roller: Roller, child: Box<Self>) -> Self {
-        Self {
-            storage,
-            roller,
-            block: LevelState::Branch {
-                child,
-                block: Vec::new(),
-            },
-        }
-    }
     #[must_use]
     #[inline(always)]
     fn push_branch_kv(
@@ -235,7 +248,8 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree = Tree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
+        let mut tree =
+            CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
         for item in (0..61).map(|i| (i, i * 10)) {
             tree = tree.push(item).unwrap();
         }
