@@ -1,10 +1,10 @@
 use crate::Addr;
 #[cfg(feature = "serde")]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-pub trait RootNode {
+pub trait AsNode {
     type K: DeserializeOwned;
     type V: DeserializeOwned;
-    fn node(&self) -> &Node<Self::K, Self::V>;
+    fn as_node(&self) -> &Node<Self::K, Self::V>;
 }
 /// The embed-friendly tree data structure, representing the root of the tree in either
 /// values or `Ref<Addr>`s.
@@ -30,14 +30,14 @@ impl<K, V> Node<K, V> {
         }
     }
 }
-impl<K, V> RootNode for Node<K, V>
+impl<K, V> AsNode for Node<K, V>
 where
     K: DeserializeOwned,
     V: DeserializeOwned,
 {
     type K = K;
     type V = V;
-    fn node(&self) -> &Self {
+    fn as_node(&self) -> &Self {
         &self
     }
 }

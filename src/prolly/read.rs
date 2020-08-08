@@ -3,7 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use {
     crate::{
         prolly::{
-            node::{Node, RootNode},
+            node::{AsNode, Node},
             roller::{Config as RollerConfig, Roller},
         },
         storage::{Storage, StorageRead, StorageWrite},
@@ -31,13 +31,13 @@ impl<'s, S, A, R> Tree<'s, S, A, R>
 where
     S: StorageRead,
     A: AsRef<str>,
-    R: std::fmt::Debug + DeserializeOwned + RootNode,
+    R: std::fmt::Debug + DeserializeOwned + AsNode,
 {
-    pub fn get_leaf<Q>(&mut self, k: &Q) -> Result<Option<Vec<R::V>>, Error>
+    pub fn get_leaf<Q>(&mut self, k: &Q) -> Result<Option<Vec<(R::K, R::V)>>, Error>
     where
         Q: PartialOrd,
-        R::K: DeserializeOwned + PartialOrd + Borrow<Q>,
-        R::V: DeserializeOwned,
+        R::K: DeserializeOwned + Clone + PartialOrd + Borrow<Q>,
+        R::V: DeserializeOwned + Clone,
     {
         let root = match &self.root {
             Some(root) => root,
@@ -49,16 +49,28 @@ where
                 self.root.as_ref().expect("impossibly missing")
             }
         };
-        recur_get(self.storage, k, root.node())?;
-        todo!("map results")
+        match root.as_node() {
+            Node::Branch(block) => {
+                let item = match block
+                    .iter()
+                    .take_while(|(item_k, _)| item_k.borrow() < k)
+                    .last()
+                {
+                    Some(item) => item,
+                    None => return Ok(None),
+                };
+                let mut buf = Vec::new();
+                self.storage.read(item.1.as_ref(), &mut buf)?;
+                let node: Node<R::K, R::V> = serde_json::from_slice(&buf)?;
+                recur_get(self.storage, k, node)
+            }
+            Node::Leaf(block) => Ok(Some(block.clone())),
+        }
     }
+    // block.iter().map(|(_, v)| v).cloned().collect::<Vec<_>>(),
 }
 #[cfg(all(feature = "serde", feature = "serde_json"))]
-fn recur_get<S, Q, K, V>(
-    storage: &S,
-    k: &Q,
-    node: &Node<K, V>,
-) -> Result<Option<Vec<(K, V)>>, Error>
+fn recur_get<S, Q, K, V>(storage: &S, k: &Q, node: Node<K, V>) -> Result<Option<Vec<(K, V)>>, Error>
 where
     S: StorageRead,
     K: DeserializeOwned + PartialOrd + Borrow<Q>,
@@ -67,24 +79,20 @@ where
 {
     match node {
         Node::Branch(block) => {
-            // TODO: use iter, takewhile with a last.
-            let mut working_block_item = block.get(0).unwrap();
-            for item in block {
-                if item.0.borrow() > k {
-                    break;
-                } else {
-                    working_block_item = item
-                }
-            }
+            let item = match block
+                .iter()
+                .take_while(|(item_k, _)| item_k.borrow() < k)
+                .last()
+            {
+                Some(item) => item,
+                None => return Ok(None),
+            };
             let mut buf = Vec::new();
-            storage.read(working_block_item.1.as_ref(), &mut buf)?;
+            storage.read(item.1.as_ref(), &mut buf)?;
             let node: Node<K, V> = serde_json::from_slice(&buf)?;
-            recur_get(storage, k, &node)
+            recur_get(storage, k, node)
         }
-        Node::Leaf(block) => {
-            //Ok(Some(block))
-            todo!("leaf")
-        }
+        Node::Leaf(block) => Ok(Some(block)),
     }
 }
 #[cfg(test)]
@@ -114,6 +122,9 @@ pub mod test {
             addr
         };
         let mut tree = Tree::<'_, _, _, Node<u32, u32>>::new(&storage, addr);
+        dbg!(tree.get_leaf(&0));
         dbg!(tree.get_leaf(&1));
+        dbg!(tree.get_leaf(&2));
+        // dbg!(tree.get_leaf(&3));
     }
 }
