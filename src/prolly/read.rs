@@ -97,6 +97,36 @@ where
         Node::Leaf(block) => Ok(Some(block)),
     }
 }
+impl<'s, S, A, R> std::iter::IntoIterator for Tree<'s, S, A, R>
+where
+    S: StorageRead,
+    A: AsRef<str>,
+    R: DeserializeOwned + AsNode,
+    R::K: DeserializeOwned,
+    R::V: DeserializeOwned,
+{
+    type Item = Result<(R::K, R::V), Error>;
+    type IntoIter = IntoIter<'s, S, A, R>;
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter { tree: self }
+    }
+}
+pub struct IntoIter<'s, S, A, R> {
+    tree: Tree<'s, S, A, R>,
+}
+impl<'s, S, A, R> Iterator for IntoIter<'s, S, A, R>
+where
+    S: StorageRead,
+    A: AsRef<str>,
+    R: DeserializeOwned + AsNode,
+    R::K: DeserializeOwned,
+    R::V: DeserializeOwned,
+{
+    type Item = Result<(R::K, R::V), Error>;
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!("iter")
+    }
+}
 #[cfg(test)]
 pub mod test {
     use {
@@ -140,5 +170,31 @@ pub mod test {
                 .find(|&(k, _)| k == expected_k)
                 .is_some());
         }
+    }
+    #[test]
+    fn iter() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        let storage = Memory::new();
+        let kvs = (0..61).map(|i| (i, i * 10)).collect::<Vec<_>>();
+        let addr = {
+            let mut tree =
+                CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
+            for &(k, v) in kvs.iter() {
+                tree = tree.push(k, v).unwrap();
+            }
+            let addr = dbg!(tree.commit().unwrap().unwrap());
+            dbg!(&storage);
+            addr
+        };
+        let mut tree = Tree::<'_, _, _, Node<u32, u32>>::new(&storage, addr);
+        tree.into_iter().for_each(|res| {
+            let item = res.unwrap();
+            dbg!(item);
+        });
     }
 }
