@@ -1,16 +1,12 @@
 #[cfg(feature = "serde")]
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use {
     crate::{
-        prolly::{
-            node::{AsNode, Node},
-            roller::{Config as RollerConfig, Roller},
-        },
-        storage::{Storage, StorageRead, StorageWrite},
-        Addr, Error,
+        prolly::node::{AsNode, Node},
+        storage::StorageRead,
+        Error,
     },
-    multibase::Base,
-    std::{borrow::Borrow, collections::HashMap, mem},
+    std::borrow::Borrow,
 };
 /// TODO: possibly nuke the root ownership, - depending on what design the parent maps/tables desire.
 pub struct Tree<'s, S, A, R> {
