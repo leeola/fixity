@@ -12,6 +12,7 @@ use {
     multibase::Base,
     std::{borrow::Borrow, collections::HashMap, mem},
 };
+/// TODO: possibly nuke the root ownership, - depending on what design the parent maps/tables desire.
 pub struct Tree<'s, S, A, R> {
     storage: &'s S,
     addr: A,
@@ -31,7 +32,7 @@ impl<'s, S, A, R> Tree<'s, S, A, R>
 where
     S: StorageRead,
     A: AsRef<str>,
-    R: std::fmt::Debug + DeserializeOwned + AsNode,
+    R: DeserializeOwned + AsNode,
 {
     pub fn get_leaf<Q>(&mut self, k: &Q) -> Result<Option<Vec<(R::K, R::V)>>, Error>
     where
