@@ -54,7 +54,7 @@ where
             Node::Branch(block) => {
                 let item = match block
                     .iter()
-                    .take_while(|(item_k, _)| item_k.borrow() < k)
+                    .take_while(|(item_k, _)| item_k.borrow() <= k)
                     .last()
                 {
                     Some(item) => item,
@@ -82,7 +82,7 @@ where
         Node::Branch(block) => {
             let item = match block
                 .iter()
-                .take_while(|(item_k, _)| item_k.borrow() < k)
+                .take_while(|(item_k, _)| item_k.borrow() <= k)
                 .last()
             {
                 Some(item) => item,
@@ -104,7 +104,7 @@ pub mod test {
     };
     const DEFAULT_PATTERN: u32 = (1 << 8) - 1;
     #[test]
-    fn poc() {
+    fn get_leaf() {
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
         if std::env::var("RUST_LOG").is_err() {
@@ -112,10 +112,11 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
+        let kvs = (0..61).map(|i| (i, i * 10)).collect::<Vec<_>>();
         let addr = {
             let mut tree =
                 CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-            for item in (0..61).map(|i| (i, i * 10)) {
+            for &item in kvs.iter() {
                 tree = tree.push(item).unwrap();
             }
             let addr = dbg!(tree.commit().unwrap().unwrap());
@@ -126,6 +127,14 @@ pub mod test {
         dbg!(tree.get_leaf(&0));
         dbg!(tree.get_leaf(&1));
         dbg!(tree.get_leaf(&2));
-        // dbg!(tree.get_leaf(&3));
+        for (expected_k, _expected_v) in kvs {
+            assert!(tree
+                .get_leaf(&expected_k)
+                .unwrap()
+                .unwrap()
+                .into_iter()
+                .find(|&(k, _)| k == expected_k)
+                .is_some());
+        }
     }
 }
