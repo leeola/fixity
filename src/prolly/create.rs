@@ -86,13 +86,13 @@ where
             .map_err(|err| format!("{:?}", err))?;
         Ok(Some(node_addr.into()))
     }
-    pub fn push(self, kv: (K, V)) -> Result<Self, Error> {
+    pub fn push(self, k: K, v: V) -> Result<Self, Error> {
         let Self {
             storage,
             roller_config,
             mut root,
         } = self;
-        let mut node_opt = root.push(kv)?;
+        let mut node_opt = root.push(k, v)?;
         while let Some(node) = node_opt {
             let mut roller = Roller::with_config(roller_config);
             let child = Box::new(root);
@@ -203,20 +203,21 @@ where
             }
         }
     }
-    pub fn push(&mut self, kv: (K, V)) -> Result<Option<Node<K, V>>, Error> {
+    pub fn push(&mut self, k: K, v: V) -> Result<Option<Node<K, V>>, Error> {
         match &mut self.block {
             LevelState::Branch { child, block } => {
-                let node = match child.push(kv)? {
+                let node = match child.push(k, v)? {
                     Some(node) => node,
                     None => return Ok(None),
                 };
                 Self::push_branch_kv(&self.storage, &mut self.roller, block, node)
             }
             LevelState::Leaf { block } => {
+                let elm = (k, v);
                 let boundary = self
                     .roller
-                    .roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
-                block.push(kv);
+                    .roll_bytes(&cjson::to_vec(&elm).map_err(|err| format!("{:?}", err))?);
+                block.push(elm);
                 if boundary {
                     Ok(Some(Node::Leaf(mem::replace(block, Vec::new()))))
                 } else {
@@ -250,8 +251,8 @@ pub mod test {
         let storage = Memory::new();
         let mut tree =
             CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-        for item in (0..61).map(|i| (i, i * 10)) {
-            tree = tree.push(item).unwrap();
+        for (k, v) in (0..61).map(|i| (i, i * 10)) {
+            tree = tree.push(k, v).unwrap();
         }
         dbg!(tree.flush());
         dbg!(&storage);

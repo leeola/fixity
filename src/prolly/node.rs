@@ -41,3 +41,31 @@ where
         &self
     }
 }
+// TODO: Maybe deprecate meta and pos
+#[derive(Debug)]
+pub struct LeafMeta<K, V> {
+    pos: Pos,
+    leaf: Vec<(K, V)>,
+}
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Pos {
+    x: usize,
+    y: usize,
+}
+impl Pos {
+    pub fn with_x(x: usize) -> Self {
+        Self { x, y: 0 }
+    }
+    pub fn add_x(&self, x: usize) -> Self {
+        Self {
+            x: self.x + x,
+            y: self.y,
+        }
+    }
+    pub fn add_y(&self, y: usize) -> Self {
+        Self {
+            x: self.x,
+            y: self.y + y,
+        }
+    }
+}

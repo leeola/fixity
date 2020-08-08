@@ -2,7 +2,7 @@
 use serde::de::DeserializeOwned;
 use {
     crate::{
-        prolly::node::{AsNode, Node},
+        prolly::node::{AsNode, LeafMeta, Node, Pos},
         storage::StorageRead,
         Error,
     },
@@ -48,18 +48,19 @@ where
         };
         match root.as_node() {
             Node::Branch(block) => {
-                let item = match block
+                let (item_i, item) = match block
                     .iter()
                     .take_while(|(item_k, _)| item_k.borrow() <= k)
+                    .enumerate()
                     .last()
                 {
-                    Some(item) => item,
+                    Some(t) => t,
                     None => return Ok(None),
                 };
                 let mut buf = Vec::new();
                 self.storage.read(item.1.as_ref(), &mut buf)?;
                 let node: Node<R::K, R::V> = serde_json::from_slice(&buf)?;
-                recur_get(self.storage, k, node)
+                recur_leaf(self.storage, k, node)
             }
             Node::Leaf(block) => Ok(Some(block.clone())),
         }
@@ -67,7 +68,11 @@ where
     // block.iter().map(|(_, v)| v).cloned().collect::<Vec<_>>(),
 }
 #[cfg(all(feature = "serde", feature = "serde_json"))]
-fn recur_get<S, Q, K, V>(storage: &S, k: &Q, node: Node<K, V>) -> Result<Option<Vec<(K, V)>>, Error>
+fn recur_leaf<S, Q, K, V>(
+    storage: &S,
+    k: &Q,
+    node: Node<K, V>,
+) -> Result<Option<Vec<(K, V)>>, Error>
 where
     S: StorageRead,
     K: DeserializeOwned + PartialOrd + Borrow<Q>,
@@ -87,7 +92,7 @@ where
             let mut buf = Vec::new();
             storage.read(item.1.as_ref(), &mut buf)?;
             let node: Node<K, V> = serde_json::from_slice(&buf)?;
-            recur_get(storage, k, node)
+            recur_leaf(storage, k, node)
         }
         Node::Leaf(block) => Ok(Some(block)),
     }
@@ -96,7 +101,10 @@ where
 pub mod test {
     use {
         super::*,
-        crate::{prolly::create::CreateTree, storage::Memory},
+        crate::{
+            prolly::{create::CreateTree, roller::Config as RollerConfig},
+            storage::Memory,
+        },
     };
     const DEFAULT_PATTERN: u32 = (1 << 8) - 1;
     #[test]
@@ -112,8 +120,8 @@ pub mod test {
         let addr = {
             let mut tree =
                 CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-            for &item in kvs.iter() {
-                tree = tree.push(item).unwrap();
+            for &(k, v) in kvs.iter() {
+                tree = tree.push(k, v).unwrap();
             }
             let addr = dbg!(tree.commit().unwrap().unwrap());
             dbg!(&storage);

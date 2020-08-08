@@ -20,4 +20,13 @@ pub enum Error {
     #[cfg(feature = "serde_json")]
     #[error("serde json error: `{0}`")]
     SerdeJson(#[from] serde_json::error::Error),
+    #[cfg(feature = "cjson")]
+    #[error("cjson error: `{0:?}`")]
+    Cjson(cjson::Error),
+}
+#[cfg(feature = "cjson")]
+impl From<cjson::Error> for Error {
+    fn from(err: cjson::Error) -> Self {
+        Self::Cjson(err)
+    }
 }
