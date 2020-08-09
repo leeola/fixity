@@ -151,6 +151,7 @@ impl<S> Store for Fixity<S>
 where
     S: Storage,
 {
+    /*
     fn put_read(&self, r: &mut dyn Read) -> Result<Addr> {
         let mut b = Vec::new();
         // I don't think len can ever differ from the Vec len..?
@@ -197,6 +198,7 @@ where
         // }
         todo!()
     }
+    */
 }
 // fn part(&self, b: &[u8], chunks: Iter) -> Result<BytesPart> {
 //     chunks.take_n(MAX_ADDRS).map(|Chunk{offset, length}| {
