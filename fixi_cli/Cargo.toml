@@ -8,7 +8,13 @@ edition = "2018"
 name = "fixi"
 path = "src/bin/fixi.rs"
 
+[features]
+default = []
+web = ["fixi_web", "fixi_web/structopt"]
+
 [dependencies]
 fixity = { path = ".." }
+fixi_web = { optional = true, path = "../fixi_web" }
 structopt = "0.3"
 env_logger = "0.7"
+tokio = "0.2"
