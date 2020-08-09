@@ -8,10 +8,24 @@ use serde::{Deserialize, Serialize};
 use {
     crate::{
         storage::{Storage, StorageRead, StorageWrite},
-        Addr,
+        Addr, Error,
     },
     std::collections::HashMap,
 };
+// pub trait ProllyFrom<T> {
+//     fn prolly_from(t: T) -> Result<Self, Error>;
+// }
+// pub trait ProllyInto<U> {
+//     fn prolly_into(self) -> Result<U, Error>;
+// }
+// impl<T> ProllyInto<U> for T where T: ProllyFrom<
+pub enum StagedValue<K, V> {
+    U32(u32),
+    // Map(Map<K, V>),
+}
+// impl<K,V> From<u32> for StagedValue<K,V> {
+//
+// }
 pub struct Ref {
     ref_type: RefType,
     addr: Addr,

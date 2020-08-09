@@ -1,9 +1,7 @@
-#[cfg(feature = "serialize_borsh")]
-use store::StoreBorsh;
 use {
     crate::{
-        hash_tree, storage::Storage, Addr, ContentAddrs, ContentHeader, ContentNode, Error, Result,
-        Store,
+        hash_tree, prolly::StagedValue, storage::Storage, Addr, ContentAddrs, ContentHeader,
+        ContentNode, Error, Result, Store,
     },
     fastcdc::Chunk,
     multibase::Base,
@@ -32,6 +30,14 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
+    fn put<K, V>(&self, k: K, v: V) -> Result<Addr>
+    where
+        K: AsRef<str>,
+        V: Into<StagedValue>,
+    {
+        todo!()
+    }
+
     /*
     fn store_(
         &self,
@@ -254,7 +260,7 @@ pub mod test {
             .with_storage(Memory::default())
             .build()
             .unwrap();
-        let hash = fixi.put_read(&mut "foobarbaz".as_bytes()).unwrap();
-        dbg!(hash);
+        // let hash = fixi.put_read(&mut "foobarbaz".as_bytes()).unwrap();
+        // dbg!(hash);
     }
 }
