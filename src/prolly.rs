@@ -10,25 +10,20 @@ use {
         storage::{Storage, StorageRead, StorageWrite},
         Addr,
     },
-    multibase::Base,
     std::collections::HashMap,
 };
-// #[cfg(test)]
-const CHUNK_PATTERN: u32 = 1 << 8 - 1;
+pub struct Ref {
+    ref_type: RefType,
+    addr: Addr,
+}
+pub enum RefType {
+    Map,
+}
+pub mod types {
+    pub struct Usize(usize);
+}
 pub enum ValueType {
     Usize,
-}
-pub enum Node {
-    Nodes(Vec<NodeRef>),
-    Values(Vec<Value>),
-}
-pub struct NodeRef {
-    key: Vec<u8>,
-    addr: Vec<u8>,
-}
-pub struct NodeValue {
-    key: Vec<u8>,
-    value: Value,
 }
 pub enum Key {
     // Bool,
@@ -97,9 +92,6 @@ enum MapChange<K, V> {
     Insert((K, V)),
     Remove(K),
 }
-pub mod types {
-    pub struct Usize(usize);
-}
 pub struct StagedMap<K, V> {
     changes: Vec<MapChange<K, V>>,
 }
@@ -123,19 +115,9 @@ impl<K, V> StagedMap<K, V> {
         self.changes.push(MapChange::Insert((k.into(), v.into())));
     }
 }
-pub struct Ref {
-    ref_type: RefType,
-    addr: Addr,
-}
-pub enum RefType {
-    Map,
-}
-pub enum NodeItem<K, V> {
-    Refs(Vec<(K, Addr)>),
-    Values(Vec<(K, V)>),
-}
 pub struct Map<K, V> {
-    items: Vec<NodeItem<K, V>>,
+    // items: Vec<NodeItem<K, V>>,
+    _pd: std::marker::PhantomData<(K, V)>,
 }
 impl<K, V> Map<K, V>
 where
@@ -147,83 +129,13 @@ where
     where
         S: StorageWrite,
     {
-        let mut roller = RollHasher::new(4);
-        let mut init_items = map.into_iter().map(|(k, v)| (k, v)).collect::<Vec<_>>();
-        init_items.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-        let mut headers = Vec::new();
-        let mut current_block_items = Vec::new();
-        for (k, v) in init_items {
-            let boundary =
-                roller.roll_bytes(&cjson::to_vec(&k).map_err(|err| format!("{:?}", err))?);
-            current_block_items.push((k, v));
-            if boundary {
-                let header_key = current_block_items[0].0.clone();
-                // TODO: serialize the block as a Map node or possibly node items.
-                let block_bytes =
-                    cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
-                current_block_items.clear();
-                let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
-                let block_addr = multibase::encode(Base::Base58Btc, &block_bytes);
-                storage.write(&block_addr, &*block_bytes);
-                headers.push((header_key, block_addr));
-            }
-        }
-        // TODO: reduce this code duplication.
-        if !current_block_items.is_empty() {
-            let header_key = current_block_items[0].0.clone();
-            // TODO: serialize the block as a Map node or possibly node items.
-            let block_bytes =
-                cjson::to_vec(&current_block_items).map_err(|err| format!("{:?}", err))?;
-            current_block_items.clear();
-            let block_hash = <[u8; 32]>::from(blake3::hash(&block_bytes));
-            let block_addr = multibase::encode(Base::Base58Btc, &block_bytes);
-            headers.push((header_key, block_addr));
-        }
-        Ok(Self { items: Vec::new() })
+        todo!("new map")
     }
-    // fn boundary
     pub fn load<S>(storage: &S, map_ref: Ref) -> Self
     where
         S: StorageWrite,
     {
-        todo!()
-    }
-}
-/// An eventual abstraction over the real rolled hashing impl.
-///
-/// Right now though, it's using a fake rolled hashing. Assume very poor performance.
-/// We'll add a buzhash eventually.
-///
-/// This is a really, really bad impl, on purpose. Need a proper roll.
-pub struct RollHasher {
-    window_size: usize,
-    bytes: Vec<u8>,
-}
-impl RollHasher {
-    pub fn new(window_size: usize) -> Self {
-        log::warn!("a temporary non rolling hasher is being used, replace me!");
-        Self {
-            window_size,
-            bytes: Vec::new(),
-        }
-    }
-    pub fn roll_byte(&mut self, b: u8) -> bool {
-        self.bytes.push(b);
-        if self.bytes.len() > self.window_size {
-            self.bytes.remove(0);
-        }
-        // super silly, but just making it compile before buzhash.
-        let hash = <[u8; 32]>::from(blake3::hash(&self.bytes));
-        let hash = u32::from_ne_bytes([hash[0], hash[1], hash[2], hash[3]]);
-        hash & CHUNK_PATTERN == CHUNK_PATTERN
-    }
-    pub fn roll_bytes(&mut self, bytes: &[u8]) -> bool {
-        for &b in bytes {
-            if !self.roll_byte(b) {
-                return false;
-            }
-        }
-        true
+        todo!("map load")
     }
 }
 #[cfg(test)]
@@ -249,7 +161,8 @@ pub mod test {
                 1 => 10,
                 2 => 20,
             },
-        );
+        )
+        .unwrap();
         dbg!(&storage);
         let data = (0..20).map(|i| (i, i * 10)).collect::<HashMap<_, _>>();
         let m = Map::new(&storage, data);
