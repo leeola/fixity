@@ -1,7 +1,8 @@
+pub mod map;
 use {
     crate::{
-        hash_tree, prolly::StagedValue, storage::Storage, Addr, ContentAddrs, ContentHeader,
-        ContentNode, Error, Result, Store,
+        hash_tree, prolly::Value, storage::Storage, Addr, ContentAddrs, ContentHeader, ContentNode,
+        Error, Result, Store,
     },
     fastcdc::Chunk,
     multibase::Base,
@@ -30,10 +31,10 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    fn put<K, V>(&self, k: K, v: V) -> Result<Addr>
+    fn stage<K, V>(&self, k: K, v: V) -> Result<Addr>
     where
         K: AsRef<str>,
-        V: Into<StagedValue>,
+        V: Into<Value>,
     {
         todo!()
     }

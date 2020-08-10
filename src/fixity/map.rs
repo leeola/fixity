@@ -1,8 +1,3 @@
-pub mod create;
-pub mod node;
-pub mod read;
-pub mod roller;
-pub mod update;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {
@@ -12,93 +7,6 @@ use {
     },
     std::collections::HashMap,
 };
-// pub trait ProllyFrom<T> {
-//     fn prolly_from(t: T) -> Result<Self, Error>;
-// }
-// pub trait ProllyInto<U> {
-//     fn prolly_into(self) -> Result<U, Error>;
-// }
-// impl<T> ProllyInto<U> for T where T: ProllyFrom<
-// impl<K,V> From<u32> for StagedValue<K,V> {
-//
-// }
-pub struct Ref {
-    ref_type: RefType,
-    addr: Addr,
-}
-pub enum RefType {
-    Map,
-}
-pub mod types {
-    pub struct Usize(usize);
-}
-pub enum ValueType {
-    Usize,
-}
-pub enum Key {
-    // Bool,
-    Usize(usize),
-    // String,
-    // Blob,
-}
-impl From<usize> for Key {
-    fn from(t: usize) -> Self {
-        Self::Usize(t)
-    }
-}
-pub enum Value {
-    // Bool,
-    Uint32(u32),
-    // String,
-    // Blob,
-    // Map(Map<Key, Box<Value>>),
-    // Ref { key: Vec<u8>, addr: Vec<u8> },
-}
-impl From<u32> for Value {
-    fn from(t: u32) -> Self {
-        Self::Uint32(t)
-    }
-}
-pub struct Prolly {}
-impl Prolly {
-    pub fn new() -> Self {
-        Self {}
-    }
-    pub fn commit<S>(&mut self, storage: S) -> Result<(), ()>
-    where
-        S: Storage,
-    {
-        todo!()
-    }
-    // pub fn new_list(&mut self) -> List<T> {
-    //     todo!()
-    // }
-}
-pub struct List {
-    len: usize,
-    // inserted: HashMap<usize, T>,
-    appended: Vec<Value>,
-}
-impl List {
-    pub fn new() -> Self {
-        Self {
-            len: 0,
-            appended: Vec::new(),
-        }
-    }
-    // pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
-    // where
-    //     S: Storage,
-    // {
-    //     todo!()
-    // }
-    pub fn append<T>(&mut self, value: T)
-    where
-        T: Into<Value>,
-    {
-        todo!()
-    }
-}
 enum MapChange<K, V> {
     Insert((K, V)),
     Remove(K),
@@ -142,12 +50,12 @@ where
     {
         todo!("new map")
     }
-    pub fn load<S>(storage: &S, map_ref: Ref) -> Self
-    where
-        S: StorageWrite,
-    {
-        todo!("map load")
-    }
+    // pub fn load<S>(storage: &S, map_ref: Ref) -> Self
+    // where
+    //     S: StorageWrite,
+    // {
+    //     todo!("map load")
+    // }
 }
 #[cfg(test)]
 pub mod test {
