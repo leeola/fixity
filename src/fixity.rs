@@ -31,6 +31,12 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
+    // fn map<K, V>(&self, k: K) -> Result<Map<K,V>>
+    // where
+    //     K: AsRef<str>,
+    // {
+    //     todo!()
+    // }
     fn stage<K, V>(&self, k: K, v: V) -> Result<Addr>
     where
         K: AsRef<str>,
