@@ -1,6 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {
+    super::{Scalar, Value},
     crate::{
         storage::{Storage, StorageRead, StorageWrite},
         Addr, Error,
@@ -34,15 +35,11 @@ impl<K, V> StagedMap<K, V> {
         self.changes.push(MapChange::Insert((k.into(), v.into())));
     }
 }
-pub struct Map<K, V> {
+pub struct Map<'s, S> {
+    storage: &'s S,
     // items: Vec<NodeItem<K, V>>,
-    _pd: std::marker::PhantomData<(K, V)>,
 }
-impl<K, V> Map<K, V>
-where
-    K: std::fmt::Debug + Serialize + Ord + Clone,
-    V: Serialize,
-{
+impl<'s, S> Map<'s, S> {
     // TODO: make the map generic.
     pub fn new<S>(storage: &S, map: HashMap<K, V>) -> Result<Self, String>
     where

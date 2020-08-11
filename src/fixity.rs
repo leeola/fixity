@@ -1,8 +1,11 @@
 pub mod map;
+pub use map::Map;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use {
     crate::{
-        hash_tree, prolly::Value, storage::Storage, Addr, ContentAddrs, ContentHeader, ContentNode,
-        Error, Result, Store,
+        hash_tree, storage::Storage, Addr, ContentAddrs, ContentHeader, ContentNode, Error, Result,
+        Store,
     },
     fastcdc::Chunk,
     multibase::Base,
@@ -11,6 +14,32 @@ use {
         mem,
     },
 };
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Scalar {
+    Uint32(u32),
+}
+impl From<u32> for Scalar {
+    fn from(t: u32) -> Self {
+        Self::Uint32(t)
+    }
+}
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Value {
+    Uint32(u32),
+    // Map(Map),
+}
+impl<T> From<T> for Value
+where
+    T: Into<Scalar>,
+{
+    fn from(t: T) -> Self {
+        match t.into() {
+            Scalar::Uint32(v) => Self::Uint32(v),
+        }
+    }
+}
 pub const CDC_MIN: usize = 1024 * 16;
 pub const CDC_AVG: usize = 1024 * 32;
 pub const CDC_MAX: usize = 1024 * 64;
@@ -31,12 +60,12 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    // fn map<K, V>(&self, k: K) -> Result<Map<K,V>>
-    // where
-    //     K: AsRef<str>,
-    // {
-    //     todo!()
-    // }
+    fn map<'s, K>(&'s self, k: K) -> Result<Option<Map<'s>>>
+    where
+        K: AsRef<str>,
+    {
+        todo!()
+    }
     fn stage<K, V>(&self, k: K, v: V) -> Result<Addr>
     where
         K: AsRef<str>,
