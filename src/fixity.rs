@@ -18,6 +18,7 @@ use {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Scalar {
     Uint32(u32),
+    Ref(Ref),
 }
 impl From<u32> for Scalar {
     fn from(t: u32) -> Self {
@@ -39,6 +40,11 @@ where
             Scalar::Uint32(v) => Self::Uint32(v),
         }
     }
+}
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Ref {
+    Map(Addr),
 }
 pub const CDC_MIN: usize = 1024 * 16;
 pub const CDC_AVG: usize = 1024 * 32;
