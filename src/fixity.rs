@@ -29,6 +29,7 @@ impl From<u32> for Scalar {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Value {
     Uint32(u32),
+    Ref(Ref),
     // Map(Map),
 }
 impl<T> From<T> for Value
@@ -38,6 +39,7 @@ where
     fn from(t: T) -> Self {
         match t.into() {
             Scalar::Uint32(v) => Self::Uint32(v),
+            Scalar::Ref(v) => Self::Ref(v),
         }
     }
 }
@@ -50,6 +52,41 @@ pub const CDC_MIN: usize = 1024 * 16;
 pub const CDC_AVG: usize = 1024 * 32;
 pub const CDC_MAX: usize = 1024 * 64;
 const MAX_ADDRS: usize = u8::MAX as usize;
+pub enum Entry<'s, S, T> {
+    Vacant(VacantEntry<'s, S, T>),
+    Occupied(OccupiedEntry<T>),
+}
+impl<'s, S, T> Entry<'s, S, T>
+where
+    T: From<VacantEntry<'s, S, T>>,
+{
+    pub fn inner(self) -> T {
+        match self {
+            Self::Occupied(o) => o.inner(),
+            Self::Vacant(v) => v.inner(),
+        }
+    }
+}
+pub struct VacantEntry<'s, S, T> {
+    storage: &'s S,
+    _phantom: std::marker::PhantomData<T>,
+}
+impl<'s, S, T> VacantEntry<'s, S, T>
+where
+    T: From<Self>,
+{
+    pub fn inner(self) -> T {
+        T::from(self)
+    }
+}
+pub struct OccupiedEntry<T> {
+    entry: T,
+}
+impl<T> OccupiedEntry<T> {
+    pub fn inner(self) -> T {
+        self.entry
+    }
+}
 pub struct Fixity<S> {
     storage: S,
     cdc_min: usize,
@@ -66,13 +103,13 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    fn map<'s, K>(&'s self, k: K) -> Result<Option<Map<'s>>>
+    fn map<'s, K>(&'s self, _k: K) -> Result<Entry<'s, S, Map<'s, S>>>
     where
         K: AsRef<str>,
     {
         todo!()
     }
-    fn stage<K, V>(&self, k: K, v: V) -> Result<Addr>
+    fn stage<K, V>(&self, _k: K, _v: V) -> Result<Addr>
     where
         K: AsRef<str>,
         V: Into<Value>,

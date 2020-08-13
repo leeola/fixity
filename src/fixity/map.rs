@@ -1,50 +1,19 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {
-    super::{Scalar, Value},
+    super::{Scalar, VacantEntry, Value},
     crate::{
         storage::{Storage, StorageRead, StorageWrite},
         Addr, Error,
     },
     std::collections::HashMap,
 };
-enum MapChange<K, V> {
-    Insert((K, V)),
-    Remove(K),
-}
-pub struct StagedMap<K, V> {
-    changes: Vec<MapChange<K, V>>,
-}
-impl<K, V> StagedMap<K, V> {
-    pub fn new() -> Self {
-        Self {
-            changes: Vec::new(),
-        }
-    }
-    // pub fn commit<S>(&mut self, storage: &S) -> Result<Ref, String>
-    // where
-    //     S: Storage,
-    // {
-    //     todo!()
-    // }
-    pub fn insert<T, U>(&mut self, k: T, v: U)
-    where
-        T: Into<K>,
-        U: Into<V>,
-    {
-        self.changes.push(MapChange::Insert((k.into(), v.into())));
-    }
-}
 pub struct Map<'s, S> {
     storage: &'s S,
     // items: Vec<NodeItem<K, V>>,
 }
 impl<'s, S> Map<'s, S> {
-    // TODO: make the map generic.
-    pub fn new<S>(storage: &S, map: HashMap<K, V>) -> Result<Self, String>
-    where
-        S: StorageWrite,
-    {
+    pub fn new(_storage: &S) -> Self {
         todo!("new map")
     }
     // pub fn load<S>(storage: &S, map_ref: Ref) -> Self
