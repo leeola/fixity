@@ -79,6 +79,11 @@ where
         T::from(self)
     }
 }
+impl<'s, S> From<VacantEntry<'s, S, Map<'s, S>>> for Map<'s, S> {
+    fn from(ve: VacantEntry<'s, S, Map<'s, S>>) -> Self {
+        Self::new(ve.storage)
+    }
+}
 pub struct OccupiedEntry<T> {
     entry: T,
 }
