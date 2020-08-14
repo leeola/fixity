@@ -8,6 +8,16 @@ use {
     },
     std::collections::HashMap,
 };
+pub trait Flush<K, V> {
+    fn flush(self) -> Result<Option<Node<K, V>>, Error>;
+}
+pub trait SortedInsert<K, V> {
+    fn sorted_insert(&mut self, k: K, v: V) -> Result<(), Error>;
+}
+pub trait Append<K: PartialOrd, V> {
+    fn unsorted_append(&mut self, kvs: &[(K, V)]) -> Result<(), Error>;
+    fn sorted_append(&mut self, kvs: &[(K, V)]) -> Result<(), Error>;
+}
 pub struct Map<'s, S> {
     storage: &'s S,
     // items: Vec<NodeItem<K, V>>,
