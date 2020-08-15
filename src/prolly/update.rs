@@ -20,13 +20,12 @@ pub enum Update<V> {
     Insert(V),
     Remove,
 }
-pub type Tree<'s, S, A, K, V> = TreeRefimpl<'s, S, A, K, V>;
-pub struct TreeRefimpl<'s, S, A, K, V> {
+pub struct Tree<'s, S, A, K, V> {
     storage: &'s S,
     addr: A,
     updates: HashMap<K, Update<V>>,
 }
-impl<'s, S, A, K, V> TreeRefimpl<'s, S, A, K, V>
+impl<'s, S, A, K, V> Tree<'s, S, A, K, V>
 where
     // S: StorageWrite,
     K: std::fmt::Debug + Eq + Hash,
@@ -45,7 +44,7 @@ where
         self.updates.insert(k, Update::Remove);
     }
 }
-impl<'s, S, A, K, V> TreeRefimpl<'s, S, A, K, V>
+impl<'s, S, A, K, V> Tree<'s, S, A, K, V>
 where
     S: StorageRead + StorageWrite,
     A: Clone,
@@ -56,37 +55,39 @@ where
     where
         R: DeserializeOwned + AsNode<K = K, V = V>,
     {
-        let Self {
-            storage,
-            addr,
-            updates,
-        } = self;
-        let reader = ReadTree::<'_, _, _, R>::new(&storage, addr);
-        let create = CreateTree::<'_, _, K, V>::new(&storage);
+        // let Self {
+        //     storage,
+        //     addr,
+        //     updates,
+        // } = self;
+        // let reader = ReadTree::<'_, _, _, R>::new(&storage, addr);
+        // let create = CreateTree::<'_, _, K, V>::new(&storage);
         todo!("flush update")
     }
-    pub fn flush<R>(self) -> Result<Option<Node<K, V>>, Error>
+    pub fn flush<R>(&mut self) -> Result<Option<Addr>, Error>
     where
         R: DeserializeOwned + AsNode<K = K, V = V>,
     {
-        let (_, n) = self.flush_ret_storage::<R>()?;
-        Ok(n)
+        let reader = ReadTree::<'_, _, _, R>::new(&self.storage, &self.addr);
+        let create = CreateTree::<'_, _, K, V>::new(&self.storage);
+        todo!("flush")
     }
     pub fn commit<R>(self) -> Result<Option<Addr>, Error>
     where
         R: DeserializeOwned + AsNode<K = K, V = V>,
     {
-        let (storage, node) = match self.flush_ret_storage::<R>()? {
-            (s, Some(node)) => (s, node),
-            (_, None) => return Ok(None),
-        };
-        let node_bytes = cjson::to_vec(&node)?;
-        let node_addr = {
-            let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-            multibase::encode(Base::Base58Btc, &node_hash)
-        };
-        storage.write(&node_addr, &*node_bytes)?;
-        Ok(Some(node_addr.into()))
+        todo!("commit")
+        // let (storage, node) = match self.flush_ret_storage::<R>()? {
+        //     (s, Some(node)) => (s, node),
+        //     (_, None) => return Ok(None),
+        // };
+        // let node_bytes = cjson::to_vec(&node)?;
+        // let node_addr = {
+        //     let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+        //     multibase::encode(Base::Base58Btc, &node_hash)
+        // };
+        // storage.write(&node_addr, &*node_bytes)?;
+        // Ok(Some(node_addr.into()))
     }
 }
 #[cfg(test)]

@@ -48,10 +48,9 @@ where
         };
         match root.as_node() {
             Node::Branch(block) => {
-                let (item_i, item) = match block
+                let item = match block
                     .iter()
                     .take_while(|(item_k, _)| item_k.borrow() <= k)
-                    .enumerate()
                     .last()
                 {
                     Some(t) => t,
@@ -65,7 +64,6 @@ where
             Node::Leaf(block) => Ok(Some(block.clone())),
         }
     }
-    // block.iter().map(|(_, v)| v).cloned().collect::<Vec<_>>(),
 }
 #[cfg(all(feature = "serde", feature = "serde_json"))]
 fn recur_leaf<S, Q, K, V>(
@@ -108,11 +106,23 @@ where
     type Item = Result<(R::K, R::V), Error>;
     type IntoIter = IntoIter<'s, S, A, R>;
     fn into_iter(self) -> Self::IntoIter {
-        IntoIter { tree: self }
+        IntoIter::new(self)
     }
 }
-pub struct IntoIter<'s, S, A, R> {
-    tree: Tree<'s, S, A, R>,
+pub struct IntoIter<'s, S, A, R>
+where
+    R: AsNode,
+{
+    r: Tree<'s, S, A, R>,
+    block: Option<std::iter::Peekable<std::vec::IntoIter<(R::K, R::V)>>>,
+}
+impl<'s, S, A, R> IntoIter<'s, S, A, R>
+where
+    R: AsNode,
+{
+    pub fn new(r: Tree<'s, S, A, R>) -> Self {
+        Self { r, block: None }
+    }
 }
 impl<'s, S, A, R> Iterator for IntoIter<'s, S, A, R>
 where
@@ -124,7 +134,13 @@ where
 {
     type Item = Result<(R::K, R::V), Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        todo!("iter")
+        match self.block.as_mut() {
+            Some(block) => {
+                let (k, v) = block.next()?;
+                todo!()
+            }
+            None => todo!(),
+        }
     }
 }
 #[cfg(test)]
