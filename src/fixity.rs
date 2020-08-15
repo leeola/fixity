@@ -1,5 +1,8 @@
 pub mod map;
+pub mod table;
 pub use map::Map;
+pub use table::Table;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {

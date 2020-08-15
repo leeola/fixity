@@ -8,16 +8,6 @@ use {
     },
     std::collections::HashMap,
 };
-pub trait Flush<K, V> {
-    fn flush(self) -> Result<Option<Node<K, V>>, Error>;
-}
-pub trait SortedInsert<K, V> {
-    fn sorted_insert(&mut self, k: K, v: V) -> Result<(), Error>;
-}
-pub trait Append<K: PartialOrd, V> {
-    fn unsorted_append(&mut self, kvs: &[(K, V)]) -> Result<(), Error>;
-    fn sorted_append(&mut self, kvs: &[(K, V)]) -> Result<(), Error>;
-}
 pub struct Map<'s, S> {
     storage: &'s S,
     // items: Vec<NodeItem<K, V>>,
@@ -50,19 +40,20 @@ pub mod test {
         let _ = env_builder.try_init();
         let storage = Memory::new();
         // let mut p = Prolly::new();
-        Map::new(
-            &storage,
-            hashmap! {
-                1 => 10,
-                2 => 20,
-            },
-        )
-        .unwrap();
-        dbg!(&storage);
-        let data = (0..20).map(|i| (i, i * 10)).collect::<HashMap<_, _>>();
-        let m = Map::new(&storage, data);
-        dbg!(&storage);
+        // Map::new(
+        //     &storage,
+        //     hashmap! {
+        //         1 => 10,
+        //         2 => 20,
+        //     },
+        // )
+        // .unwrap();
+        // dbg!(&storage);
+        // let data = (0..20).map(|i| (i, i * 10)).collect::<HashMap<_, _>>();
+        // let m = Map::new(&storage, data);
+        // dbg!(&storage);
     }
+    /*
     #[test]
     fn equality() {
         let mut env_builder = env_logger::builder();
@@ -86,4 +77,5 @@ pub mod test {
             assert_eq!(storage_a, storage_b);
         }
     }
+    */
 }

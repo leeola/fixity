@@ -3,6 +3,7 @@ pub mod node;
 pub mod read;
 pub mod roller;
 pub mod update;
+pub use node::Node;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use {
@@ -12,16 +13,6 @@ use {
     },
     std::collections::HashMap,
 };
-// pub trait ProllyFrom<T> {
-//     fn prolly_from(t: T) -> Result<Self, Error>;
-// }
-// pub trait ProllyInto<U> {
-//     fn prolly_into(self) -> Result<U, Error>;
-// }
-// impl<T> ProllyInto<U> for T where T: ProllyFrom<
-// impl<K,V> From<u32> for StagedValue<K,V> {
-//
-// }
 pub struct Ref {
     ref_type: RefType,
     addr: Addr,
