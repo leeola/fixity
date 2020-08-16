@@ -90,6 +90,26 @@ where
         // Ok(Some(node_addr.into()))
     }
 }
+struct Level<K, V> {
+    /// A initial measure to limit the size of the buffer, based on a simple
+    /// len measurement.
+    ///
+    /// Eventually this will be changed to some sort of measured heapsize.
+    buffer_len_limit: usize,
+    blocks: HashMap<K, Vec<(K, V)>>,
+}
+struct Block<K, V> {
+    block: Vec<(K, V)>,
+}
+enum LevelState<'s, S, K, V> {
+    Branch {
+        child: Box<Level<'s, S, K, V>>,
+        blocks_buffer: Vec<(K, Addr)>,
+    },
+    Leaf {
+        blocks_buffer: Vec<(K, Option<V>)>,
+    },
+}
 #[cfg(test)]
 pub mod test {
     use {
