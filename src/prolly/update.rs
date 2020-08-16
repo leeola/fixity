@@ -96,23 +96,29 @@ struct Level<'s, S, K, V> {
     ///
     /// Eventually this will be changed to some sort of measured heapsize.
     buffer_len_limit: usize,
-    state: LevelState<'s, S, K,V>,
+    state: LevelState<'s, S, K, V>,
 }
 impl<'s, S, K, V> Level<'s, S, K, V> {
-    pub fn new(buffer_len_limit: usize) -> Self {
-Self{
-    buffer_len_limit,
-    state: LevelState::Leaf{
-        block_buffer: Vec::new(),
-    }
-}
-    }
-    pub fn insert(&mut self, k: K, v: Option<V>) {
-self.state.push(k,v);
+    pub fn new(storage: &'s S, buffer_len_limit: usize) -> Self {
+        Self {
+            buffer_len_limit,
+            state: LevelState::Leaf {
+                storage,
+                block_buffer: HashMap::new(),
+            },
+        }
     }
     pub fn flush(self) -> Result<Self, Error> {
         // TODO: include Addr, somehow
         todo!()
+    }
+}
+impl<'s, S, K, V> Level<'s, S, K, V>
+where
+    K: Eq + Hash,
+{
+    pub fn insert(&mut self, k: K, v: Option<V>) {
+        self.state.insert(k, v);
     }
 }
 struct Block<K, V> {
@@ -120,25 +126,27 @@ struct Block<K, V> {
 }
 enum LevelState<'s, S, K, V> {
     Branch {
+        storage: &'s S,
         child: Box<Level<'s, S, K, V>>,
         block_buffer: Vec<(K, Addr)>,
     },
     Leaf {
-        block_buffer: Vec<(K, Option<V>)>,
+        storage: &'s S,
+        block_buffer: HashMap<K, Option<V>>,
     },
 }
-impl<'s, S, K, V> LevelState<'s, S, K, V> {
-    pub fn push(&mut self, k: K, v: Option<V>) {
-        match &mut self.state {
-            LevelState::Branch{
-                child,
-                ..
-            } => {
-child.push(k,v);
-                }
-                Self::Leaf{block_buffer} => {
-                    block_buffer.push(k,v);
-                }
+impl<'s, S, K, V> LevelState<'s, S, K, V>
+where
+    K: Eq + Hash,
+{
+    pub fn insert(&mut self, k: K, v: Option<V>) {
+        match self {
+            LevelState::Branch { child, .. } => {
+                child.insert(k, v);
+            }
+            Self::Leaf { block_buffer, .. } => {
+                block_buffer.insert(k, v);
+            }
         }
     }
 }
@@ -170,8 +178,8 @@ pub mod test {
             dbg!(&storage);
             addr
         };
-        let mut update = Tree::<'_, _, _, u32, u32>::new(&storage, addr);
+        let mut update = Tree::new(&storage, 5);
         update.insert(3, 30);
-        dbg!(update.commit::<Node<_, _>>());
+        // dbg!(update.commit::<Node<_, _>>());
     }
 }
