@@ -136,7 +136,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         match self.block.as_mut() {
             Some(block) => {
-                let (k, v) = block.next()?;
+                let (_k, _v) = block.next()?;
                 todo!()
             }
             None => todo!(),

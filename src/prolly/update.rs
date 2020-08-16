@@ -91,20 +91,17 @@ where
     }
 }
 struct Level<'s, S, K, V> {
-    /// A initial measure to limit the size of the buffer, based on a simple
-    /// len measurement.
-    ///
-    /// Eventually this will be changed to some sort of measured heapsize.
-    buffer_len_limit: usize,
     state: LevelState<'s, S, K, V>,
+    // cursor, but not stored - exists on insert.
+    // window: Vec<(K,V)>,
+    // roller: Roller,
 }
 impl<'s, S, K, V> Level<'s, S, K, V> {
-    pub fn new(storage: &'s S, buffer_len_limit: usize) -> Self {
+    pub fn new(storage: &'s S) -> Self {
         Self {
-            buffer_len_limit,
             state: LevelState::Leaf {
                 storage,
-                block_buffer: HashMap::new(),
+                window: Vec::new(),
             },
         }
     }
@@ -115,9 +112,15 @@ impl<'s, S, K, V> Level<'s, S, K, V> {
 }
 impl<'s, S, K, V> Level<'s, S, K, V>
 where
-    K: Eq + Hash,
+    K: Eq + Ord,
 {
     pub fn insert(&mut self, k: K, v: Option<V>) {
+        // how do we know to expand the window?
+        //
+        // - if the key moves past the window, we'd have to try and flush the window.
+        //   - if it comes back clean, load a new window.
+        //   - if it comes back dirty, expand the window and check if the key is now within the
+        //      window and repeat the entire process.
         self.state.insert(k, v);
     }
 }
@@ -128,27 +131,76 @@ enum LevelState<'s, S, K, V> {
     Branch {
         storage: &'s S,
         child: Box<Level<'s, S, K, V>>,
-        block_buffer: Vec<(K, Addr)>,
+        window: Vec<(K, Addr)>,
     },
     Leaf {
         storage: &'s S,
-        block_buffer: HashMap<K, Option<V>>,
+        window: Vec<(K, V)>,
     },
+}
+struct Leaf<K, V> {
+    window: Vec<(K, V)>,
+}
+enum InsertResult<K, V> {
+    WindowMutated,
+    WindowDangling((K, V)),
+    WindowClosed((K, V)),
 }
 impl<'s, S, K, V> LevelState<'s, S, K, V>
 where
-    K: Eq + Hash,
+    K: Eq + Ord,
 {
+    pub fn expand_window(&mut self, node: Node<K, V>) {
+        todo!()
+    }
     pub fn insert(&mut self, k: K, v: Option<V>) {
         match self {
             LevelState::Branch { child, .. } => {
                 child.insert(k, v);
+                todo!("branch insert")
             }
-            Self::Leaf { block_buffer, .. } => {
-                block_buffer.insert(k, v);
+            Self::Leaf { window, .. } => {
+                use std::cmp::Ordering;
+                enum KeyIndex {
+                    Exists(usize),
+                    Before(usize),
+                    End,
+                }
+                let change = window
+                    .iter()
+                    .enumerate()
+                    .find_map(|(i, kv)| match kv.0.cmp(&k) {
+                        Ordering::Less => None,
+                        Ordering::Equal => Some(KeyIndex::Exists(i)),
+                        Ordering::Greater => Some(KeyIndex::Before(i)),
+                    })
+                    .unwrap_or(KeyIndex::End);
+                match (change, v) {
+                    (KeyIndex::Exists(i), Some(v)) => {
+                        window[i] = (k, v);
+                    }
+                    (KeyIndex::Exists(i), None) => {
+                        window.remove(i);
+                    }
+                    (KeyIndex::Before(i), Some(v)) => {
+                        window.insert(i, (k, v));
+                    }
+                    // the caller is trying to remove a key not found in the index.
+                    (KeyIndex::Before(i), None) => {}
+                    (KeyIndex::End, Some(v)) => {
+                        window.push((k, v));
+                    }
+                    // the caller is trying to remove something _after_ the leaf, but it
+                    // doesn't exist.
+                    //
+                    // The parent `Level` should have expanded the window to always insert
+                    // within the window, so this should never happen i think..
+                    (KeyIndex::End, None) => {}
+                }
             }
         }
     }
+    // pub fn move_window
 }
 #[cfg(test)]
 pub mod test {
