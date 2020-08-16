@@ -90,13 +90,30 @@ where
         // Ok(Some(node_addr.into()))
     }
 }
-struct Level<K, V> {
+struct Level<'s, S, K, V> {
     /// A initial measure to limit the size of the buffer, based on a simple
     /// len measurement.
     ///
     /// Eventually this will be changed to some sort of measured heapsize.
     buffer_len_limit: usize,
-    blocks: HashMap<K, Vec<(K, V)>>,
+    state: LevelState<'s, S, K,V>,
+}
+impl<'s, S, K, V> Level<'s, S, K, V> {
+    pub fn new(buffer_len_limit: usize) -> Self {
+Self{
+    buffer_len_limit,
+    state: LevelState::Leaf{
+        block_buffer: Vec::new(),
+    }
+}
+    }
+    pub fn insert(&mut self, k: K, v: Option<V>) {
+self.state.push(k,v);
+    }
+    pub fn flush(self) -> Result<Self, Error> {
+        // TODO: include Addr, somehow
+        todo!()
+    }
 }
 struct Block<K, V> {
     block: Vec<(K, V)>,
@@ -104,11 +121,26 @@ struct Block<K, V> {
 enum LevelState<'s, S, K, V> {
     Branch {
         child: Box<Level<'s, S, K, V>>,
-        blocks_buffer: Vec<(K, Addr)>,
+        block_buffer: Vec<(K, Addr)>,
     },
     Leaf {
-        blocks_buffer: Vec<(K, Option<V>)>,
+        block_buffer: Vec<(K, Option<V>)>,
     },
+}
+impl<'s, S, K, V> LevelState<'s, S, K, V> {
+    pub fn push(&mut self, k: K, v: Option<V>) {
+        match &mut self.state {
+            LevelState::Branch{
+                child,
+                ..
+            } => {
+child.push(k,v);
+                }
+                Self::Leaf{block_buffer} => {
+                    block_buffer.push(k,v);
+                }
+        }
+    }
 }
 #[cfg(test)]
 pub mod test {
