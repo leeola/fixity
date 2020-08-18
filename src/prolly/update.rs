@@ -98,12 +98,10 @@ struct Leaf<'s, S, K, V> {
 }
 impl<'s, S, K, V> Leaf<'s, S, K, V> {
     pub fn new(storage: &'s S) -> Self {
-        Self {
-            state: LevelState::Leaf {
-                storage,
-                window: Vec::new(),
-            },
-        }
+        todo!("")
+        // Self {
+        //     storage,
+        // }
     }
     pub fn flush(self) -> Result<Self, Error> {
         // TODO: include Addr, somehow
