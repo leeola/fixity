@@ -20,20 +20,20 @@ pub enum Update<V> {
     Insert(V),
     Remove,
 }
-pub struct Tree<'s, S, A, K, V> {
+pub struct Tree<'s, S,  K, V> {
     storage: &'s S,
-    addr: A,
     updates: HashMap<K, Update<V>>,
 }
-impl<'s, S, A, K, V> Tree<'s, S, A, K, V>
+impl<'s, S,  K, V> Tree<'s, S,  K, V>
 where
     // S: StorageWrite,
     K: std::fmt::Debug + Eq + Hash,
 {
-    pub fn new(storage: &'s S, addr: A) -> Self {
+    pub fn new<A>(storage: &'s S, addr: A) -> Self
+    where A: Into<Addr>,
+    {
         Self {
             storage,
-            addr,
             updates: HashMap::new(),
         }
     }
@@ -44,10 +44,9 @@ where
         self.updates.insert(k, Update::Remove);
     }
 }
-impl<'s, S, A, K, V> Tree<'s, S, A, K, V>
+impl<'s, S,  K, V> Tree<'s, S,  K, V>
 where
     S: StorageRead + StorageWrite,
-    A: Clone,
     K: std::fmt::Debug + DeserializeOwned + Serialize + Clone,
     V: std::fmt::Debug + DeserializeOwned + Serialize,
 {
@@ -89,6 +88,37 @@ where
         // storage.write(&node_addr, &*node_bytes)?;
         // Ok(Some(node_addr.into()))
     }
+}
+struct Leaf<'s, S, K, V> {
+    storage: &'s S,
+    cursor_addr: Addr,
+    parent_branch: Option<Box<Branch<'s,S,K,V>>,
+    leaf_window: Vec<(K, V)>,
+    // roller: Roller,
+}
+impl<'s, S, K, V> Leaf<'s, S, K, V> {
+    pub fn new(storage: &'s S) -> Self {
+        Self {
+            state: LevelState::Leaf {
+                storage,
+                window: Vec::new(),
+            },
+        }
+    }
+    pub fn flush(self) -> Result<Self, Error> {
+        // TODO: include Addr, somehow
+        todo!()
+    }
+}
+enum MaybeBranch<'s, S, K, V> {
+    Some(Box<Branch<'s, S, K, V>>),
+    None,
+}
+struct Branch<'s, S, K, V> {
+    storage: &'s S,
+    cursor_addr: Addr,
+    parent_branch: Option<Box<Branch<'s,S,K,V>>,
+    window: Vec<(K, Addr)>,
 }
 struct Level<'s, S, K, V> {
     state: LevelState<'s, S, K, V>,
