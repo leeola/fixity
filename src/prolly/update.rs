@@ -114,7 +114,16 @@ impl<'s, S, K, V> Level<'s, S, K, V>
 where
     K: Eq + Ord,
 {
-    pub fn insert(&mut self, k: K, v: Option<V>) {
+    pub fn insert(&mut self, k: K, v: Option<V>) -> Option<(K, Addr)> {
+        // general level behavior:
+        // - find the node (addr) on the tree, at this level, that the key belongs in.
+        // - if that's the same node (addr) as before, do nothing.
+        // - if it's a new addr, the old level state needs to be "cleaned up"
+        //      - this cleaning involes attempting to write cached block.
+        //      - if the block is cleanly written, ie no remaining elements, do nothing.
+        //      - if the block has remaining elements, either from a partial write or
+        //          failure to find a boundary at all, expand the level state and repeat.
+
         // how do we know to expand the window?
         //
         // - if the key moves past the window, we'd have to try and flush the window.
@@ -146,11 +155,16 @@ enum InsertResult<K, V> {
     WindowDangling((K, V)),
     WindowClosed((K, V)),
 }
+enum WindowMut<K> {
+    LeftSideSlid((K, Addr)),
+    NoBorderFound,
+    Closed((K, Addr)),
+}
 impl<'s, S, K, V> LevelState<'s, S, K, V>
 where
     K: Eq + Ord,
 {
-    pub fn expand_window(&mut self, node: Node<K, V>) {
+    pub fn expand_window(&mut self, node: Node<K, V>) -> Option<(K, Addr)> {
         todo!()
     }
     pub fn insert(&mut self, k: K, v: Option<V>) {
