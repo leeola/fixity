@@ -97,7 +97,7 @@ struct Leaf<'s, S, K, V> {
     // roller: Roller,
 }
 impl<'s, S, K, V> Leaf<'s, S, K, V> {
-    pub fn new(storage: &'s S) -> Self {
+    pub fn new(storage: &'s S, init_cursor_addr: Addr) -> Self {
         todo!("")
         // Self {
         //     storage,
