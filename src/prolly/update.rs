@@ -20,17 +20,18 @@ pub enum Update<V> {
     Insert(V),
     Remove,
 }
-pub struct Tree<'s, S,  K, V> {
+pub struct Tree<'s, S, K, V> {
     storage: &'s S,
     updates: HashMap<K, Update<V>>,
 }
-impl<'s, S,  K, V> Tree<'s, S,  K, V>
+impl<'s, S, K, V> Tree<'s, S, K, V>
 where
     // S: StorageWrite,
     K: std::fmt::Debug + Eq + Hash,
 {
     pub fn new<A>(storage: &'s S, addr: A) -> Self
-    where A: Into<Addr>,
+    where
+        A: Into<Addr>,
     {
         Self {
             storage,
@@ -44,7 +45,7 @@ where
         self.updates.insert(k, Update::Remove);
     }
 }
-impl<'s, S,  K, V> Tree<'s, S,  K, V>
+impl<'s, S, K, V> Tree<'s, S, K, V>
 where
     S: StorageRead + StorageWrite,
     K: std::fmt::Debug + DeserializeOwned + Serialize + Clone,
@@ -67,8 +68,8 @@ where
     where
         R: DeserializeOwned + AsNode<K = K, V = V>,
     {
-        let reader = ReadTree::<'_, _, _, R>::new(&self.storage, &self.addr);
-        let create = CreateTree::<'_, _, K, V>::new(&self.storage);
+        // let reader = ReadTree::<'_, _, _, R>::new(&self.storage, &self.addr);
+        // let create = CreateTree::<'_, _, K, V>::new(&self.storage);
         todo!("flush")
     }
     pub fn commit<R>(self) -> Result<Option<Addr>, Error>
@@ -92,12 +93,19 @@ where
 struct Leaf<'s, S, K, V> {
     storage: &'s S,
     cursor_addr: Addr,
-    parent_branch: Option<Box<Branch<'s,S,K,V>>,
+    parent_branch: Option<Box<Branch<'s, S, K, V>>>,
     leaf_window: Vec<(K, V)>,
     // roller: Roller,
 }
-impl<'s, S, K, V> Leaf<'s, S, K, V> {
-    pub fn new(storage: &'s S, init_cursor_addr: Addr) -> Self {
+impl<'s, S, K, V> Leaf<'s, S, K, V>
+where
+    K: DeserializeOwned,
+    V: DeserializeOwned,
+{
+    pub fn new<R>(storage: &'s S, init_cursor_addr: Addr, init_key: K) -> Self
+    where
+        R: DeserializeOwned + AsNode<K = K, V = V>,
+    {
         todo!("")
         // Self {
         //     storage,
@@ -115,8 +123,9 @@ enum MaybeBranch<'s, S, K, V> {
 struct Branch<'s, S, K, V> {
     storage: &'s S,
     cursor_addr: Addr,
-    parent_branch: Option<Box<Branch<'s,S,K,V>>,
+    parent_branch: Option<Box<Branch<'s, S, K, V>>>,
     window: Vec<(K, Addr)>,
+    _tmp_phantom: std::marker::PhantomData<V>,
 }
 struct Level<'s, S, K, V> {
     state: LevelState<'s, S, K, V>,
@@ -159,6 +168,7 @@ where
         //   - if it comes back dirty, expand the window and check if the key is now within the
         //      window and repeat the entire process.
         self.state.insert(k, v);
+        todo!("level insert")
     }
 }
 struct Block<K, V> {
@@ -174,9 +184,6 @@ enum LevelState<'s, S, K, V> {
         storage: &'s S,
         window: Vec<(K, V)>,
     },
-}
-struct Leaf<K, V> {
-    window: Vec<(K, V)>,
 }
 enum InsertResult<K, V> {
     WindowMutated,
@@ -272,8 +279,8 @@ pub mod test {
             dbg!(&storage);
             addr
         };
-        let mut update = Tree::new(&storage, 5);
-        update.insert(3, 30);
+        // let mut update = Tree::new(&storage, 5);
+        // update.insert(3, 30);
         // dbg!(update.commit::<Node<_, _>>());
     }
 }

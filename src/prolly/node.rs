@@ -6,6 +6,26 @@ pub trait AsNode {
     type V: DeserializeOwned;
     fn as_node(&self) -> &Node<Self::K, Self::V>;
 }
+pub trait Container {
+    type M;
+    type Addr;
+    type K;
+    type V;
+}
+#[cfg(feature = "serde")]
+pub trait ContainerRef<'de>: Container<Addr = &'de str> + Deserialize<'de> {}
+#[cfg(feature = "serde")]
+pub trait ContainerOwned: Container<Addr = String> + DeserializeOwned {}
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
+pub enum NodeC<C: Container> {
+    Root {
+        meta: C::M,
+        addrs: Vec<(C::K, C::Addr)>,
+    },
+    Branch(Vec<(C::K, C::Addr)>),
+    Leaf(Vec<(C::K, C::V)>),
+}
 /// The embed-friendly tree data structure, representing the root of the tree in either
 /// values or `Ref<Addr>`s.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -67,5 +87,36 @@ impl Pos {
             x: self.x,
             y: self.y + y,
         }
+    }
+}
+#[cfg(test)]
+pub mod test {
+    use {
+        super::*,
+        crate::{
+            prolly::{create::CreateTree, node::Node, roller::Config as RollerConfig},
+            storage::Memory,
+        },
+    };
+    #[test]
+    fn deserialize_ref() {
+        let mut buf = vec![vec![
+            r#"
+{
+    "Root",
+}
+                    "#,
+        ]];
+    }
+    fn impl_deserialize_node_ref<'de, C>(mut node_bufs: &mut Vec<Vec<u8>>) -> Vec<NodeC<C>>
+    where
+        C: ContainerRef<'de>,
+    {
+        let mut nodes = Vec::new();
+        for buf in node_bufs.iter() {
+            let node: NodeC<C> = serde_json::from_slice(&buf).unwrap();
+            nodes.push(node);
+        }
+        nodes
     }
 }
