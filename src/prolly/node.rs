@@ -8,22 +8,22 @@ pub trait AsNode {
 }
 pub trait Container {
     type M;
-    type Addr;
     type K;
     type V;
 }
-#[cfg(feature = "serde")]
-pub trait ContainerRef<'de>: Container<Addr = &'de str> + Deserialize<'de> {}
-#[cfg(feature = "serde")]
-pub trait ContainerOwned: Container<Addr = String> + DeserializeOwned {}
-// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
-pub enum NodeC<C: Container> {
-    Root {
+pub enum NodeC<C: Container, Addr> {
+    RootBranch {
         meta: C::M,
-        addrs: Vec<(C::K, C::Addr)>,
+        addrs: Vec<(C::K, Addr)>,
     },
-    Branch(Vec<(C::K, C::Addr)>),
+    Branch(Vec<(C::K, Addr)>),
+    RootLeaf {
+        meta: C::M,
+        addrs: Vec<(C::K, C::V)>,
+    },
     Leaf(Vec<(C::K, C::V)>),
 }
 /// The embed-friendly tree data structure, representing the root of the tree in either
@@ -116,7 +116,8 @@ pub mod test {
         for buf in node_bufs.iter() {
             let node: NodeC<C> = serde_json::from_slice(&buf).unwrap();
             nodes.push(node);
+            nodes.push(node);
         }
         nodes
     }
-}
+}                   }
