@@ -6,25 +6,19 @@ pub trait AsNode {
     type V: DeserializeOwned;
     fn as_node(&self) -> &Node<Self::K, Self::V>;
 }
-pub trait Container {
-    type M;
-    type K;
-    type V;
-}
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
-pub enum NodeC<C: Container, Addr> {
+pub enum NodeC<Key, Value, Meta, Addr> {
     RootBranch {
-        meta: C::M,
-        addrs: Vec<(C::K, Addr)>,
+        meta: Meta,
+        addrs: Vec<(Key, Addr)>,
     },
-    Branch(Vec<(C::K, Addr)>),
+    Branch(Vec<(Key, Addr)>),
     RootLeaf {
-        meta: C::M,
-        addrs: Vec<(C::K, C::V)>,
+        meta: Meta,
+        addrs: Vec<(Key, Value)>,
     },
-    Leaf(Vec<(C::K, C::V)>),
+    Leaf(Vec<(Key, Value)>),
 }
 /// The embed-friendly tree data structure, representing the root of the tree in either
 /// values or `Ref<Addr>`s.
@@ -120,4 +114,4 @@ pub mod test {
         }
         nodes
     }
-}                   }
+}
