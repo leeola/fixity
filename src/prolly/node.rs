@@ -8,16 +8,24 @@ pub trait AsNode {
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
-pub enum NodeC<Key, Value, Meta, Addr> {
+pub enum NodeWithMeta<Key, Value, Addr, Meta> {
     RootBranch {
         meta: Meta,
         addrs: Vec<(Key, Addr)>,
     },
-    Branch(Vec<(Key, Addr)>),
     RootLeaf {
         meta: Meta,
-        addrs: Vec<(Key, Value)>,
+        values: Vec<(Key, Value)>,
     },
+    Branch(Vec<(Key, Addr)>),
+    Leaf(Vec<(Key, Value)>),
+}
+/// The embed-friendly tree data structure, representing the root of the tree in either
+/// values or `Ref<Addr>`s.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
+pub enum NodeA<Key, Value, Addr> {
+    Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
 }
 /// The embed-friendly tree data structure, representing the root of the tree in either
@@ -44,6 +52,7 @@ impl<K, V> Node<K, V> {
         }
     }
 }
+// impl<M,A,K,V> From<NodeWithMeta<M,A,K,V>
 impl<K, V> AsNode for Node<K, V>
 where
     K: DeserializeOwned,

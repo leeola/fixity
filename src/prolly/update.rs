@@ -4,7 +4,7 @@ use {
     crate::{
         prolly::{
             create::CreateTree,
-            node::{AsNode, Node},
+            node::{AsNode, Node, NodeA, NodeWithMeta},
             read::Tree as ReadTree,
             roller::{Config as RollerConfig, Roller},
         },
@@ -94,6 +94,13 @@ struct Leaf<'s, S, K, V> {
     storage: &'s S,
     cursor_addr: Addr,
     parent_branch: Option<Box<Branch<'s, S, K, V>>>,
+    /// The window of values which are being mutated.
+    ///
+    /// As keys are added/removed/mutated, the cursor loads blocks to ensure the key
+    /// in question is always within a block, allowing the roller to find new boundaries
+    /// as needed.
+    ///
+    /// TODO: reword ^, as it's not entirely descriptive or accurate.
     leaf_window: Vec<(K, V)>,
     // roller: Roller,
 }
