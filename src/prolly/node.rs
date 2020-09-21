@@ -1,42 +1,22 @@
-use crate::Addr;
 #[cfg(feature = "serde")]
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-pub trait AsNode {
-    type K: DeserializeOwned;
-    type V: DeserializeOwned;
-    fn as_node(&self) -> &Node<Self::K, Self::V>;
-}
+use serde::{Deserialize, Serialize};
+
+/// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
-pub enum NodeWithMeta<Key, Value, Addr, Meta> {
-    RootBranch {
+pub enum Node<Key, Value, Addr, Meta> {
+    BranchWithMeta {
         meta: Meta,
         addrs: Vec<(Key, Addr)>,
     },
-    RootLeaf {
+    LeafWithMeta {
         meta: Meta,
         values: Vec<(Key, Value)>,
     },
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
 }
-/// The embed-friendly tree data structure, representing the root of the tree in either
-/// values or `Ref<Addr>`s.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
-pub enum NodeA<Key, Value, Addr> {
-    Branch(Vec<(Key, Addr)>),
-    Leaf(Vec<(Key, Value)>),
-}
-/// The embed-friendly tree data structure, representing the root of the tree in either
-/// values or `Ref<Addr>`s.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
-pub enum Node<K, V> {
-    Branch(Vec<(K, Addr)>),
-    Leaf(Vec<(K, V)>),
-}
-impl<K, V> Node<K, V> {
+impl<K, V, A, M> Node<K, V, A, M> {
     /// Return the key for this whole node, aka the first element's key.
     pub fn key(&self) -> Option<&K> {
         match self {
@@ -50,18 +30,6 @@ impl<K, V> Node<K, V> {
             Self::Branch(v) => v.len(),
             Self::Leaf(v) => v.len(),
         }
-    }
-}
-// impl<M,A,K,V> From<NodeWithMeta<M,A,K,V>
-impl<K, V> AsNode for Node<K, V>
-where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
-{
-    type K = K;
-    type V = V;
-    fn as_node(&self) -> &Self {
-        &self
     }
 }
 // TODO: Maybe deprecate meta and pos
@@ -90,37 +58,5 @@ impl Pos {
             x: self.x,
             y: self.y + y,
         }
-    }
-}
-#[cfg(test)]
-pub mod test {
-    use {
-        super::*,
-        crate::{
-            prolly::{create::CreateTree, node::Node, roller::Config as RollerConfig},
-            storage::Memory,
-        },
-    };
-    #[test]
-    fn deserialize_ref() {
-        let mut buf = vec![vec![
-            r#"
-{
-    "Root",
-}
-                    "#,
-        ]];
-    }
-    fn impl_deserialize_node_ref<'de, C>(mut node_bufs: &mut Vec<Vec<u8>>) -> Vec<NodeC<C>>
-    where
-        C: ContainerRef<'de>,
-    {
-        let mut nodes = Vec::new();
-        for buf in node_bufs.iter() {
-            let node: NodeC<C> = serde_json::from_slice(&buf).unwrap();
-            nodes.push(node);
-            nodes.push(node);
-        }
-        nodes
     }
 }

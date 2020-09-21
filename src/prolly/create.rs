@@ -4,39 +4,13 @@ use {
     crate::{
         prolly::roller::{Config as RollerConfig, Roller},
         storage::StorageWrite,
-        Addr,
+        Addr, Error,
     },
     multibase::Base,
     std::mem,
 };
-/// A temp error type
-type Error = String;
-/// The embed-friendly tree data structure, representing the root of the tree in either
-/// values or `Ref<Addr>`s.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
-pub enum Node<K, V> {
-    Branch(Vec<(K, Addr)>),
-    Leaf(Vec<(K, V)>),
-}
-impl<K, V> Node<K, V> {
-    /// Return the key for this whole node, aka the first element's key.
-    pub fn key(&self) -> Option<&K> {
-        match self {
-            Self::Branch(v) => v.get(0).map(|(k, _)| k),
-            Self::Leaf(v) => v.get(0).map(|(k, _)| k),
-        }
-    }
-    /// Len of the underlying vec.
-    pub fn len(&self) -> usize {
-        match self {
-            Self::Branch(v) => v.len(),
-            Self::Leaf(v) => v.len(),
-        }
-    }
-}
 /// The primary constructor implementation to distribute values
-pub struct CreateTree<'s, S, K, V> {
+pub struct NewTree<'s, S, Key, Value, Meta> {
     storage: &'s S,
     roller_config: RollerConfig,
     root: Level<'s, S, K, V>,
