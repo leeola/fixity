@@ -26,12 +26,13 @@ serde_json = { version = "1.0", optional = true }
 # normal, non-optional deps.
 fbuzhash = { path = "./fbuzhash" }
 log = "0.4"
-thiserror = "1.0"
+thiserror = "1.0.21"
 blake3 = "0.3"
 fastcdc = "1.0"
 multibase = "0.8"
 async-trait = "0.1"
 speedy = "0.7.0"
+tokio = { version = "0.2.22", features = ["fs"] }
 
 [dev-dependencies]
 env_logger = "0.7"

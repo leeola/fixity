@@ -16,20 +16,34 @@ enum Command {
 }
 #[derive(Debug, StructOpt)]
 enum RawCommand {
-    Get {},
-    Put {
-        #[structopt(long)]
-        stdin: bool,
+    Get {
+        /// The fixity address to get.
+        address: String,
     },
-    Fetch {},
+    // Put {
+    //     #[structopt(long)]
+    //     stdin: bool,
+    // },
+    // Fetch {},
 }
-
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("fixity error: {0}")]
+    Fixity(String),
+}
 #[tokio::main]
-async fn main() -> () {
+async fn main() -> Result<(), Error> {
+    env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
     match opt.cmd {
-        Command::Raw(_) => unimplemented!("raw cmd"),
+        Command::Raw(cmd) => match cmd {
+            RawCommand::Get { address } => cmd_raw_get(address).await,
+        },
         #[cfg(feature = "web")]
-        Command::Web(c) => fixi_web::serve(c).await,
+        Command::Web(c) => unimplemented!("web serve"),
+        // Command::Web(c) => fixi_web::serve(c).await,
     }
+}
+async fn cmd_raw_get(address: String) -> Result<(), Error> {
+    Err(Error::Fixity("not implemented".into()))
 }
