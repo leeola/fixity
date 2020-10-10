@@ -414,6 +414,7 @@ dependencies = [
  "multibase",
  "serde",
  "serde_json",
+ "speedy",
  "thiserror",
 ]
 
@@ -1265,6 +1266,26 @@ name = "smallvec"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
+
+[[package]]
+name = "speedy"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065941586ee990974b65f47846f226a670ec13f56fc96697a9dc9904704e16b8"
+dependencies = [
+ "speedy-derive",
+]
+
+[[package]]
+name = "speedy-derive"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1997efe7e56c9c1b0fa220197980d97425fec494e24e7917ecf98f2160858871"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "standback"
