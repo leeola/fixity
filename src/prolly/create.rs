@@ -9,13 +9,12 @@ use {
     multibase::Base,
     std::mem,
 };
-/// The primary constructor implementation to distribute values
-pub struct NewTree<'s, S, Key, Value, Meta> {
+pub struct Create<'s, S, Key, Value> {
     storage: &'s S,
     roller_config: RollerConfig,
-    root: Level<'s, S, K, V>,
+    leaf: LeafCursor<'s, S, Key, Value>,
 }
-impl<'s, S, K, V> CreateTree<'s, S, K, V> {
+impl<'s, S, K, V> Create<'s, S, K, V> {
     pub fn new(storage: &'s S) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
@@ -23,21 +22,30 @@ impl<'s, S, K, V> CreateTree<'s, S, K, V> {
         Self {
             storage,
             roller_config,
-            root: Level::new(storage, Roller::with_config(roller_config)),
+            leaf: Leaf::new(storage, Roller::with_config(roller_config)),
         }
     }
 }
-#[cfg(all(feature = "cjson", feature = "serde"))]
-impl<'s, S, K, V> CreateTree<'s, S, K, V>
+struct Leaf<'s, S, Key, Value> {
+    storage: &'s S,
+    roller: Roller,
+}
+impl<'s, S, K, V> Leaf<'s, S, K, V> {
+    pub fn new(storage: &'s S, roller: Roller) -> Self {
+        Self { storage, roller }
+    }
+}
+impl<'s, S, K, V> Create<'s, S, K, V>
 where
     S: StorageWrite,
     K: std::fmt::Debug + Serialize + Clone,
     V: std::fmt::Debug + Serialize,
 {
     pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
-        self.root.flush()
+        // self.root.flush()
+        todo!("flush")
     }
-    /// Flush this `CreateTree` and write the results to the internal storage,
+    /// Flush this `Create` and write the results to the internal storage,
     /// consuming `Self`.
     ///
     /// This is useful for low level interactions with the tree who only want to store
@@ -46,19 +54,20 @@ where
     /// # Errors
     /// Fails if flush, serialization or calls to storage fail.
     pub fn commit(self) -> Result<Option<Addr>, Error> {
-        let node = match self.root.flush()? {
-            Some(node) => node,
-            None => return Ok(None),
-        };
-        let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-        let node_addr = {
-            let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-            multibase::encode(Base::Base58Btc, &node_hash)
-        };
-        self.storage
-            .write(&node_addr, &*node_bytes)
-            .map_err(|err| format!("{:?}", err))?;
-        Ok(Some(node_addr.into()))
+        // let node = match self.root.flush()? {
+        //     Some(node) => node,
+        //     None => return Ok(None),
+        // };
+        // let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
+        // let node_addr = {
+        //     let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
+        //     multibase::encode(Base::Base58Btc, &node_hash)
+        // };
+        // self.storage
+        //     .write(&node_addr, &*node_bytes)
+        //     .map_err(|err| format!("{:?}", err))?;
+        // Ok(Some(node_addr.into()))
+        todo!()
     }
     pub fn push(self, k: K, v: V) -> Result<Self, Error> {
         let Self {
@@ -85,6 +94,11 @@ where
         })
     }
 }
+// struct BranchCursor<'s, S, K, V> {
+//     storage: &'s S,
+//     roller: Roller,
+// }
+/*
 struct Level<'s, S, K, V> {
     storage: &'s S,
     roller: Roller,
@@ -210,6 +224,7 @@ enum LevelState<'s, S, K, V> {
         block: Vec<(K, V)>,
     },
 }
+*/
 #[cfg(test)]
 pub mod test {
     use {super::*, crate::storage::Memory};
@@ -222,13 +237,13 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let storage = Memory::new();
-        let mut tree =
-            CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-        for (k, v) in (0..61).map(|i| (i, i * 10)) {
-            tree = tree.push(k, v).unwrap();
-        }
-        dbg!(tree.flush());
-        dbg!(&storage);
+        // let storage = Memory::new();
+        // let mut tree =
+        //     CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
+        // for (k, v) in (0..61).map(|i| (i, i * 10)) {
+        //     tree = tree.push(k, v).unwrap();
+        // }
+        // dbg!(tree.flush());
+        // dbg!(&storage);
     }
 }
