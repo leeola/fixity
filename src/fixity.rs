@@ -1,6 +1,7 @@
 use {
     crate::{Error, StorageRead, StorageWrite},
-    tokio::io::AsyncRead,
+    multibase::Base,
+    tokio::io::{self, AsyncRead},
 };
 
 // TODO: move to fixity.rs
@@ -16,14 +17,18 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub async fn put_reader<R>(&self, r: R) -> Result<String, Error>
+    pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
         R: AsyncRead + Unpin + Send,
     {
-        let h = "fakehash";
-        let n = self.storage.write(h, r).await?;
-        log::trace!("{} bytes written to {}", n, h);
-        Ok(h.into())
+        log::warn!("putting without chunking");
+        let mut bytes = Vec::new();
+        io::copy(&mut r, &mut bytes).await?;
+        let hash = <[u8; 32]>::from(blake3::hash(&bytes));
+        let addr = multibase::encode(Base::Base58Btc, &hash);
+        let n = self.storage.write(addr.clone(), r).await?;
+        log::trace!("{} bytes written to {}", n, addr);
+        Ok(addr)
     }
 }
 pub struct Builder<S> {

@@ -2,10 +2,7 @@
 // pub use memory::Memory;
 pub mod fs;
 
-use {
-    async_trait::async_trait,
-    tokio::io::{self, AsyncRead, AsyncWrite},
-};
+use tokio::io::{self, AsyncRead, AsyncWrite};
 
 pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
