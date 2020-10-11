@@ -1,18 +1,16 @@
 pub mod error;
-// pub mod fixity;
+pub mod fixity;
 // mod hash_tree;
 // pub mod prolly;
 pub mod storage;
-// pub mod store;
 
-/*
 pub use {
+    self::error::{Error, Result},
     self::fixity::Fixity,
-    error::{Error, Result},
-    storage::Storage,
-    store::Store,
+    storage::{Storage, StorageRead, StorageWrite},
 };
 
+/*
 pub struct Id {
     pub rand: String,
     pub signature: String,

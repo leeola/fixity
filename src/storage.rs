@@ -1,22 +1,21 @@
 // pub mod memory;
 // pub use memory::Memory;
+pub mod fs;
 
 use {
-    std::io::{
-        self,
-         Read, Write},
     async_trait::async_trait,
-    };
+    tokio::io::{self, AsyncRead, AsyncWrite},
+};
 
 pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
 
-#[async_trait]
+#[async_trait::async_trait]
 pub trait StorageRead {
     async fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
     where
         S: AsRef<str>,
-        W: Write;
+        W: AsyncWrite;
 
     // async fn read_string<S>(&self, hash: S) -> Result<String, Error>
     // where
@@ -38,22 +37,22 @@ pub trait StorageRead {
     // }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 pub trait StorageWrite {
     async fn write<S, R>(&self, hash: S, r: R) -> Result<usize, Error>
     where
-        S: AsRef<str>,
-        R: Read;
+        S: AsRef<str> + Send,
+        R: AsyncRead + Send;
 
-     // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
-     // where
-     //     S: AsRef<str> + Send,
-     // {
-     //     let b = s.as_bytes();
-     //     let len = b.len();
-     //     self.write(hash, &*b).await?;
-     //     Ok(len)
-     // }
+    // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
+    // where
+    //     S: AsRef<str> + Send,
+    // {
+    //     let b = s.as_bytes();
+    //     let len = b.len();
+    //     self.write(hash, &*b).await?;
+    //     Ok(len)
+    // }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -62,8 +61,10 @@ pub enum Error {
     Unhandled { message: String },
     #[error("hash `{hash}` not found")]
     NotFound { hash: String },
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
     #[error("hash `{hash}` io error: {err}")]
-    Io { hash: String, err: io::Error },
+    IoHash { hash: String, err: io::Error },
     #[error("hash `{hash}` io error: {err}")]
     Utf8 {
         hash: String,

@@ -417,6 +417,7 @@ dependencies = [
  "serde",
  "serde_json",
  "speedy",
+ "structopt",
  "thiserror",
  "tokio",
 ]

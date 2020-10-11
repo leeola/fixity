@@ -1,3 +1,53 @@
+use {
+    crate::{Error, StorageRead, StorageWrite},
+    tokio::io::AsyncRead,
+};
+
+// TODO: move to fixity.rs
+pub struct Fixity<S> {
+    storage: S,
+}
+impl<S> Fixity<S> {
+    pub fn new() -> Builder<S> {
+        Builder::default()
+    }
+}
+impl<S> Fixity<S>
+where
+    S: StorageWrite,
+{
+    pub async fn put_reader<R>(&self, r: R) -> Result<String, Error>
+    where
+        R: AsyncRead + Send,
+    {
+        let h = "foo";
+        let n = self.storage.write(h, r).await?;
+        log::trace!("{} bytes written to {}", n, h);
+        Ok(h.into())
+    }
+}
+pub struct Builder<S> {
+    storage: Option<S>,
+}
+impl<S> Default for Builder<S> {
+    fn default() -> Self {
+        Self { storage: None }
+    }
+}
+impl<S> Builder<S> {
+    pub fn with_storage(mut self, storage: S) -> Self {
+        self.storage.replace(storage);
+        self
+    }
+    pub fn build(self) -> Result<Fixity<S>, Error> {
+        let storage = self.storage.ok_or_else(|| Error::Builder {
+            message: "missing storage".into(),
+        })?;
+        Ok(Fixity { storage })
+    }
+}
+
+/*
 pub mod map;
 pub mod table;
 pub use map::Map;
@@ -351,3 +401,4 @@ pub mod test {
         // dbg!(hash);
     }
 }
+*/
