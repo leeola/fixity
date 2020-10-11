@@ -1,46 +1,59 @@
-pub mod memory;
-pub use memory::Memory;
-use std::io::{self, BufWriter, Read, Write};
+// pub mod memory;
+// pub use memory::Memory;
+
+use {
+    std::io::{
+        self,
+         Read, Write},
+    async_trait::async_trait,
+    };
+
 pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
+
+#[async_trait]
 pub trait StorageRead {
-    fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
+    async fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
     where
         S: AsRef<str>,
         W: Write;
-    fn read_string<S>(&self, hash: S) -> Result<String, Error>
-    where
-        S: AsRef<str>,
-    {
-        let mut buf = BufWriter::new(Vec::new());
-        self.read(&hash, &mut buf)?;
-        buf.flush().map_err(|err| Error::Io {
-            hash: hash.as_ref().to_owned(),
-            err,
-        })?;
-        let s = std::str::from_utf8(&buf.get_ref())
-            .map_err(|err| Error::Utf8 {
-                hash: hash.as_ref().to_owned(),
-                err,
-            })?
-            .to_owned();
-        Ok(s)
-    }
+
+    // async fn read_string<S>(&self, hash: S) -> Result<String, Error>
+    // where
+    //     S: AsRef<str>,
+    // {
+    //     let mut buf = BufWriter::new(Vec::new());
+    //     self.read(&hash, &mut buf)?;
+    //     buf.flush().map_err(|err| Error::Io {
+    //         hash: hash.as_ref().to_owned(),
+    //         err,
+    //     })?;
+    //     let s = std::str::from_utf8(&buf.get_ref())
+    //         .map_err(|err| Error::Utf8 {
+    //             hash: hash.as_ref().to_owned(),
+    //             err,
+    //         })?
+    //         .to_owned();
+    //     Ok(s)
+    // }
 }
+
+#[async_trait]
 pub trait StorageWrite {
-    fn write<S, R>(&self, hash: S, r: R) -> Result<usize, Error>
+    async fn write<S, R>(&self, hash: S, r: R) -> Result<usize, Error>
     where
         S: AsRef<str>,
         R: Read;
-    fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
-    where
-        S: AsRef<str>,
-    {
-        let b = s.as_bytes();
-        let len = b.len();
-        self.write(hash, &*b)?;
-        Ok(len)
-    }
+
+    // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
+    // where
+    //     S: AsRef<str>,
+    // {
+    //     let b = s.as_bytes();
+    //     let len = b.len();
+    //     self.write(hash, &*b)?;
+    //     Ok(len)
+    // }
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

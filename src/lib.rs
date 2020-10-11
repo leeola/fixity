@@ -1,12 +1,11 @@
 pub mod error;
-pub mod fixity;
-mod hash_tree;
+// pub mod fixity;
+// mod hash_tree;
 // pub mod prolly;
 pub mod storage;
-pub mod store;
+// pub mod store;
 
-#[cfg(feature = "borsh")]
-use borsh::{BorshDeserialize, BorshSerialize};
+/*
 pub use {
     self::fixity::Fixity,
     error::{Error, Result},
@@ -105,3 +104,4 @@ impl ContentAddrs {
         }
     }
 }
+*/
