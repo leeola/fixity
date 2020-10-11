@@ -45,16 +45,17 @@ pub trait StorageWrite {
         S: AsRef<str>,
         R: Read;
 
-    // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
-    // where
-    //     S: AsRef<str>,
-    // {
-    //     let b = s.as_bytes();
-    //     let len = b.len();
-    //     self.write(hash, &*b)?;
-    //     Ok(len)
-    // }
+     // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
+     // where
+     //     S: AsRef<str> + Send,
+     // {
+     //     let b = s.as_bytes();
+     //     let len = b.len();
+     //     self.write(hash, &*b).await?;
+     //     Ok(len)
+     // }
 }
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unhandled error: `{message}`")]
