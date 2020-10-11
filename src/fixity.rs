@@ -18,9 +18,9 @@ where
 {
     pub async fn put_reader<R>(&self, r: R) -> Result<String, Error>
     where
-        R: AsyncRead + Send,
+        R: AsyncRead + Unpin + Send,
     {
-        let h = "foo";
+        let h = "fakehash";
         let n = self.storage.write(h, r).await?;
         log::trace!("{} bytes written to {}", n, h);
         Ok(h.into())

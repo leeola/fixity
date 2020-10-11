@@ -85,8 +85,7 @@ where
     S: StorageWrite,
 {
     let addr = if let Some(s) = with_input {
-        // fixi.put_reader(tokio::io::stdin()).await?
-        unimplemented!("string input")
+        fixi.put_reader(s.as_bytes()).await?
     } else {
         fixi.put_reader(tokio::io::stdin()).await?
     };

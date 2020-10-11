@@ -39,20 +39,19 @@ pub trait StorageRead {
 
 #[async_trait::async_trait]
 pub trait StorageWrite {
-    async fn write<S, R>(&self, hash: S, r: R) -> Result<usize, Error>
+    async fn write<S, R>(&self, hash: S, r: R) -> Result<u64, Error>
     where
-        S: AsRef<str> + Send,
-        R: AsyncRead + Send;
+        S: AsRef<str> + 'static + Send,
+        R: AsyncRead + Unpin + Send;
 
-    // async fn write_string<S>(&self, hash: S, s: String) -> Result<usize, Error>
-    // where
-    //     S: AsRef<str> + Send,
-    // {
-    //     let b = s.as_bytes();
-    //     let len = b.len();
-    //     self.write(hash, &*b).await?;
-    //     Ok(len)
-    // }
+    /// A helper to write the provided String into storage.
+    async fn write_string<S>(&self, hash: S, s: String) -> Result<u64, Error>
+    where
+        S: AsRef<str> + 'static + Send,
+    {
+        let b = s.as_bytes();
+        self.write(hash, &*b).await
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
