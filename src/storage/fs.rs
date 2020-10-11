@@ -1,5 +1,5 @@
 use {
-    super::{Error, StorageRead, StorageWrite},
+    super::{Error, StorageWrite},
     std::path::PathBuf,
     tokio::{
         fs::{self, OpenOptions},

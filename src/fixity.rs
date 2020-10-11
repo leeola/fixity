@@ -1,5 +1,5 @@
 use {
-    crate::{Error, StorageRead, StorageWrite},
+    crate::{Error, StorageWrite},
     multibase::Base,
     tokio::io::{self, AsyncRead},
 };
@@ -17,6 +17,7 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
+    // pub fn map<K,V>(&self) -> Map<S, K, V>,
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
         R: AsyncRead + Unpin + Send,
