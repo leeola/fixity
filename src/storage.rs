@@ -1,6 +1,6 @@
-// pub mod memory;
-// pub use memory::Memory;
 pub mod fs;
+pub mod memory;
+pub use {fs::Fs, memory::Memory};
 
 use tokio::io::{self, AsyncRead, AsyncWrite};
 

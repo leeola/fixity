@@ -32,7 +32,7 @@ fastcdc = "1.0"
 multibase = "0.8"
 async-trait = "0.1"
 speedy = "0.7.0"
-tokio = { version = "0.2.22", features = ["fs", "io-util"] }
+tokio = { version = "0.2.22", features = ["macros", "fs", "io-util", "sync"] }
 structopt = { version = "0.3", optional = true }
 
 [dev-dependencies]
