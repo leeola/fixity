@@ -11,27 +11,18 @@ impl<T> Storage for T where T: StorageRead + StorageWrite {}
 pub trait StorageRead {
     async fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
     where
-        S: AsRef<str>,
-        W: AsyncWrite;
+        S: AsRef<str> + 'static + Send,
+        W: AsyncWrite + Unpin + Send;
 
-    // async fn read_string<S>(&self, hash: S) -> Result<String, Error>
-    // where
-    //     S: AsRef<str>,
-    // {
-    //     let mut buf = BufWriter::new(Vec::new());
-    //     self.read(&hash, &mut buf)?;
-    //     buf.flush().map_err(|err| Error::Io {
-    //         hash: hash.as_ref().to_owned(),
-    //         err,
-    //     })?;
-    //     let s = std::str::from_utf8(&buf.get_ref())
-    //         .map_err(|err| Error::Utf8 {
-    //             hash: hash.as_ref().to_owned(),
-    //             err,
-    //         })?
-    //         .to_owned();
-    //     Ok(s)
-    // }
+    async fn read_string<S>(&self, hash: S) -> Result<String, Error>
+    where
+        S: AsRef<str> + 'static + Send,
+    {
+        let mut buf = Vec::new();
+        self.read(hash, &mut buf).await?;
+        let s = std::str::from_utf8(&buf)?.to_owned();
+        Ok(s)
+    }
 }
 
 #[async_trait::async_trait]
@@ -61,8 +52,10 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("hash `{hash}` io error: {err}")]
     IoHash { hash: String, err: io::Error },
+    #[error("utf8 error: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
     #[error("hash `{hash}` io error: {err}")]
-    Utf8 {
+    Utf8Hash {
         hash: String,
         err: std::str::Utf8Error,
     },

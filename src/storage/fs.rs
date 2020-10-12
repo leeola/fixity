@@ -1,9 +1,9 @@
 use {
-    super::{Error, StorageWrite},
+    super::{Error, StorageRead, StorageWrite},
     std::path::PathBuf,
     tokio::{
         fs::{self, OpenOptions},
-        io::{self, AsyncRead},
+        io::{self, AsyncRead, AsyncWrite},
     },
 };
 
@@ -20,6 +20,22 @@ impl Fs {
     pub async fn new(config: Config) -> Result<Self, Error> {
         fs::create_dir_all(&config.path).await?;
         Ok(Self { config })
+    }
+}
+#[async_trait::async_trait]
+impl StorageRead for Fs {
+    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<(), Error>
+    where
+        S: AsRef<str> + 'static + Send,
+        W: AsyncWrite + Unpin + Send,
+    {
+        let hash = hash.as_ref();
+        let mut f = OpenOptions::new()
+            .read(true)
+            .open(self.config.path.join(hash))
+            .await?;
+        io::copy(&mut f, &mut w).await?;
+        Ok(())
     }
 }
 #[async_trait::async_trait]
