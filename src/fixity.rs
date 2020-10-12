@@ -1,3 +1,6 @@
+pub mod map;
+pub use map::Map;
+
 use {
     crate::{Error, StorageWrite},
     multibase::Base,
@@ -17,7 +20,12 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    // pub fn map<K,V>(&self) -> Map<S, K, V>,
+    pub fn map<P>(&self, _path: P) -> Map<S>
+    where
+        P: AsRef<str>,
+    {
+        unimplemented!("map")
+    }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
         R: AsyncRead + Unpin + Send,
@@ -54,9 +62,7 @@ impl<S> Builder<S> {
 }
 
 /*
-pub mod map;
 pub mod table;
-pub use map::Map;
 pub use table::Table;
 
 #[cfg(feature = "serde")]

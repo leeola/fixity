@@ -11,11 +11,6 @@ pub use {
     storage::{Storage, StorageRead, StorageWrite},
 };
 
-/*
-pub struct Id {
-    pub rand: String,
-    pub signature: String,
-}
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -34,6 +29,11 @@ impl From<&str> for Addr {
     fn from(hash: &str) -> Self {
         hash.to_owned().into()
     }
+}
+/*
+pub struct Id {
+    pub rand: String,
+    pub signature: String,
 }
 pub struct Claim {
     pub commit: Commit,

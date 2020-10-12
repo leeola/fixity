@@ -1,33 +1,25 @@
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use {
-    super::{Scalar, VacantEntry, Value},
-    crate::{
-        storage::{Storage, StorageRead, StorageWrite},
-        Addr, Error,
-    },
-    std::collections::HashMap,
-};
+// storage::{StorageRead, StorageWrite},
+use crate::Addr;
+#[allow(unused)]
 pub struct Map<'s, S> {
     storage: &'s S,
-    // items: Vec<NodeItem<K, V>>,
+    addr: Option<Addr>,
 }
 impl<'s, S> Map<'s, S> {
-    pub fn new(_storage: &S) -> Self {
-        todo!("new map")
+    pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
+        Self { storage, addr }
     }
-    // pub fn load<S>(storage: &S, map_ref: Ref) -> Self
-    // where
-    //     S: StorageWrite,
-    // {
-    //     todo!("map load")
-    // }
 }
 #[cfg(test)]
 pub mod test {
     use {
         super::*,
-        crate::storage::{Memory, Storage, StorageRead, StorageWrite},
+        crate::storage::{
+            // Memory,
+            Storage,
+            StorageRead,
+            StorageWrite,
+        },
         maplit::hashmap,
     };
     #[test]
@@ -38,7 +30,7 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let storage = Memory::new();
+        // let storage = Memory::new();
         // let mut p = Prolly::new();
         // Map::new(
         //     &storage,
