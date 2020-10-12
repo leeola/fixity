@@ -10,16 +10,19 @@ impl<'s, S> Map<'s, S> {
         Self { storage, addr }
     }
 }
+impl<'s, S> Map<'s, S> {
+    pub fn insert<K, V>(&mut self, k: K, v: V) {
+        unimplemented!("insert")
+    }
+    pub fn append<K, V, I>(&mut self, into_iter: IntoIter<Item = (K, V)>) {
+        unimplemented!("append")
+    }
+}
 #[cfg(test)]
 pub mod test {
     use {
         super::*,
-        crate::storage::{
-            // Memory,
-            Storage,
-            StorageRead,
-            StorageWrite,
-        },
+        crate::storage::{Memory, Storage, StorageRead, StorageWrite},
         maplit::hashmap,
     };
     #[test]
@@ -30,7 +33,7 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        // let storage = Memory::new();
+        let _storage = Memory::new();
         // let mut p = Prolly::new();
         // Map::new(
         //     &storage,
