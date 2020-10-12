@@ -11,12 +11,12 @@ impl<'s, S> Map<'s, S> {
     }
 }
 impl<'s, S> Map<'s, S> {
-    pub fn insert<K, V>(&mut self, k: K, v: V) {
-        unimplemented!("insert")
-    }
-    pub fn append<K, V, I>(&mut self, into_iter: IntoIter<Item = (K, V)>) {
-        unimplemented!("append")
-    }
+    // pub fn insert<K, V>(&mut self, k: K, v: V) {
+    //     unimplemented!("insert")
+    // }
+    // pub fn append<K, V, I>(&mut self, into_iter: IntoIter<Item = (K, V)>) {
+    //     unimplemented!("append")
+    // }
 }
 #[cfg(test)]
 pub mod test {

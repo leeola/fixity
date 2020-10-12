@@ -4,32 +4,17 @@ pub mod fixity;
 // pub mod prolly;
 pub mod refimpl;
 pub mod storage;
+pub mod value;
 
 pub use {
-    self::error::{Error, Result},
-    self::fixity::Fixity,
+    self::{
+        error::{Error, Result},
+    fixity::Fixity,
+    value::{Addr},
+    },
     storage::{Storage, StorageRead, StorageWrite},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Addr(String);
-impl AsRef<str> for Addr {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-impl From<String> for Addr {
-    fn from(hash: String) -> Self {
-        Self(hash)
-    }
-}
-impl From<&str> for Addr {
-    fn from(hash: &str) -> Self {
-        hash.to_owned().into()
-    }
-}
 /*
 pub struct Id {
     pub rand: String,
