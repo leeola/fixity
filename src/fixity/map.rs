@@ -1,9 +1,10 @@
 // storage::{StorageRead, StorageWrite},
-use crate::Addr;
+use crate::{value::Value, Addr};
 #[allow(unused)]
 pub struct Map<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
+    stage: HashMap<Value, Value>,
 }
 impl<'s, S> Map<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
@@ -11,9 +12,15 @@ impl<'s, S> Map<'s, S> {
     }
 }
 impl<'s, S> Map<'s, S> {
-    // pub fn insert<K, V>(&mut self, k: K, v: V) {
-    //     unimplemented!("insert")
-    // }
+    pub fn insert<K, V>(&mut self, k: K, v: V)
+    where
+        K: Into<Value>,
+        V: Into<Value>,
+    {
+        let k = k.into();
+        let v = v.into();
+        unimplemented!("insert")
+    }
     // pub fn append<K, V, I>(&mut self, into_iter: IntoIter<Item = (K, V)>) {
     //     unimplemented!("append")
     // }
