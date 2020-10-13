@@ -1,9 +1,8 @@
-// storage::{StorageRead, StorageWrite},
 use {
-    crate::{value::Value, Addr},
-    std::collections::HashMap,
+    crate::storage::StorageWrite,
+    crate::{refimpl::prolly, value::Value, Addr, Error},
+    std::{collections::HashMap, mem},
 };
-#[allow(unused)]
 pub struct Map<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
@@ -17,8 +16,6 @@ impl<'s, S> Map<'s, S> {
             stage: HashMap::new(),
         }
     }
-}
-impl<'s, S> Map<'s, S> {
     pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<Value>
     where
         K: Into<Value>,
@@ -35,6 +32,21 @@ impl<'s, S> Map<'s, S> {
         i.into_iter().for_each(|(k, v)| {
             self.insert(k.into(), v.into());
         });
+    }
+}
+impl<'s, S> Map<'s, S>
+where
+    S: StorageWrite,
+{
+    pub fn commit(&mut self) -> Result<Addr, Error> {
+        let kvs = mem::replace(&mut self.stage, HashMap::new())
+            .into_iter()
+            .collect::<Vec<_>>();
+        if let Some(_) = self.addr.as_ref() {
+            unimplemented!("map commit mutate")
+        } else {
+            prolly::Create::from_kvs(&self.storage, kvs)
+        }
     }
 }
 #[cfg(test)]
