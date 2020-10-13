@@ -1,5 +1,8 @@
 // storage::{StorageRead, StorageWrite},
-use crate::{value::Value, Addr};
+use {
+    crate::{value::Value, Addr},
+    std::collections::HashMap,
+};
 #[allow(unused)]
 pub struct Map<'s, S> {
     storage: &'s S,
@@ -8,22 +11,31 @@ pub struct Map<'s, S> {
 }
 impl<'s, S> Map<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
-        Self { storage, addr }
+        Self {
+            storage,
+            addr,
+            stage: HashMap::new(),
+        }
     }
 }
 impl<'s, S> Map<'s, S> {
-    pub fn insert<K, V>(&mut self, k: K, v: V)
+    pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<Value>
     where
         K: Into<Value>,
         V: Into<Value>,
     {
-        let k = k.into();
-        let v = v.into();
-        unimplemented!("insert")
+        self.stage.insert(k.into(), v.into())
     }
-    // pub fn append<K, V, I>(&mut self, into_iter: IntoIter<Item = (K, V)>) {
-    //     unimplemented!("append")
-    // }
+    pub fn append<I, K, V>(&mut self, i: I)
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<Value>,
+        V: Into<Value>,
+    {
+        i.into_iter().for_each(|(k, v)| {
+            self.insert(k.into(), v.into());
+        });
+    }
 }
 #[cfg(test)]
 pub mod test {
