@@ -1,7 +1,7 @@
 pub mod error;
 pub mod fixity;
 // mod hash_tree;
-// pub mod prolly;
+pub mod prolly;
 pub mod refimpl;
 pub mod storage;
 pub mod value;
@@ -9,8 +9,8 @@ pub mod value;
 pub use {
     self::{
         error::{Error, Result},
-    fixity::Fixity,
-    value::{Addr},
+        fixity::Fixity,
+        value::Addr,
     },
     storage::{Storage, StorageRead, StorageWrite},
 };

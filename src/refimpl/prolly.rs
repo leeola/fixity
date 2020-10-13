@@ -1,21 +1,60 @@
 //! A [`prolly`] reference implementation.
-use crate::{storage::StorageWrite, value::Value, Addr, Error};
+use crate::{
+    prolly::roller::{Config as RollerConfig, Roller},
+    storage::StorageWrite,
+    value::Value,
+    Addr, Error,
+};
 #[allow(unused)]
 pub struct Create<'s, S> {
     storage: &'s S,
+    roller_config: RollerConfig,
 }
 impl<'s, S> Create<'s, S> {
     pub fn new(storage: &'s S) -> Self {
-        Self { storage }
+        Self {
+            storage,
+            roller_config: RollerConfig::default(),
+        }
+    }
+    pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
+        Self {
+            storage,
+            roller_config,
+            // leaf: Leaf::new(storage, Roller::with_config(roller_config)),
+        }
     }
 }
 impl<'s, S> Create<'s, S>
 where
     S: StorageWrite,
 {
-    pub fn from_kvs(storage: &'s S, _kvs: Vec<(Value, Value)>) -> Result<Addr, Error> {
-        let _create = Self::new(storage);
+    pub fn with_kvs(self, _kvs: Vec<(Value, Value)>) -> Result<Addr, Error> {
+        // TODO: Make the Vec into a HashMap, to ensure uniqueness at this layer of the API.
         unimplemented!()
+    }
+}
+struct Leaf<'s, S> {
+    storage: &'s S,
+    roller_config: RollerConfig,
+    roller: Roller,
+}
+impl<'s, S> Leaf<'s, S> {
+    pub fn new(storage: &'s S, roller_config: RollerConfig) -> Self {
+        Self {
+            storage,
+            roller_config,
+            roller: Roller::with_config(roller_config.clone()),
+        }
+    }
+}
+impl<'s, S> Leaf<'s, S>
+where
+    S: StorageWrite,
+{
+    pub fn push(&mut self, kv: (Value, Value)) {
+        // let boundary = roller.roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+        todo!()
     }
 }
 #[cfg(test)]

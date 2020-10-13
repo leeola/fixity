@@ -45,7 +45,7 @@ where
         if let Some(_) = self.addr.as_ref() {
             unimplemented!("map commit mutate")
         } else {
-            prolly::Create::from_kvs(&self.storage, kvs)
+            prolly::Create::new(self.storage).with_kvs(kvs)
         }
     }
 }
