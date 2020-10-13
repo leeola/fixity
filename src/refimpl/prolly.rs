@@ -9,19 +9,17 @@ use crate::{
 pub struct Create<'s, S> {
     storage: &'s S,
     roller_config: RollerConfig,
+    leaf: Leaf<'s, S>,
 }
 impl<'s, S> Create<'s, S> {
     pub fn new(storage: &'s S) -> Self {
-        Self {
-            storage,
-            roller_config: RollerConfig::default(),
-        }
+        Self::with_roller(storage, RollerConfig::default())
     }
     pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
         Self {
             storage,
-            roller_config,
-            // leaf: Leaf::new(storage, Roller::with_config(roller_config)),
+            roller_config: roller_config.clone(),
+            leaf: Leaf::new(storage, roller_config),
         }
     }
 }
@@ -52,8 +50,13 @@ impl<'s, S> Leaf<'s, S>
 where
     S: StorageWrite,
 {
-    pub fn push(&mut self, kv: (Value, Value)) {
+    pub fn push(&mut self, kv: (Value, Value)) -> Result<(), Error> {
+        // TODO: attempt to cache the serialized bytes for each kv pair into
+        // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
+        // *fingers crossed*. This requires the Read implementation up and running though.
+        let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
         // let boundary = roller.roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
+        dbg!(boundary);
         todo!()
     }
 }
@@ -69,12 +72,15 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        // let storage = Memory::new();
-        // let mut tree =
-        //     CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-        // for (k, v) in (0..61).map(|i| (i, i * 10)) {
-        //     tree = tree.push(k, v).unwrap();
-        // }
+        let storage = Memory::new();
+        let mut tree = Create::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
+        let kvs = (0..61)
+            .map(|i| (i, i * 10))
+            .map(|(k, v)| (Value::from(k), Value::from(v)))
+            .collect::<Vec<_>>();
+        let addr = tree.with_kvs(kvs).unwrap();
+        dbg!(addr);
+        dbg!(&storage);
         // dbg!(tree.flush());
         // dbg!(&storage);
     }

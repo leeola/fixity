@@ -5,7 +5,7 @@ authors = ["Lee Olayvar <leeola@fastmail.com>"]
 edition = "2018"
 
 [features]
-default = ["deser_json"]
+default = ["borsh"]
 # An eventual series of alternate serialize for performance options.
 #
 # WARN: All of the canonical json libraries i've seen so far are in
@@ -13,11 +13,11 @@ default = ["deser_json"]
 # can fork and establish some trust.
 deser_json = ["serde", "cjson", "serde_json"]
 # deser_cbor = ["serde", "serde_cbor"]
-# deser_borsh = ["borsh"]
+deser_borsh = ["borsh"]
 # An eventual cbor comparison encoding.
 
 [dependencies]
-#borsh = { version = "0.7", optional = true }
+borsh = { version = "0.7", optional = true }
 #serde_cbor = { version = "0.11", optional = true }
 # feature: serialize_json
 cjson= { version = "0.1", optional = true }

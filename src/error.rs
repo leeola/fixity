@@ -20,6 +20,12 @@ pub enum Error {
     #[cfg(feature = "serde_json")]
     #[error("serde json error: `{0}`")]
     SerdeJson(#[from] serde_json::error::Error),
+    /// A Borsh error..
+    ///
+    /// for some reason they return an io::Error, the std::io type is not a bug.
+    #[cfg(feature = "borsh")]
+    #[error("borsh error: `{0:?}`")]
+    Borsh(std::io::Error),
     #[cfg(feature = "cjson")]
     #[error("cjson error: `{0:?}`")]
     Cjson(cjson::Error),

@@ -182,6 +182,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "borsh"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30f3fd65922359a7c6e791bc9b2bba1b977ea0c0b96a528ac48007f535fb4184"
+dependencies = [
+ "borsh-derive",
+]
+
+[[package]]
+name = "borsh-derive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2d74755d937d261d5e9bdef87e0addfbc1ace0214f7776f21532d6e97325356"
+dependencies = [
+ "borsh-derive-internal",
+ "borsh-schema-derive-internal",
+ "syn",
+]
+
+[[package]]
+name = "borsh-derive-internal"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c9f966cb7a42c8ed83546ef481bc1d1dec888fe5f84a4737d5c2094a483e41e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "borsh-schema-derive-internal"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5df2543b56ebc2b4493e70d024ebde2cbb48d97bf7b1a16318eff30bd02669b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -407,6 +449,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "blake3",
+ "borsh",
  "cjson",
  "env_logger",
  "fastcdc",

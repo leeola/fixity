@@ -1,6 +1,11 @@
+use crate::Error;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub struct Addr(String);
 impl AsRef<str> for Addr {
     fn as_ref(&self) -> &str {
@@ -20,6 +25,10 @@ impl From<&str> for Addr {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum Scalar {
     Addr(Addr),
     Uint32(u32),
@@ -31,10 +40,36 @@ impl From<u32> for Scalar {
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum Value {
     Addr(Addr),
     Uint32(u32),
     Vec(Vec<Scalar>),
+}
+#[cfg(not(feature = "borsh"))]
+/// A helper to centralize serialization logic for a potential future
+/// where we change/tweak/configure serialization.
+///
+/// How we handle schema/serialization compatibility is TBD.
+pub fn serialize<T>(_: T) -> Result<Vec<u8>, Error> {
+    Err(Error::Unhandled("serializer not configured".into()))
+}
+#[cfg(feature = "borsh")]
+/// A helper to centralize serialization logic for a potential future
+/// where we change/tweak/configure serialization.
+///
+/// How we handle schema/serialization compatibility is TBD.
+pub fn serialize<T>(t: T) -> Result<Vec<u8>, Error>
+where
+    T: borsh::BorshSerialize,
+{
+    Ok(t.try_to_vec()
+        // mapping because it's actually a `std::io::Error`, so ?
+        // would convert the wrong type.
+        .map_err(|err| Error::Borsh(err))?)
 }
 impl<T> From<T> for Value
 where
