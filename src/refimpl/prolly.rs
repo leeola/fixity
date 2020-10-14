@@ -119,17 +119,31 @@ impl<'s, S> Branch<'s, S>
 where
     S: StorageWrite,
 {
+    /// Flush any partial kvs that have not yet found a boundary.
+    ///
+    /// The `kv` parameter is the child's address, either a Leaf or a Branch,
+    /// who also flushed itself.
+    ///
+    /// # Returns
+    /// A address for the root of the entire tree. Ie the Parent address for the
+    /// tree.
     #[async_recursion::async_recursion]
-    pub async fn flush(&mut self) -> Result<(Key, Addr), Error> {
-        if let Some(mut parent) = self.parent.take() {
-            let ka = parent.flush().await?;
-            self.buffer.push(ka);
-        }
+    pub async fn flush(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
+        self.buffer.push(kv);
         let kvs = mem::replace(&mut self.buffer, Vec::new());
-        let node = Node::<_, Value, _>::Branch(kvs);
-        let (node_addr, node_bytes) = node.as_bytes()?;
+        let (node_key, node_addr, node_bytes) = {
+            let node = Node::<_, Value, _>::Branch(kvs);
+            let (node_addr, node_bytes) = node.as_bytes()?;
+            (node.into_key_unchecked(), node_addr, node_bytes)
+        };
         self.storage.write(node_addr.clone(), &*node_bytes).await?;
-        Ok((node.into_key_unchecked(), node_addr))
+        match self.parent.take() {
+            // If there's no parent, this Branch never hit a Parent and thus this
+            // instance itself is the root.
+            None => Ok(node_addr),
+            // If there is a parent, the root might be the parent, grandparent, etc.
+            Some(mut parent) => parent.flush((node_key, node_addr)).await,
+        }
     }
     #[async_recursion::async_recursion]
     pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
