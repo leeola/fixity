@@ -1,12 +1,16 @@
 use {
     crate::storage::StorageWrite,
-    crate::{refimpl::prolly, value::Value, Addr, Error},
+    crate::{
+        refimpl::prolly,
+        value::{Key, Value},
+        Addr, Error,
+    },
     std::{collections::HashMap, mem},
 };
 pub struct Map<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
-    stage: HashMap<Value, Value>,
+    stage: HashMap<Key, Value>,
 }
 impl<'s, S> Map<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
@@ -18,7 +22,7 @@ impl<'s, S> Map<'s, S> {
     }
     pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<Value>
     where
-        K: Into<Value>,
+        K: Into<Key>,
         V: Into<Value>,
     {
         self.stage.insert(k.into(), v.into())
@@ -26,7 +30,7 @@ impl<'s, S> Map<'s, S> {
     pub fn append<I, K, V>(&mut self, i: I)
     where
         I: IntoIterator<Item = (K, V)>,
-        K: Into<Value>,
+        K: Into<Key>,
         V: Into<Value>,
     {
         i.into_iter().for_each(|(k, v)| {

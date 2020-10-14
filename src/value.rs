@@ -1,4 +1,4 @@
-use crate::Error;
+use {crate::Error, multibase::Base};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -22,6 +22,12 @@ impl From<&str> for Addr {
         hash.to_owned().into()
     }
 }
+impl From<&Vec<u8>> for Addr {
+    fn from(bytes: &Vec<u8>) -> Self {
+        let h = <[u8; 32]>::from(blake3::hash(bytes));
+        Self(multibase::encode(Base::Base58Btc, &h))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -36,6 +42,24 @@ pub enum Scalar {
 impl From<u32> for Scalar {
     fn from(t: u32) -> Self {
         Self::Uint32(t)
+    }
+}
+/// Key exists as a very thin layer over a [`Value`] for ease of use and reading.
+///
+/// Ultimately there is no difference between a Key and a Value.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
+pub struct Key(pub Value);
+impl<T> From<T> for Key
+where
+    T: Into<Value>,
+{
+    fn from(t: T) -> Self {
+        Self(t.into())
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

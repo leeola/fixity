@@ -6,7 +6,7 @@ use {
             roller::{Config as RollerConfig, Roller},
         },
         storage::StorageWrite,
-        value::Value,
+        value::{Key, Value},
         Addr, Error,
     },
     multibase::Base,
@@ -34,7 +34,7 @@ impl<'s, S> Create<'s, S>
 where
     S: StorageWrite,
 {
-    pub async fn with_kvs(mut self, mut kvs: Vec<(Value, Value)>) -> Result<Addr, Error> {
+    pub async fn with_kvs(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
         // TODO: Make the Vec into a HashMap, to ensure uniqueness at this layer of the API.
 
         // unstable should be fine, since the incoming values are unique.
@@ -49,7 +49,7 @@ struct Leaf<'s, S> {
     storage: &'s S,
     roller_config: RollerConfig,
     roller: Roller,
-    buffer: Vec<(Value, Value)>,
+    buffer: Vec<(Key, Value)>,
     parent: Option<Branch<'s, S>>,
 }
 impl<'s, S> Leaf<'s, S> {
@@ -67,7 +67,7 @@ impl<'s, S> Leaf<'s, S>
 where
     S: StorageWrite,
 {
-    pub async fn push(&mut self, kv: (Value, Value)) -> Result<(), Error> {
+    pub async fn push(&mut self, kv: (Key, Value)) -> Result<(), Error> {
         // TODO: attempt to cache the serialized bytes for each kv pair into
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
         // *fingers crossed*. This requires the Read implementation up and running though.
@@ -84,20 +84,16 @@ where
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.buffer, Vec::new());
                 let node = Node::<_, _, Addr>::Leaf(kvs);
-                let node_bytes = crate::value::serialize(&node)?;
-                let node_addr = {
-                    let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-                    multibase::encode(Base::Base58Btc, &node_hash)
-                };
+                let (node_addr, node_bytes) = node.as_bytes()?;
                 self.storage.write(node_addr.clone(), &*node_bytes).await?;
                 (node.into_key_unchecked(), node_addr)
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let parent = self
-                .parent
-                .get_or_insert_with(|| Branch::new(storage, roller_config.clone()));
-            parent.push((node_key, node_addr.into())).await?;
+            self.parent
+                .get_or_insert_with(|| Branch::new(storage, roller_config.clone()))
+                .push((node_key, node_addr.into()))
+                .await?;
         }
         Ok(())
     }
@@ -106,8 +102,8 @@ struct Branch<'s, S> {
     storage: &'s S,
     roller_config: RollerConfig,
     roller: Roller,
-    buffer: Vec<(Value, Value)>,
-    parent: Option<usize>,
+    buffer: Vec<(Key, Addr)>,
+    parent: Option<Box<Branch<'s, S>>>,
 }
 impl<'s, S> Branch<'s, S> {
     pub fn new(storage: &'s S, roller_config: RollerConfig) -> Self {
@@ -124,26 +120,35 @@ impl<'s, S> Branch<'s, S>
 where
     S: StorageWrite,
 {
-    pub async fn push(&mut self, kv: (Value, Addr)) -> Result<(), Error> {
-        todo!("branch push");
-        // // TODO: attempt to cache the serialized bytes for each kv pair into
-        // // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
-        // // *fingers crossed*. This requires the Read implementation up and running though.
-        // let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
-        // dbg!(boundary);
-        // if boundary {
-        //     let first_kv = self.buffer.is_empty() && self.parent.is_none();
-        //     if first_kv {
-        //         log::warn!(
-        //             "writing key & value that exceeds block size, this is highly inefficient"
-        //         );
-        //     }
-        //     // self.parent.push(buffer_hash)
-        //     todo!("boundary, push to parent");
-        // } else {
-        //     self.buffer.push(kv);
-        //     Ok(())
-        // }
+    pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
+        // TODO: attempt to cache the serialized bytes for each kv pair into
+        // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
+        // *fingers crossed*. This requires the Read implementation up and running though.
+        let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
+        dbg!(&kv.0, boundary, self.buffer.len());
+        self.buffer.push(kv);
+        if boundary {
+            let first_kv = self.buffer.is_empty() && self.parent.is_none();
+            if first_kv {
+                log::warn!(
+                    "writing key & value that exceeds block size, this is highly inefficient"
+                );
+            }
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.buffer, Vec::new());
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            self.parent
+                .get_or_insert_with(|| Box::new(Branch::new(storage, roller_config.clone())))
+                .push((node_key, node_addr.into()))
+                .await?;
+        }
+        Ok(())
     }
 }
 #[cfg(test)]
@@ -161,9 +166,9 @@ pub mod test {
         let _ = env_builder.try_init();
         let storage = Memory::new();
         let mut tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-        let kvs = (0..61)
+        let kvs = (0..400)
             .map(|i| (i, i * 10))
-            .map(|(k, v)| (Value::from(k), Value::from(v)))
+            .map(|(k, v)| (Key::from(k), Value::from(v)))
             .collect::<Vec<_>>();
         let addr = tree.with_kvs(kvs).await.unwrap();
         dbg!(addr);

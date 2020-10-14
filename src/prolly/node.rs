@@ -1,3 +1,4 @@
+use crate::{Addr, Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -54,5 +55,18 @@ impl<K, V, A> Node<K, V, A> {
             Self::Branch(v) => v.len(),
             Self::Leaf(v) => v.len(),
         }
+    }
+}
+#[cfg(feature = "borsh")]
+impl<K, V, A> Node<K, V, A>
+where
+    K: borsh::BorshSerialize,
+    V: borsh::BorshSerialize,
+    A: borsh::BorshSerialize,
+{
+    pub fn as_bytes(&self) -> Result<(Addr, Vec<u8>), Error> {
+        let bytes = crate::value::serialize(self)?;
+        let addr = Addr::from(&bytes);
+        Ok((addr, bytes))
     }
 }
