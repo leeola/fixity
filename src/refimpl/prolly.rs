@@ -120,6 +120,7 @@ impl<'s, S> Branch<'s, S>
 where
     S: StorageWrite,
 {
+    #[async_recursion::async_recursion(?Send)]
     pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
         // TODO: attempt to cache the serialized bytes for each kv pair into
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
