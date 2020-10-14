@@ -119,7 +119,19 @@ impl<'s, S> Branch<'s, S>
 where
     S: StorageWrite,
 {
-    #[async_recursion::async_recursion()]
+    #[async_recursion::async_recursion]
+    pub async fn flush(&mut self) -> Result<(Key, Addr), Error> {
+        if let Some(mut parent) = self.parent.take() {
+            let ka = parent.flush().await?;
+            self.buffer.push(ka);
+        }
+        let kvs = mem::replace(&mut self.buffer, Vec::new());
+        let node = Node::<_, Value, _>::Branch(kvs);
+        let (node_addr, node_bytes) = node.as_bytes()?;
+        self.storage.write(node_addr.clone(), &*node_bytes).await?;
+        Ok((node.into_key_unchecked(), node_addr))
+    }
+    #[async_recursion::async_recursion]
     pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
         // TODO: attempt to cache the serialized bytes for each kv pair into
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
@@ -165,7 +177,7 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let mut tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+        let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
         let kvs = (0..400)
             .map(|i| (i, i * 10))
             .map(|(k, v)| (Key::from(k), Value::from(v)))
