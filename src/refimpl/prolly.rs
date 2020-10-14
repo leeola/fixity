@@ -128,8 +128,13 @@ where
     /// A address for the root of the entire tree. Ie the Parent address for the
     /// tree.
     #[async_recursion::async_recursion]
-    pub async fn flush(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
-        self.buffer.push(kv);
+    pub async fn _flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Option<Addr>, Error> {
+        if let Some(kv) = kv {
+            self.buffer.push(kv);
+        }
+        // self.buffer & self.parent "should" never be empty at the same time.
+        // We could enforce this with a nice state machine Enum,
+        // but async/await is currently a bit immature for the design changes this would introduce.
         let kvs = mem::replace(&mut self.buffer, Vec::new());
         let (node_key, node_addr, node_bytes) = {
             let node = Node::<_, Value, _>::Branch(kvs);
@@ -140,9 +145,9 @@ where
         match self.parent.take() {
             // If there's no parent, this Branch never hit a Parent and thus this
             // instance itself is the root.
-            None => Ok(node_addr),
+            None => Ok(Some(node_addr)),
             // If there is a parent, the root might be the parent, grandparent, etc.
-            Some(mut parent) => parent.flush((node_key, node_addr)).await,
+            Some(mut parent) => parent._flush(Some((node_key, node_addr))).await,
         }
     }
     #[async_recursion::async_recursion]
