@@ -38,14 +38,14 @@ impl<'s, S> Map<'s, S>
 where
     S: StorageWrite,
 {
-    pub fn commit(&mut self) -> Result<Addr, Error> {
+    pub async fn commit(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.stage, HashMap::new())
             .into_iter()
             .collect::<Vec<_>>();
         if let Some(_) = self.addr.as_ref() {
             unimplemented!("map commit mutate")
         } else {
-            prolly::Create::new(self.storage).with_kvs(kvs)
+            prolly::Create::new(self.storage).with_kvs(kvs).await
         }
     }
 }

@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum Node<Key, Value, Addr> {
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
@@ -14,6 +17,35 @@ impl<K, V, A> Node<K, V, A> {
         match self {
             Self::Branch(v) => v.get(0).map(|(k, _)| k),
             Self::Leaf(v) => v.get(0).map(|(k, _)| k),
+        }
+    }
+    /// Consume self and return the key for this whole node, aka the first element's key.
+    pub fn into_key(self) -> Option<K> {
+        match self {
+            Self::Branch(mut v) => {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.swap_remove(0).0)
+                }
+            }
+            Self::Leaf(mut v) => {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.swap_remove(0).0)
+                }
+            }
+        }
+    }
+    /// Like [`Self::into_key`], but panics if called on an empty node.
+    ///
+    /// # Panics
+    /// Panics if called on empty Node.
+    pub fn into_key_unchecked(self) -> K {
+        match self {
+            Self::Branch(mut v) => v.swap_remove(0).0,
+            Self::Leaf(mut v) => v.swap_remove(0).0,
         }
     }
     /// Len of the underlying vec.

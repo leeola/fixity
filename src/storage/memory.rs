@@ -7,7 +7,7 @@ use {
     tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
 };
 #[derive(Debug, Default, Clone)]
-pub struct Memory(Arc<Mutex<HashMap<String, String>>>);
+pub struct Memory(Arc<Mutex<HashMap<String, Vec<u8>>>>);
 impl Memory {
     pub fn new() -> Self {
         Self::default()
@@ -42,7 +42,7 @@ impl StorageRead for Memory {
                 // cloning for simplicity, since this is a test focused storage impl.
                 .clone()
         };
-        w.write_all(&r.as_bytes()).await?;
+        w.write_all(&r).await?;
         Ok(())
     }
 }
@@ -60,15 +60,12 @@ impl StorageWrite for Memory {
             err,
         })?;
         let len = b.len();
-        let s = String::from_utf8(b).map_err(|_| Error::Unhandled {
-            message: format!("{} is not valid utf8", hash),
-        })?;
         self.0
             .lock()
             .map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire store lock: {0}", err),
             })?
-            .insert(hash.to_owned(), s);
+            .insert(hash.to_owned(), b);
         Ok(len as u64)
     }
 }
