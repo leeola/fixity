@@ -26,7 +26,7 @@ pub trait StorageRead {
 }
 
 #[async_trait::async_trait]
-pub trait StorageWrite {
+pub trait StorageWrite: Sync {
     async fn write<S, R>(&self, hash: S, r: R) -> Result<u64, Error>
     where
         S: AsRef<str> + 'static + Send,
