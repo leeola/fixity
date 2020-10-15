@@ -1,5 +1,5 @@
 use {
-    crate::storage::StorageWrite,
+    crate::storage::{StorageRead, StorageWrite},
     crate::{
         refimpl::prolly,
         value::{Key, Value},
@@ -51,6 +51,17 @@ where
         } else {
             prolly::Create::new(self.storage).with_kvs(kvs).await
         }
+    }
+}
+impl<'s, S> Map<'s, S>
+where
+    S: StorageRead,
+{
+    pub async fn get<K>(&mut self, k: K) -> Result<Option<Value>, Error>
+    where
+        K: Into<Key>,
+    {
+        unimplemented!("map get")
     }
 }
 #[cfg(test)]

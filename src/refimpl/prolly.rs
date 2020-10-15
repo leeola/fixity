@@ -1,4 +1,5 @@
 //! A [`prolly`] reference implementation.
+pub mod read;
 use {
     crate::{
         prolly::{
