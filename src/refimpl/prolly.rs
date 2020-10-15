@@ -11,7 +11,6 @@ use {
     },
     std::mem,
 };
-#[allow(unused)]
 pub struct Create<'s, S> {
     storage: &'s S,
     roller_config: RollerConfig,
@@ -41,7 +40,7 @@ where
         for kv in kvs.into_iter() {
             self.leaf.push(kv).await?;
         }
-        todo!("Create::with kvs")
+        self.leaf.flush().await
     }
 }
 struct Leaf<'s, S> {
@@ -66,6 +65,36 @@ impl<'s, S> Leaf<'s, S>
 where
     S: StorageWrite,
 {
+    pub async fn flush(&mut self) -> Result<Addr, Error> {
+        if self.buffer.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // Leaf itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("Create leaf missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
+        } else {
+            let kvs = mem::replace(&mut self.buffer, Vec::new());
+            let (node_key, node_addr, node_bytes) = {
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                (node.into_key_unchecked(), node_addr, node_bytes)
+            };
+            self.storage.write(node_addr.clone(), &*node_bytes).await?;
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+            }
+        }
+    }
     pub async fn push(&mut self, kv: (Key, Value)) -> Result<(), Error> {
         // TODO: attempt to cache the serialized bytes for each kv pair into
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
@@ -128,26 +157,38 @@ where
     /// A address for the root of the entire tree. Ie the Parent address for the
     /// tree.
     #[async_recursion::async_recursion]
-    pub async fn _flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Option<Addr>, Error> {
+    pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
         if let Some(kv) = kv {
             self.buffer.push(kv);
         }
-        // self.buffer & self.parent "should" never be empty at the same time.
-        // We could enforce this with a nice state machine Enum,
-        // but async/await is currently a bit immature for the design changes this would introduce.
-        let kvs = mem::replace(&mut self.buffer, Vec::new());
-        let (node_key, node_addr, node_bytes) = {
-            let node = Node::<_, Value, _>::Branch(kvs);
-            let (node_addr, node_bytes) = node.as_bytes()?;
-            (node.into_key_unchecked(), node_addr, node_bytes)
-        };
-        self.storage.write(node_addr.clone(), &*node_bytes).await?;
-        match self.parent.take() {
-            // If there's no parent, this Branch never hit a Parent and thus this
-            // instance itself is the root.
-            None => Ok(Some(node_addr)),
-            // If there is a parent, the root might be the parent, grandparent, etc.
-            Some(mut parent) => parent._flush(Some((node_key, node_addr))).await,
+        if self.buffer.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Branch never hit a Boundary and thus this
+                // instance itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("Create branch missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
+        } else {
+            // self.buffer & self.parent "should" never be empty at the same time.
+            let kvs = mem::replace(&mut self.buffer, Vec::new());
+            let (node_key, node_addr, node_bytes) = {
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                (node.into_key_unchecked(), node_addr, node_bytes)
+            };
+            self.storage.write(node_addr.clone(), &*node_bytes).await?;
+            match self.parent.take() {
+                // If there's no parent, this Branch never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+            }
         }
     }
     #[async_recursion::async_recursion]
