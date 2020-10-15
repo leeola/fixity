@@ -12,8 +12,6 @@ use {
     std::mem,
 };
 pub struct Create<'s, S> {
-    storage: &'s S,
-    roller_config: RollerConfig,
     leaf: Leaf<'s, S>,
 }
 impl<'s, S> Create<'s, S> {
@@ -22,8 +20,6 @@ impl<'s, S> Create<'s, S> {
     }
     pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
-            roller_config: roller_config.clone(),
             leaf: Leaf::new(storage, roller_config),
         }
     }

@@ -1,248 +1,245 @@
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 use {
     crate::{
-        prolly::roller::{Config as RollerConfig, Roller},
+        prolly::{
+            node::Node,
+            roller::{Config as RollerConfig, Roller},
+        },
         storage::StorageWrite,
+        value::{Key, Value},
         Addr, Error,
     },
-    multibase::Base,
     std::mem,
 };
-pub struct Create<'s, S, Key, Value> {
-    storage: &'s S,
-    roller_config: RollerConfig,
-    leaf: LeafCursor<'s, S, Key, Value>,
+pub struct Create<'s, S> {
+    leaf: Leaf<'s, S>,
 }
-impl<'s, S, K, V> Create<'s, S, K, V> {
+impl<'s, S> Create<'s, S> {
     pub fn new(storage: &'s S) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
     pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
-            roller_config,
-            leaf: Leaf::new(storage, Roller::with_config(roller_config)),
+            leaf: Leaf::new(storage, roller_config),
         }
     }
 }
-struct Leaf<'s, S, Key, Value> {
-    storage: &'s S,
-    roller: Roller,
-}
-impl<'s, S, K, V> Leaf<'s, S, K, V> {
-    pub fn new(storage: &'s S, roller: Roller) -> Self {
-        Self { storage, roller }
-    }
-}
-impl<'s, S, K, V> Create<'s, S, K, V>
+impl<'s, S> Create<'s, S>
 where
     S: StorageWrite,
-    K: std::fmt::Debug + Serialize + Clone,
-    V: std::fmt::Debug + Serialize,
 {
-    pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
-        // self.root.flush()
-        todo!("flush")
-    }
-    /// Flush this `Create` and write the results to the internal storage,
-    /// consuming `Self`.
-    ///
-    /// This is useful for low level interactions with the tree who only want to store
-    /// a node without any root header data.
-    ///
-    /// # Errors
-    /// Fails if flush, serialization or calls to storage fail.
-    pub fn commit(self) -> Result<Option<Addr>, Error> {
-        // let node = match self.root.flush()? {
-        //     Some(node) => node,
-        //     None => return Ok(None),
-        // };
-        // let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-        // let node_addr = {
-        //     let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-        //     multibase::encode(Base::Base58Btc, &node_hash)
-        // };
-        // self.storage
-        //     .write(&node_addr, &*node_bytes)
-        //     .map_err(|err| format!("{:?}", err))?;
-        // Ok(Some(node_addr.into()))
-        todo!()
-    }
-    pub fn push(self, k: K, v: V) -> Result<Self, Error> {
-        let Self {
-            storage,
-            roller_config,
-            mut root,
-        } = self;
-        let mut node_opt = root.push(k, v)?;
-        while let Some(node) = node_opt {
-            let mut roller = Roller::with_config(roller_config);
-            let child = Box::new(root);
-            let mut block = Vec::new();
-            node_opt = Level::push_branch_kv(storage, &mut roller, &mut block, node)?;
-            root = Level {
-                storage,
-                roller,
-                block: LevelState::Branch { child, block },
-            }
+    pub async fn with_kvs(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
+        // TODO: Make the Vec into a HashMap, to ensure uniqueness at this layer of the API.
+
+        // unstable should be fine, since the incoming values are unique.
+        kvs.sort_unstable();
+        for kv in kvs.into_iter() {
+            self.leaf.push(kv).await?;
         }
-        Ok(Self {
-            storage,
-            roller_config,
-            root,
-        })
+        self.leaf.flush().await
     }
 }
-// struct BranchCursor<'s, S, K, V> {
-//     storage: &'s S,
-//     roller: Roller,
-// }
-/*
-struct Level<'s, S, K, V> {
+struct Leaf<'s, S> {
     storage: &'s S,
+    roller_config: RollerConfig,
     roller: Roller,
-    block: LevelState<'s, S, K, V>,
+    buffer: Vec<(Key, Value)>,
+    parent: Option<Branch<'s, S>>,
 }
-impl<'s, S, K, V> Level<'s, S, K, V> {
-    pub fn new(storage: &'s S, roller: Roller) -> Self {
+impl<'s, S> Leaf<'s, S> {
+    pub fn new(storage: &'s S, roller_config: RollerConfig) -> Self {
         Self {
             storage,
-            roller,
-            block: LevelState::Leaf { block: Vec::new() },
+            roller_config,
+            roller: Roller::with_config(roller_config.clone()),
+            buffer: Vec::new(),
+            parent: None,
         }
     }
 }
-#[cfg(all(feature = "cjson", feature = "serde"))]
-impl<'s, S, K, V> Level<'s, S, K, V>
+impl<'s, S> Leaf<'s, S>
 where
     S: StorageWrite,
-    K: std::fmt::Debug + Serialize + Clone,
-    V: std::fmt::Debug + Serialize,
 {
-    #[must_use]
-    #[inline(always)]
-    fn push_branch_kv(
-        storage: &S,
-        roller: &mut Roller,
-        block: &mut Vec<(K, Addr)>,
-        node: Node<K, V>,
-    ) -> Result<Option<Node<K, V>>, Error> {
-        let k = node
-            .key()
-            .ok_or_else(|| Error::from("child level returned empty node"))?
-            .clone();
-        let child_node_addr = {
-            // if this child returns a node, we have a new key to track in *this* node.
-            // So hash the child node, so store the key with the hash of the child node.
-            let node_bytes = cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-            let node_addr = {
-                let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-                multibase::encode(Base::Base58Btc, &node_hash)
-            };
-            storage
-                .write(&node_addr, &*node_bytes)
-                .map_err(|err| format!("{:?}", err))?;
-            node_addr
-        };
-        let kv = (k, Addr::from(child_node_addr));
-        let boundary = roller.roll_bytes(&cjson::to_vec(&kv).map_err(|err| format!("{:?}", err))?);
-        block.push(kv);
-        if boundary {
-            Ok(Some(Node::Branch(mem::replace(block, Vec::new()))))
+    pub async fn flush(&mut self) -> Result<Addr, Error> {
+        if self.buffer.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // Leaf itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("Create leaf missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
         } else {
-            Ok(None)
-        }
-    }
-    pub fn flush(self) -> Result<Option<Node<K, V>>, Error> {
-        match self.block {
-            LevelState::Branch { child, mut block } => {
-                if let Some(node) = child.flush()? {
-                    let k = node
-                        .key()
-                        .ok_or_else(|| Error::from("child level returned empty node"))?
-                        .clone();
-                    let child_node_addr = {
-                        let node_bytes =
-                            cjson::to_vec(&node).map_err(|err| format!("{:?}", err))?;
-                        let node_addr = {
-                            let node_hash = <[u8; 32]>::from(blake3::hash(&node_bytes));
-                            multibase::encode(Base::Base58Btc, &node_hash)
-                        };
-                        self.storage
-                            .write(&node_addr, &*node_bytes)
-                            .map_err(|err| format!("{:?}", err))?;
-                        node_addr
-                    };
-                    block.push((k, Addr::from(child_node_addr)));
-                };
-                if block.is_empty() {
-                    Ok(None)
-                } else {
-                    Ok(Some(Node::Branch(block)))
-                }
-            }
-            LevelState::Leaf { block } => {
-                if block.is_empty() {
-                    Ok(None)
-                } else {
-                    Ok(Some(Node::Leaf(block)))
-                }
+            let kvs = mem::replace(&mut self.buffer, Vec::new());
+            let (node_key, node_addr, node_bytes) = {
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                (node.into_key_unchecked(), node_addr, node_bytes)
+            };
+            self.storage.write(node_addr.clone(), &*node_bytes).await?;
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
             }
         }
     }
-    pub fn push(&mut self, k: K, v: V) -> Result<Option<Node<K, V>>, Error> {
-        match &mut self.block {
-            LevelState::Branch { child, block } => {
-                let node = match child.push(k, v)? {
-                    Some(node) => node,
-                    None => return Ok(None),
-                };
-                Self::push_branch_kv(&self.storage, &mut self.roller, block, node)
+    pub async fn push(&mut self, kv: (Key, Value)) -> Result<(), Error> {
+        // TODO: attempt to cache the serialized bytes for each kv pair into
+        // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
+        // *fingers crossed*. This requires the Read implementation up and running though.
+        let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
+        self.buffer.push(kv);
+        dbg!(boundary);
+        if boundary {
+            let is_first_kv = self.buffer.is_empty() && self.parent.is_none();
+            if is_first_kv {
+                log::warn!(
+                    "writing key & value that exceeds block size, this is highly inefficient"
+                );
             }
-            LevelState::Leaf { block } => {
-                let elm = (k, v);
-                let boundary = self
-                    .roller
-                    .roll_bytes(&cjson::to_vec(&elm).map_err(|err| format!("{:?}", err))?);
-                block.push(elm);
-                if boundary {
-                    Ok(Some(Node::Leaf(mem::replace(block, Vec::new()))))
-                } else {
-                    Ok(None)
-                }
-            }
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.buffer, Vec::new());
+                let node = Node::<_, _, Addr>::Leaf(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            self.parent
+                .get_or_insert_with(|| Branch::new(storage, roller_config.clone()))
+                .push((node_key, node_addr.into()))
+                .await?;
+        }
+        Ok(())
+    }
+}
+struct Branch<'s, S> {
+    storage: &'s S,
+    roller_config: RollerConfig,
+    roller: Roller,
+    buffer: Vec<(Key, Addr)>,
+    parent: Option<Box<Branch<'s, S>>>,
+}
+impl<'s, S> Branch<'s, S> {
+    pub fn new(storage: &'s S, roller_config: RollerConfig) -> Self {
+        Self {
+            storage,
+            roller_config,
+            roller: Roller::with_config(roller_config.clone()),
+            buffer: Vec::new(),
+            parent: None,
         }
     }
 }
-enum LevelState<'s, S, K, V> {
-    Branch {
-        child: Box<Level<'s, S, K, V>>,
-        block: Vec<(K, Addr)>,
-    },
-    Leaf {
-        block: Vec<(K, V)>,
-    },
+impl<'s, S> Branch<'s, S>
+where
+    S: StorageWrite,
+{
+    /// Flush any partial kvs that have not yet found a boundary.
+    ///
+    /// The `kv` parameter is the child's address, either a Leaf or a Branch,
+    /// who also flushed itself.
+    ///
+    /// # Returns
+    /// A address for the root of the entire tree. Ie the Parent address for the
+    /// tree.
+    #[async_recursion::async_recursion]
+    pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
+        if let Some(kv) = kv {
+            self.buffer.push(kv);
+        }
+        if self.buffer.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Branch never hit a Boundary and thus this
+                // instance itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("Create branch missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
+        } else {
+            // self.buffer & self.parent "should" never be empty at the same time.
+            let kvs = mem::replace(&mut self.buffer, Vec::new());
+            let (node_key, node_addr, node_bytes) = {
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                (node.into_key_unchecked(), node_addr, node_bytes)
+            };
+            self.storage.write(node_addr.clone(), &*node_bytes).await?;
+            match self.parent.take() {
+                // If there's no parent, this Branch never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+            }
+        }
+    }
+    #[async_recursion::async_recursion]
+    pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
+        // TODO: attempt to cache the serialized bytes for each kv pair into
+        // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
+        // *fingers crossed*. This requires the Read implementation up and running though.
+        let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
+        dbg!(&kv.0, boundary, self.buffer.len());
+        self.buffer.push(kv);
+        if boundary {
+            let first_kv = self.buffer.is_empty() && self.parent.is_none();
+            if first_kv {
+                log::warn!(
+                    "writing key & value that exceeds block size, this is highly inefficient"
+                );
+            }
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.buffer, Vec::new());
+                let node = Node::<_, Value, _>::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            self.parent
+                .get_or_insert_with(|| Box::new(Branch::new(storage, roller_config.clone())))
+                .push((node_key, node_addr.into()))
+                .await?;
+        }
+        Ok(())
+    }
 }
-*/
 #[cfg(test)]
 pub mod test {
     use {super::*, crate::storage::Memory};
-    const DEFAULT_PATTERN: u32 = (1 << 8) - 1;
-    #[test]
-    fn poc() {
+    /// A smaller value to use with the roller, producing smaller average block sizes.
+    const TEST_PATTERN: u32 = (1 << 8) - 1;
+    #[tokio::test]
+    async fn poc() {
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
         if std::env::var("RUST_LOG").is_err() {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        // let storage = Memory::new();
-        // let mut tree =
-        //     CreateTree::with_roller(&storage, RollerConfig::with_pattern(DEFAULT_PATTERN));
-        // for (k, v) in (0..61).map(|i| (i, i * 10)) {
-        //     tree = tree.push(k, v).unwrap();
-        // }
+        let storage = Memory::new();
+        let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+        let kvs = (0..400)
+            .map(|i| (i, i * 10))
+            .map(|(k, v)| (Key::from(k), Value::from(v)))
+            .collect::<Vec<_>>();
+        let addr = tree.with_kvs(kvs).await.unwrap();
+        dbg!(addr);
+        dbg!(&storage);
         // dbg!(tree.flush());
         // dbg!(&storage);
     }
