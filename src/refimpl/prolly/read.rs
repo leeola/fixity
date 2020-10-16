@@ -49,27 +49,31 @@ impl<'s, S> LruNodeCache<'s, S>
 where
     S: StorageRead,
 {
-    // NOTE: I don't think this can be a generic reference without enabling nightly on the lru
+    // NOTE: I don't think `addr` can be a generic reference without enabling nightly on the lru
     // crate. Due to the borrow impl only existing for:
     // https://docs.rs/lru/0.6.0/src/lru/lib.rs.html#126-131
     pub async fn get(&mut self, addr: &Addr) -> Result<Option<&Node<Key, Value, Addr>>, Error> {
-        if let Some(v) = self.cache.get(addr) {
-            return Ok(Some(v));
+        if !self.cache.contains(addr) {
+            return Ok(Some(
+                self.cache
+                    .get(addr)
+                    .expect("addr impossibly missing from lru cache"),
+            ));
+        } else {
+            let mut buf = Vec::new();
+            match self.storage.read(addr.clone(), &mut buf).await {
+                Ok(b) => b,
+                Err(err) if err.is_not_found() => return Ok(None),
+                Err(err) => return Err(err.into()),
+            };
+            let node = crate::value::deserialize::<Node<Key, Value, Addr>>(&buf)?;
+            self.cache.put(addr.clone(), node);
+            let node = self
+                .cache
+                .peek(addr)
+                .expect("addr impossibly missing from lru cache");
+            Ok(Some(node))
         }
-        let mut buf = Vec::new();
-        let node_bytes = match self.storage.read(addr.clone(), &mut buf).await {
-            Ok(b) => b,
-            Err(err) if err.is_not_found() => return Ok(None),
-            Err(err) => return Err(err.into()),
-        };
-        let node = crate::value::deserialize::<Node<Key, Value, Addr>>(&buf)?;
-        self.cache.put(addr.clone(), node);
-        // let node = self
-        //     .cache
-        //     .peek(addr)
-        //     .expect("addr impossibly missing from lru cache");
-        // Ok(Some(node))
-        todo!()
     }
 }
 
