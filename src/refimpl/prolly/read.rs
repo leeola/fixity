@@ -1,15 +1,11 @@
 use {
     crate::{
-        prolly::{
-            node::Node,
-            roller::{Config as RollerConfig, Roller},
-        },
+        prolly::node::Node,
         storage::StorageRead,
         value::{Key, Value},
         Addr, Error,
     },
     lru::LruCache,
-    std::mem,
 };
 
 const DEFAULT_CACHE_SIZE: usize = 1024 * 1024 / (1024 * 4);
@@ -36,8 +32,26 @@ impl<'s, S> Read<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn get(&self, k: Key) -> Result<Option<&Value>, Error> {
-        todo!("get")
+    pub async fn get(&mut self, k: Key) -> Result<Option<Value>, Error> {
+        let mut addr = self.root_addr.clone();
+        loop {
+            let node = self.cache.get(&addr).await?;
+            match node {
+                Node::Leaf(v) => {
+                    return Ok(v
+                        .iter()
+                        .find(|(lhs_k, _)| *lhs_k == k)
+                        .map(|(_, v)| v.clone()))
+                }
+                Node::Branch(v) => {
+                    let child_addr = v.iter().take_while(|(lhs_k, _)| *lhs_k < k).last();
+                    match child_addr {
+                        None => return Ok(None),
+                        Some((_, child_addr)) => addr = child_addr.clone(),
+                    }
+                }
+            }
+        }
     }
 }
 /// A helper to cache the nodes in a tree based on an internal LRU.
@@ -52,34 +66,33 @@ where
     // NOTE: I don't think `addr` can be a generic reference without enabling nightly on the lru
     // crate. Due to the borrow impl only existing for:
     // https://docs.rs/lru/0.6.0/src/lru/lib.rs.html#126-131
-    pub async fn get(&mut self, addr: &Addr) -> Result<Option<&Node<Key, Value, Addr>>, Error> {
-        if !self.cache.contains(addr) {
-            return Ok(Some(
-                self.cache
-                    .get(addr)
-                    .expect("addr impossibly missing from lru cache"),
-            ));
+    pub async fn get(&mut self, addr: &Addr) -> Result<&Node<Key, Value, Addr>, Error> {
+        if self.cache.contains(addr) {
+            return Ok(self
+                .cache
+                .get(addr)
+                .expect("addr impossibly missing from lru cache"));
         } else {
             let mut buf = Vec::new();
-            match self.storage.read(addr.clone(), &mut buf).await {
-                Ok(b) => b,
-                Err(err) if err.is_not_found() => return Ok(None),
-                Err(err) => return Err(err.into()),
-            };
+            self.storage.read(addr.clone(), &mut buf).await?;
             let node = crate::value::deserialize::<Node<Key, Value, Addr>>(&buf)?;
             self.cache.put(addr.clone(), node);
             let node = self
                 .cache
                 .peek(addr)
                 .expect("addr impossibly missing from lru cache");
-            Ok(Some(node))
+            Ok(node)
         }
     }
 }
 
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::prolly::Create, crate::storage::Memory};
+    use {
+        super::*,
+        crate::prolly::{roller::Config as RollerConfig, Create},
+        crate::storage::Memory,
+    };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -91,7 +104,7 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let addr = {
+        let root_addr = {
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
             let kvs = (0..400)
                 .map(|i| (i, i * 10))
@@ -99,7 +112,9 @@ pub mod test {
                 .collect::<Vec<_>>();
             tree.with_kvs(kvs).await.unwrap()
         };
-        dbg!(addr);
+        dbg!(&root_addr);
+        let mut read = Read::new(&storage, root_addr);
+        dbg!(read.get(356.into()).await.unwrap());
         // dbg!(tree.flush());
         // dbg!(&storage);
     }

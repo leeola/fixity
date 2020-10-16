@@ -57,7 +57,7 @@ impl<'s, S> Map<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn get<K>(&mut self, k: K) -> Result<Option<Value>, Error>
+    pub async fn get<K>(&mut self, _k: K) -> Result<Option<Value>, Error>
     where
         K: Into<Key>,
     {
