@@ -44,7 +44,7 @@ where
                         .map(|(_, v)| v.clone()))
                 }
                 Node::Branch(v) => {
-                    let child_addr = v.iter().take_while(|(lhs_k, _)| *lhs_k < k).last();
+                    let child_addr = v.iter().take_while(|(lhs_k, _)| *lhs_k <= k).last();
                     match child_addr {
                         None => return Ok(None),
                         Some((_, child_addr)) => addr = child_addr.clone(),
@@ -103,19 +103,21 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
+        let content = (0..20)
+            .map(|i| (i, i * 10))
+            .map(|(k, v)| (Key::from(k), Value::from(v)))
+            .collect::<Vec<_>>();
         let storage = Memory::new();
         let root_addr = {
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            let kvs = (0..400)
-                .map(|i| (i, i * 10))
-                .map(|(k, v)| (Key::from(k), Value::from(v)))
-                .collect::<Vec<_>>();
-            tree.with_kvs(kvs).await.unwrap()
+            tree.with_kvs(content.clone()).await.unwrap()
         };
         dbg!(&root_addr);
         let mut read = Read::new(&storage, root_addr);
-        dbg!(read.get(356.into()).await.unwrap());
-        // dbg!(tree.flush());
-        // dbg!(&storage);
+        for (k, want_v) in content {
+            dbg!(&k);
+            let got_v = read.get(k).await.unwrap();
+            assert_eq!(got_v, Some(want_v));
+        }
     }
 }
