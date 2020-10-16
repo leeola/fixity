@@ -7,6 +7,16 @@ use {crate::Error, multibase::Base};
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Addr(String);
+impl std::borrow::Borrow<str> for Addr {
+    fn borrow(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl std::borrow::Borrow<String> for Addr {
+    fn borrow(&self) -> &String {
+        &self.0
+    }
+}
 impl AsRef<str> for Addr {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
@@ -73,11 +83,11 @@ pub enum Value {
     Uint32(u32),
     Vec(Vec<Scalar>),
 }
-#[cfg(not(feature = "borsh"))]
 /// A helper to centralize serialization logic for a potential future
 /// where we change/tweak/configure serialization.
 ///
 /// How we handle schema/serialization compatibility is TBD.
+#[cfg(not(feature = "borsh"))]
 pub fn serialize<T>(_: T) -> Result<Vec<u8>, Error> {
     Err(Error::Unhandled("serializer not configured".into()))
 }
@@ -91,6 +101,28 @@ where
     T: borsh::BorshSerialize,
 {
     Ok(t.try_to_vec()
+        // mapping because it's actually a `std::io::Error`, so ?
+        // would convert the wrong type.
+        .map_err(|err| Error::Borsh(err))?)
+}
+/// A helper to centralize deserialization logic for a potential future
+/// where we change/tweak/configure deserialization.
+///
+/// How we handle schema/deserialization compatibility is TBD.
+#[cfg(not(feature = "borsh"))]
+pub fn deserialize<T>(_: T) -> Result<Vec<u8>, Error> {
+    Err(Error::Unhandled("deserializer not configured".into()))
+}
+#[cfg(feature = "borsh")]
+/// A helper to centralize deserialization logic for a potential future
+/// where we change/tweak/configure deserialization.
+///
+/// How we handle schema/deserialization compatibility is TBD.
+pub fn deserialize<T>(bytes: &[u8]) -> Result<T, Error>
+where
+    T: borsh::BorshDeserialize,
+{
+    Ok(T::try_from_slice(bytes)
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
         .map_err(|err| Error::Borsh(err))?)
