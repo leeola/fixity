@@ -76,7 +76,7 @@ where
         } else {
             let kvs = mem::replace(&mut self.buffer, Vec::new());
             let (node_key, node_addr, node_bytes) = {
-                let node = Node::<_, Value, _>::Branch(kvs);
+                let node = Node::<_, _, Addr>::Leaf(kvs);
                 let (node_addr, node_bytes) = node.as_bytes()?;
                 (node.into_key_unchecked(), node_addr, node_bytes)
             };
