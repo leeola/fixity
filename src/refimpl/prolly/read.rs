@@ -75,7 +75,7 @@ where
         } else {
             let mut buf = Vec::new();
             self.storage.read(addr.clone(), &mut buf).await?;
-            let node = crate::value::deserialize::<Node<Key, Value, Addr>>(&buf)?;
+            let node = crate::value::deserialize_with_addr::<Node<Key, Value, Addr>>(&buf, &addr)?;
             self.cache.put(addr.clone(), node);
             let node = self
                 .cache
@@ -103,21 +103,29 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let content = (0..20)
-            .map(|i| (i, i * 10))
-            .map(|(k, v)| (Key::from(k), Value::from(v)))
-            .collect::<Vec<_>>();
-        let storage = Memory::new();
-        let root_addr = {
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            tree.with_kvs(content.clone()).await.unwrap()
-        };
-        dbg!(&root_addr);
-        let mut read = Read::new(&storage, root_addr);
-        for (k, want_v) in content {
-            dbg!(&k);
-            let got_v = read.get(k).await.unwrap();
-            assert_eq!(got_v, Some(want_v));
+        let contents = vec![
+            // (0..20),
+            (0..48),
+            // (0..200),
+            // (0..400)
+        ];
+        for content in contents {
+            let content = content
+                .map(|i| (i, i * 10))
+                .map(|(k, v)| (Key::from(k), Value::from(v)))
+                .collect::<Vec<_>>();
+            let storage = Memory::new();
+            let root_addr = {
+                let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+                tree.with_kvs(content.clone()).await.unwrap()
+            };
+            dbg!(&root_addr);
+            let mut read = Read::new(&storage, root_addr);
+            for (k, want_v) in content {
+                // dbg!(&k);
+                let got_v = read.get(k).await.unwrap();
+                assert_eq!(got_v, Some(want_v));
+            }
         }
     }
 }

@@ -86,7 +86,7 @@ where
                 // instance itself is the root.
                 None => Ok(node_addr),
                 // If there is a parent, the root might be the parent, grandparent, etc.
-                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+                Some(mut parent) => parent.flush(Some((dbg!(node_key), node_addr))).await,
             }
         }
     }
@@ -95,8 +95,8 @@ where
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
         // *fingers crossed*. This requires the Read implementation up and running though.
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
-        self.buffer.push(kv);
         dbg!(boundary);
+        self.buffer.push(kv);
         if boundary {
             let is_first_kv = self.buffer.is_empty() && self.parent.is_none();
             if is_first_kv {

@@ -1,4 +1,7 @@
-use {crate::storage::Error as StorageError, std::io};
+use {
+    crate::{storage::Error as StorageError, value::Addr},
+    std::io,
+};
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -26,6 +29,12 @@ pub enum Error {
     #[cfg(feature = "borsh")]
     #[error("borsh error: `{0:?}`")]
     Borsh(std::io::Error),
+    /// A Borsh error, with an address..
+    ///
+    /// for some reason they return an io::Error, the std::io type is not a bug.
+    #[cfg(feature = "borsh")]
+    #[error("addr:{addr}, borsh error: `{err:?}`")]
+    BorshAddr { addr: Addr, err: std::io::Error },
     #[cfg(feature = "cjson")]
     #[error("cjson error: `{0:?}`")]
     Cjson(cjson::Error),

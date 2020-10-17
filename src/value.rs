@@ -1,4 +1,6 @@
-use {crate::Error, multibase::Base};
+use {crate::Error, multibase::Base, std::fmt};
+
+const ADDR_SHORT_LEN: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -7,6 +9,15 @@ use {crate::Error, multibase::Base};
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Addr(String);
+impl Addr {
+    /// Return a partial address which is *usually* unique enough to reference
+    /// a content address.
+    ///
+    /// Useful for a decent UX.
+    pub fn short(&self) -> &str {
+        self.0.split_at(ADDR_SHORT_LEN).0
+    }
+}
 impl std::borrow::Borrow<str> for Addr {
     fn borrow(&self) -> &str {
         self.0.as_str()
@@ -36,6 +47,11 @@ impl From<&Vec<u8>> for Addr {
     fn from(bytes: &Vec<u8>) -> Self {
         let h = <[u8; 32]>::from(blake3::hash(bytes));
         Self(multibase::encode(Base::Base58Btc, &h))
+    }
+}
+impl fmt::Display for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.short())
     }
 }
 
@@ -126,6 +142,28 @@ where
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
         .map_err(|err| Error::Borsh(err))?)
+}
+/// A helper to centralize deserialization logic for a potential future
+/// where we change/tweak/configure deserialization.
+///
+/// How we handle schema/deserialization compatibility is TBD.
+#[cfg(not(feature = "borsh"))]
+pub fn deserialize_with_addr<T>(_: T, _: &Addr) -> Result<Vec<u8>, Error> {
+    Err(Error::Unhandled("deserializer not configured".into()))
+}
+#[cfg(feature = "borsh")]
+/// A helper to centralize deserialization logic for a potential future
+/// where we change/tweak/configure deserialization.
+///
+/// How we handle schema/deserialization compatibility is TBD.
+pub fn deserialize_with_addr<T>(bytes: &[u8], addr: &Addr) -> Result<T, Error>
+where
+    T: borsh::BorshDeserialize,
+{
+    Ok(T::try_from_slice(bytes).map_err(|err| Error::BorshAddr {
+        addr: addr.clone(),
+        err,
+    })?)
 }
 impl<T> From<T> for Value
 where
