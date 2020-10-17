@@ -6,6 +6,9 @@ edition = "2018"
 
 [features]
 default = ["borsh"]
+# Whether or not to enable moderately costly runtime safety checks of
+# store content, tree structures, etc.
+debug_checks = []
 # An eventual series of alternate serialize for performance options.
 #
 # WARN: All of the canonical json libraries i've seen so far are in

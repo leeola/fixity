@@ -9,6 +9,10 @@ pub enum Error {
     Unhandled(String),
     #[error("builder error: `{message}`")]
     Builder { message: String },
+    #[error("prolly error: `{message}`")]
+    Prolly { message: String },
+    #[error("prolly@`{addr}`, error: `{message}`")]
+    ProllyAddr { addr: Addr, message: String },
     #[error("store error: `{0}`")]
     Storage(#[from] StorageError),
     #[error("io error: `{0}`")]

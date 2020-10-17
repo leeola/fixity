@@ -14,7 +14,7 @@ use {
 /// had an average block size of 4KiB.
 const DEFAULT_CACHE_SIZE: usize = 1024 * 1024 / (1024 * 4);
 
-/// A prolly reader with an internal LRU cache.
+/// A prolly reader with an internal LRU cache, expecting random access reads.
 pub struct LruRead<'s, S> {
     cache: LruNodeCache<'s, S>,
     root_addr: Addr,
@@ -49,8 +49,8 @@ where
                         .map(|(_, v)| v.clone()))
                 }
                 Node::Branch(v) => {
-                    let child_addr = v.iter().take_while(|(lhs_k, _)| *lhs_k <= k).last();
-                    match child_addr {
+                    let child_node = v.iter().take_while(|(lhs_k, _)| *lhs_k <= k).last();
+                    match child_node {
                         None => return Ok(None),
                         Some((_, child_addr)) => addr = child_addr.clone(),
                     }

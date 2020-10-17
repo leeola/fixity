@@ -1,7 +1,12 @@
-use crate::{Addr, Error};
+use crate::{
+    value::{Addr, Key, Value},
+    Error,
+};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// An alias to a [`Node`] with owned parameters.
+pub type NodeOwned = Node<Key, Value, Addr>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
