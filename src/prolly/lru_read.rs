@@ -8,13 +8,18 @@ use {
     lru::LruCache,
 };
 
+/// A default cache size in units based on an average 4KiB block size.
+///
+/// Ie, the number of blocks expected to be within 1MiB, if each block
+/// had an average block size of 4KiB.
 const DEFAULT_CACHE_SIZE: usize = 1024 * 1024 / (1024 * 4);
 
-pub struct Read<'s, S> {
+/// A prolly reader with an internal LRU cache.
+pub struct LruRead<'s, S> {
     cache: LruNodeCache<'s, S>,
     root_addr: Addr,
 }
-impl<'s, S> Read<'s, S> {
+impl<'s, S> LruRead<'s, S> {
     pub fn new(storage: &'s S, root_addr: Addr) -> Self {
         Self::with_cache_size(storage, root_addr, DEFAULT_CACHE_SIZE)
     }
@@ -28,11 +33,11 @@ impl<'s, S> Read<'s, S> {
         }
     }
 }
-impl<'s, S> Read<'s, S>
+impl<'s, S> LruRead<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn get(&mut self, k: Key) -> Result<Option<Value>, Error> {
+    pub async fn get_owned(&mut self, k: Key) -> Result<Option<Value>, Error> {
         let mut addr = self.root_addr.clone();
         loop {
             let node = self.cache.get(&addr).await?;
@@ -90,7 +95,7 @@ where
 pub mod test {
     use {
         super::*,
-        crate::prolly::{roller::Config as RollerConfig, Create},
+        crate::prolly::{roller::Config as RollerConfig, CursorCreate},
         crate::storage::Memory,
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
@@ -111,13 +116,14 @@ pub mod test {
                 .collect::<Vec<_>>();
             let storage = Memory::new();
             let root_addr = {
-                let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+                let tree =
+                    CursorCreate::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
                 tree.with_kvs(content.clone()).await.unwrap()
             };
             dbg!(&root_addr);
-            let mut read = Read::new(&storage, root_addr);
+            let mut read = LruRead::new(&storage, root_addr);
             for (k, want_v) in content {
-                let got_v = read.get(k).await.unwrap();
+                let got_v = read.get_owned(k).await.unwrap();
                 assert_eq!(got_v, Some(want_v));
             }
         }

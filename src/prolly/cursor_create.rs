@@ -10,10 +10,11 @@ use {
     },
     std::mem,
 };
-pub struct Create<'s, S> {
+/// Create a prolly tree with a cursor, optimized for and requiring sorted insertions.
+pub struct CursorCreate<'s, S> {
     leaf: Leaf<'s, S>,
 }
-impl<'s, S> Create<'s, S> {
+impl<'s, S> CursorCreate<'s, S> {
     pub fn new(storage: &'s S) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
@@ -23,7 +24,7 @@ impl<'s, S> Create<'s, S> {
         }
     }
 }
-impl<'s, S> Create<'s, S>
+impl<'s, S> CursorCreate<'s, S>
 where
     S: StorageWrite,
 {
@@ -69,7 +70,7 @@ where
                 // This should be impossible.
                 // A proper state machine would make this logic more safe, but async/await is
                 // currently a bit immature for the design changes that would introduce.
-                None => unreachable!("Create leaf missing parent and has empty buffer"),
+                None => unreachable!("CursorCreate leaf missing parent and has empty buffer"),
                 // If there is a parent, the root might be the parent, grandparent, etc.
                 Some(mut parent) => parent.flush(None).await,
             }
@@ -163,7 +164,7 @@ where
                 // This should be impossible.
                 // A proper state machine would make this logic more safe, but async/await is
                 // currently a bit immature for the design changes that would introduce.
-                None => unreachable!("Create branch missing parent and has empty buffer"),
+                None => unreachable!("CursorCreate branch missing parent and has empty buffer"),
                 // If there is a parent, the root might be the parent, grandparent, etc.
                 Some(mut parent) => parent.flush(None).await,
             }
@@ -236,12 +237,9 @@ pub mod test {
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
             let storage = Memory::new();
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            let kvs = (0..400)
-                .map(|i| (i, i * 10))
-                .map(|(k, v)| (Key::from(k), Value::from(v)))
-                .collect::<Vec<_>>();
-            let addr = tree.with_kvs(kvs).await.unwrap();
+            let tree =
+                CursorCreate::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let addr = tree.with_kvs(content).await.unwrap();
             dbg!(addr);
         }
     }

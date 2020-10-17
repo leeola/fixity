@@ -39,7 +39,6 @@ lru = "0.6.0"
 
 [dev-dependencies]
 env_logger = "0.7"
-maplit = "1.0"
 
 [workspace]
 members = [

@@ -1,7 +1,7 @@
 use {
     crate::storage::{StorageRead, StorageWrite},
     crate::{
-        refimpl::prolly,
+        prolly::{CursorCreate, LruRead},
         value::{Key, Value},
         Addr, Error,
     },
@@ -11,12 +11,17 @@ pub struct Map<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
     stage: HashMap<Key, Value>,
+    reader: Option<LruRead<'s, S>>,
 }
 impl<'s, S> Map<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
+        let reader = addr
+            .as_ref()
+            .map(|addr| LruRead::new(storage, addr.clone()));
         Self {
             storage,
             addr,
+            reader,
             stage: HashMap::new(),
         }
     }
@@ -49,7 +54,7 @@ where
         if let Some(_) = self.addr.as_ref() {
             unimplemented!("map commit mutate")
         } else {
-            prolly::Create::new(self.storage).with_kvs(kvs).await
+            CursorCreate::new(self.storage).with_kvs(kvs).await
         }
     }
 }
@@ -57,20 +62,24 @@ impl<'s, S> Map<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn get<K>(&mut self, _k: K) -> Result<Option<Value>, Error>
+    pub async fn get_owned<K>(&mut self, k: K) -> Result<Option<Value>, Error>
     where
         K: Into<Key>,
     {
-        unimplemented!("map get")
+        let k = k.into();
+        let r = match &mut self.reader {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+        match self.stage.get(&k) {
+            Some(v) => Ok(Some(v.clone())),
+            None => r.get_owned(k).await,
+        }
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::storage::{Memory, Storage, StorageRead, StorageWrite},
-        maplit::hashmap,
-    };
+    use {super::*, crate::storage::Memory};
     #[test]
     fn poc() {
         let mut env_builder = env_logger::builder();
@@ -79,19 +88,9 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let _storage = Memory::new();
-        // let mut p = Prolly::new();
-        // Map::new(
-        //     &storage,
-        //     hashmap! {
-        //         1 => 10,
-        //         2 => 20,
-        //     },
-        // )
-        // .unwrap();
-        // dbg!(&storage);
-        // let data = (0..20).map(|i| (i, i * 10)).collect::<HashMap<_, _>>();
-        // let m = Map::new(&storage, data);
+        let storage = Memory::new();
+        let mut m = Map::new(&storage, None);
+        m.append((0..20).map(|i| (i, i * 10)));
         // dbg!(&storage);
     }
     /*

@@ -474,7 +474,6 @@ dependencies = [
  "fbuzhash",
  "log",
  "lru",
- "maplit",
  "multibase",
  "serde",
  "serde_json",
@@ -833,12 +832,6 @@ checksum = "111b945ac72ec09eb7bc62a0fbdc3cc6e80555a7245f52a69d3921a75b53b153"
 dependencies = [
  "hashbrown",
 ]
-
-[[package]]
-name = "maplit"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "memchr"
