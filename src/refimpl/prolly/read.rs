@@ -103,12 +103,7 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let contents = vec![
-            // (0..20),
-            (0..48),
-            // (0..200),
-            // (0..400)
-        ];
+        let contents = vec![(0..20), (0..200), (0..2_000)];
         for content in contents {
             let content = content
                 .map(|i| (i, i * 10))
@@ -122,7 +117,6 @@ pub mod test {
             dbg!(&root_addr);
             let mut read = Read::new(&storage, root_addr);
             for (k, want_v) in content {
-                // dbg!(&k);
                 let got_v = read.get(k).await.unwrap();
                 assert_eq!(got_v, Some(want_v));
             }

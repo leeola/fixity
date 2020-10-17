@@ -86,7 +86,7 @@ where
                 // instance itself is the root.
                 None => Ok(node_addr),
                 // If there is a parent, the root might be the parent, grandparent, etc.
-                Some(mut parent) => parent.flush(Some((dbg!(node_key), node_addr))).await,
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
             }
         }
     }
@@ -95,7 +95,6 @@ where
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
         // *fingers crossed*. This requires the Read implementation up and running though.
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
-        dbg!(boundary);
         self.buffer.push(kv);
         if boundary {
             let is_first_kv = self.buffer.is_empty() && self.parent.is_none();
@@ -192,7 +191,6 @@ where
         // a `Vec<[]byte,byte{}>` such that we can deserialize it into a `Vec<Value,Value>`.
         // *fingers crossed*. This requires the Read implementation up and running though.
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
-        dbg!(&kv.0, boundary, self.buffer.len());
         self.buffer.push(kv);
         if boundary {
             let first_kv = self.buffer.is_empty() && self.parent.is_none();
@@ -231,16 +229,20 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let storage = Memory::new();
-        let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-        let kvs = (0..400)
-            .map(|i| (i, i * 10))
-            .map(|(k, v)| (Key::from(k), Value::from(v)))
-            .collect::<Vec<_>>();
-        let addr = tree.with_kvs(kvs).await.unwrap();
-        dbg!(addr);
-        dbg!(&storage);
-        // dbg!(tree.flush());
-        // dbg!(&storage);
+        let contents = vec![(0..20), (0..200), (0..2_000)];
+        for content in contents {
+            let content = content
+                .map(|i| (i, i * 10))
+                .map(|(k, v)| (Key::from(k), Value::from(v)))
+                .collect::<Vec<_>>();
+            let storage = Memory::new();
+            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let kvs = (0..400)
+                .map(|i| (i, i * 10))
+                .map(|(k, v)| (Key::from(k), Value::from(v)))
+                .collect::<Vec<_>>();
+            let addr = tree.with_kvs(kvs).await.unwrap();
+            dbg!(addr);
+        }
     }
 }
