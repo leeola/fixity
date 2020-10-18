@@ -41,7 +41,7 @@ where
             let node = self.cache.get(&addr).await?;
             match node {
                 NodeOwned::Leaf(v) => {
-                    if v.len() == 0 {
+                    if v.is_empty() {
                         return Ok(None);
                     }
                     // The first key might be bigger if this leaf is the root of the tree.
