@@ -40,7 +40,7 @@ where
         loop {
             let node = self.cache.get(&addr).await?;
             match node {
-                NodeOwned::Leaf(v) => {
+                OwnedLeaf::Leaf(v) => {
                     if v.is_empty() {
                         return Ok(None);
                     }
@@ -54,7 +54,7 @@ where
                     }
                     return Ok(Some(v.clone()));
                 }
-                NodeOwned::Branch(v) => {
+                OwnedLeaf::Branch(v) => {
                     let child_node = v.iter().take_while(|(lhs_k, _)| *lhs_k <= k).last();
                     match child_node {
                         None => return Ok(None),
@@ -70,18 +70,19 @@ struct BranchCache<'s, S> {
     storage: &'s S,
     cache: HashMap<Addr, NodeOwned>,
 }
+enum OwnedLeaf<'a> {
+    Leaf(Vec<(Key, Value)>),
+    Branch(&'a Vec<(Key, Addr)>),
+}
 impl<'s, S> BranchCache<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn get(&mut self, addr: &Addr) -> Result<&NodeOwned, Error> {
+    pub async fn get(&mut self, addr: &Addr) -> Result<Option<OwnedLeaf<'_>>, Error> {
         // TODO: hmm, i seem to want to return a ref for branches, and owned for values..
 
         if self.cache.contains_key(addr) {
-            return Ok(self
-                .cache
-                .get(addr)
-                .expect("addr impossibly missing from cache"));
+            return Ok(self.cache.get(addr).map(OwnedLeaf::Branch));
         } else {
             // let mut buf = Vec::new();
             // self.storage.read(addr.clone(), &mut buf).await?;
