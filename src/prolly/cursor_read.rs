@@ -1,6 +1,3 @@
-// TODO: remove allow(unused)
-#![allow(unused)]
-
 use {
     crate::{
         prolly::node::{Node, NodeOwned},
@@ -104,7 +101,6 @@ where
             match node {
                 Node::Leaf(v) => Ok(OwnedLeaf::Leaf(v)),
                 Node::Branch(v) => {
-                    dbg!(k);
                     // NOTE: This GC of the cache relies on cache hits working correctly.
                     // Since Branches can't know the end Key of the _last leaf_, we expect that requests for
                     // keys past the end are _cache hits_.
@@ -204,7 +200,7 @@ pub mod test {
         // the behavior offers no introspection of cache hits/misses.
         //
         // I should probably use a mocking library to ensure Storage is called/not called,
-        // thus testing behavior.
+        // thus testing behavior.. but that won't verify if caches were dropped.
 
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
