@@ -99,33 +99,60 @@ where
     /// Roll into `target_k` but **do not** roll the KV pair equal to `target_k`; instead
     /// dropping that equal pair.
     pub async fn roll_into(&mut self, target_k: &Key) -> Result<(), Error> {
-        // if there are no values in source_kvs and rolled_kvs then we need to attempt to load the
-        // leaf block for the provided key.
-        if self.source_kvs.is_empty() && self.rolled_kvs.is_empty() {
-            if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
-                leaf.reverse();
-                self.source_kvs.append(&mut leaf);
-            }
-        }
         // the resulting source_kvs may still be empty, or may contain only a single k:v
         // which matches the `target_k`. This is supported / expected.
 
         // now we roll the source_kvs up, one by one, so that this cursor is at the target.
         loop {
-            // Peek at the upcoming cursor_key to see if it would be past the target_k.
-            // If it is, we don't want to pop it - we've rolled into the target successfully.
-            let kv = match self.source_kvs.last() {
+            match self.source_kvs.last() {
+                // If the cursor is past the target, return - we can insert freely.
                 Some((cursor_k, _)) if cursor_k > target_k => {
                     return Ok(());
                 }
+                // If the cursor is at the target, remove it and return.
+                // both Self::insert() and Self::remove() result in the old matching value
+                // getting removed.
                 Some((cursor_k, _)) if cursor_k == target_k => {
                     self.source_kvs.pop();
                     return Ok(());
                 }
-                Some(_) => self.source_kvs.pop().expect("last kv impossibly missing"),
-                None => return Ok(()),
+                // If the cursor is before the target, roll the kv.
+                Some(_) => {
+                    let kv = self.source_kvs.pop().expect("last kv impossibly missing");
+                    self.roll_kv(kv).await?;
+                }
+                // If the is no more source_kvs, load more data. Either the window for
+                // the target_key, or we expand the existing window.
+                None => {
+                    // if there is no more source kvs, we either need to expand the window or
+                    // load an entirely new window to complete the rolled_into request.
+                    self.expand_window(target_k).await?;
+                    // if we tried to expand the window but failed, there is no more matching
+                    // data for this window. If rolled_kvs is not empty this is fine,
+                    // we can just append the target_k.
+                    if self.source_kvs.is_empty() {
+                        // If we don't return, this loop is infinite.
+                        return Ok(());
+                    }
+                }
             };
-            self.roll_kv(kv).await?;
+        }
+    }
+    pub async fn expand_window(&mut self, target_k: &Key) -> Result<(), Error> {
+        // if there is no more source kvs, we either need to expand the window or
+        // load an entirely new window to complete the rolled_into request.
+        if self.rolled_kvs.is_empty() {
+            if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
+                leaf.reverse();
+                self.source_kvs.append(&mut leaf);
+            }
+        } else {
+            // let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
+            // if let Some(mut leaf) = self.reader.neighboring_leaf().await? {
+            //     leaf.reverse();
+            //     self.source_kvs.append(&mut leaf);
+            // }
+            todo!("expand neighbor");
         }
     }
     pub async fn roll_kv(&mut self, kv: (Key, Value)) -> Result<(), Error> {
@@ -155,6 +182,7 @@ where
     }
     pub async fn insert(&mut self, k: Key, v: Value) -> Result<(), Error> {
         self.roll_into(&k).await?;
+        self.roll_kv((k, v)).await?;
         todo!("insert")
     }
     pub async fn remove(&mut self, k: Key) -> Result<(), Error> {
