@@ -29,7 +29,7 @@ where
     /// Fetch a leaf where the given `Key` is within the block boundary.
     ///
     /// The resulting leaf may not include a key:value pair for the provided key.
-    pub async fn within_leaf_owned(&mut self, k: Key) -> Result<Option<Vec<(Key, Value)>>, Error> {
+    pub async fn within_leaf_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Value)>>, Error> {
         let mut addr = self.root_addr.clone();
         loop {
             let node = self.cache.get(&k, &addr).await?;
@@ -39,7 +39,7 @@ where
                         return Ok(None);
                     }
                     // The first key might be bigger if this leaf is the root of the tree.
-                    if v[0].0 > k {
+                    if &v[0].0 > k {
                         return Ok(None);
                     }
                     let last_kv = v.last().expect("key,value pair impossibly missing");
@@ -49,7 +49,7 @@ where
                     return Ok(Some(v.clone()));
                 }
                 OwnedLeaf::Branch(v) => {
-                    let child_node = v.iter().take_while(|(lhs_k, _)| *lhs_k <= k).last();
+                    let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
                     match child_node {
                         None => return Ok(None),
                         Some((_, child_addr)) => addr = child_addr.clone(),
