@@ -139,7 +139,7 @@ where
             }
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
-                let node = Node::<_, Value, _>::Branch(kvs);
+                let node = Node::<_, Value, _>::Leaf(kvs);
                 let (node_addr, node_bytes) = node.as_bytes()?;
                 self.storage.write(node_addr.clone(), &*node_bytes).await?;
                 (node.into_key_unchecked(), node_addr)
@@ -153,14 +153,12 @@ where
         }
         Ok(())
     }
-    pub async fn clean_up_to(&mut self, k: &Key) -> Result<(), Error> {
-        todo!("clean_up_to")
-    }
     pub async fn insert(&mut self, k: Key, v: Value) -> Result<(), Error> {
         self.roll_into(&k).await?;
         todo!("insert")
     }
     pub async fn remove(&mut self, k: Key) -> Result<(), Error> {
+        self.roll_into(&k).await?;
         todo!("leaf remove")
     }
 }
