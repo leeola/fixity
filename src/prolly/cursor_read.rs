@@ -26,11 +26,12 @@ impl<'s, S> CursorRead<'s, S>
 where
     S: StorageRead,
 {
-    /// Fetch a leaf where the given `Key` is within the block boundary.
+    /// Fetch a leaf block where the given `Key` is within the block boundary.
     ///
     /// The resulting leaf may not include a key:value pair for the provided key.
-    pub async fn within_leaf_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Value)>>, Error> {
+    pub async fn within_leaf_owned(&mut self, k: &Key) -> Result<Option<Block<Value>>, Error> {
         let mut addr = self.root_addr.clone();
+        let mut depth = 0;
         loop {
             let node = self.cache.get(&k, &addr).await?;
             match node {
@@ -46,7 +47,10 @@ where
                     if &last_kv.0 < &k {
                         return Ok(None);
                     }
-                    return Ok(Some(v.clone()));
+                    return Ok(Some(Block {
+                        depth,
+                        inner: v.clone(),
+                    }));
                 }
                 OwnedLeaf::Branch(v) => {
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
@@ -56,8 +60,23 @@ where
                     }
                 }
             }
+            depth += 1;
         }
     }
+}
+/// An inner Block value of `T` with a metadata `depth`, which is useful for calling
+/// tree traversal methods with offsets.
+///
+/// Eg, if you want to get the right-neighbor of `K`, you'll never know when you're
+/// looking at the branch before the `K` you're asking about - unless you know
+/// the depth.
+///
+/// If you have the depth, the combination of `(Depth, K)` gives you a position on
+/// the tree and allows the CursorRead to seek the neighbor of `K` when at
+/// the depth of `(Depth-1, K)`.
+pub struct Block<T> {
+    pub depth: usize,
+    pub inner: Vec<(Key, T)>,
 }
 /// A helper to cache the branches of the tree.
 struct BranchCache<'s, S> {

@@ -5,9 +5,15 @@ authors = ["Lee Olayvar <leeola@fastmail.com>"]
 edition = "2018"
 
 [features]
-default = ["borsh"]
+default = [
+  "borsh",
+  # Enabling more costly debug checks for all initial prototypes.
+  # Benchmarking should be run without default features for this
+  # reason.
+  "debug_checks",
+]
 # Whether or not to enable moderately costly runtime safety checks of
-# store content, tree structures, etc.
+# store content, tree structure integrity checks, etc.
 debug_checks = []
 # An eventual series of alternate serialize for performance options.
 #

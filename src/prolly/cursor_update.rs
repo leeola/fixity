@@ -15,6 +15,10 @@ use {
 };
 
 pub struct CursorUpdate<'s, S> {
+    /// The last used key, if any, to ensure forward progress on the cursor behavior if
+    /// debug checks are enabled.
+    #[cfg(features = "debug_checks")]
+    cursor_key: Option<Key>,
     leaf: Leaf<'s, S>,
 }
 impl<'s, S> CursorUpdate<'s, S> {
@@ -44,9 +48,27 @@ where
         self.leaf.flush().await
     }
     pub async fn insert(&mut self, k: Key, v: Value) -> Result<(), Error> {
+        #[cfg(features = "debug_checks")]
+        if let Some(cursor_key) = self.cursor_key.replace(k.clone()) {
+            if cursor_key >= k {
+                panic!(
+                    "cursor update did not move forward. from key `{}` to `{}`",
+                    cursor_key, k
+                );
+            }
+        }
         self.leaf.insert(k, v).await
     }
     pub async fn remove(&mut self, k: Key) -> Result<(), Error> {
+        #[cfg(features = "debug_checks")]
+        if let Some(cursor_key) = self.cursor_key.replace(k.clone()) {
+            if cursor_key >= k {
+                panic!(
+                    "cursor update did not move forward. from key `{}` to `{}`",
+                    cursor_key, k
+                );
+            }
+        }
         self.leaf.remove(k).await
     }
     pub async fn change(&mut self, k: Key, change: Change) -> Result<(), Error> {
@@ -74,6 +96,7 @@ struct Leaf<'s, S> {
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Value)>,
+    source_depth: usize,
     // parent: Option<Branch<'s, S>>,
 }
 impl<'s, S> Leaf<'s, S> {
@@ -83,8 +106,11 @@ impl<'s, S> Leaf<'s, S> {
             reader: CursorRead::new(storage, root_addr),
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
+            // NIT: we're wasting some initial allocation here. iirc this was done because
+            // Async/Await doesn't like constructors - eg `Self` returns.
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
+            source_depth: 0,
             // parent: None,
         }
     }
@@ -143,8 +169,15 @@ where
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
             if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
-                leaf.reverse();
-                self.source_kvs.append(&mut leaf);
+                leaf.inner.reverse();
+                self.source_kvs.append(&mut leaf.inner);
+                // NIT: this feels.. bad. I debated an init phase where after the constructor we
+                // figure the depth of this block, so we only do it once - but then we're traversing the
+                // tree at construction just to find this pointer. Where as the depth
+                // is basically free anytime we get a block. So... fixing this seems like a super
+                // micro-optimization
+                self.source_depth = leaf.depth;
+                todo!("i'm now unsure if depth is useful at all.., since depth-1 can't be sure to fetch the neighbor K");
             }
         } else {
             // let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
@@ -154,6 +187,7 @@ where
             // }
             todo!("expand neighbor");
         }
+        Ok(())
     }
     pub async fn roll_kv(&mut self, kv: (Key, Value)) -> Result<(), Error> {
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
@@ -166,7 +200,7 @@ where
             }
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
-                let node = Node::<_, Value, _>::Leaf(kvs);
+                let node = NodeOwned::Leaf(kvs);
                 let (node_addr, node_bytes) = node.as_bytes()?;
                 self.storage.write(node_addr.clone(), &*node_bytes).await?;
                 (node.into_key_unchecked(), node_addr)
