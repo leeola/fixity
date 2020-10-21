@@ -63,6 +63,50 @@ where
             depth += 1;
         }
     }
+    /// Return the leaf to the right of the leaf that the given `k` matches; The neighboring
+    /// _(right)_ leaf.
+    pub async fn right_of_key_owned_leaf(
+        &mut self,
+        k: &Key,
+    ) -> Result<Option<Vec<(Key, Value)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        // Record each nighbor key as we search for the leaf of `k`.
+        // At each branch, record the key immediately to the right of
+        // the leaf `k` would be in.
+        //
+        // Once a leaf is reached, this value will be the neighboring
+        // leaf key, if any.
+        let mut immediate_right_key = None;
+        loop {
+            let node = self.cache.get(&k, &addr).await?;
+            match node {
+                OwnedLeaf::Leaf(_) => {
+                    return match immediate_right_key {
+                        Some(k) => Ok(self.within_leaf_owned(&k).await?.map(|block| block.inner)),
+                        None => Ok(None),
+                    };
+                }
+                OwnedLeaf::Branch(v) => {
+                    // NIT: is there a more efficient way to do this? Two iters is neat and clean,
+                    // but there's an additional cost per it iteration.. or so i believe.
+                    let mut immediate_right_iter = v.iter().skip(1);
+                    let child_node = v
+                        .iter()
+                        .take_while(|(lhs_k, _)| lhs_k <= k)
+                        .map(|kv| (kv, immediate_right_iter.next()))
+                        .last();
+
+                    match child_node {
+                        None => return Ok(None),
+                        Some(((_, child_addr), imri)) => {
+                            immediate_right_key = imri.map(|(k, _)| k.clone());
+                            addr = child_addr.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 /// An inner Block value of `T` with a metadata `depth`, which is useful for calling
 /// tree traversal methods with offsets.
