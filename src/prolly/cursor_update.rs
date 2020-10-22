@@ -120,15 +120,38 @@ where
     S: StorageRead + StorageWrite,
 {
     pub async fn flush(&mut self) -> Result<Addr, Error> {
-        todo!()
+        let source_kvs = mem::replace(&mut self.source_kvs, Vec::new());
+        for kv in self.source_kvs.into_iter() {
+            self.roll_kv(kv).await?;
+        }
+        let (node_key, node_addr) = {
+            let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
+            let node = NodeOwned::Leaf(kvs);
+            let (node_addr, node_bytes) = node.as_bytes()?;
+            self.storage.write(node_addr.clone(), &*node_bytes).await?;
+            (node.into_key_unchecked(), node_addr)
+        };
+        // if self.rolled_kvs.is_empty() {
+        //    match self.parent.take() {
+        //        // If there's no parent, this Leaf never hit a Boundary and thus this
+        //        // Leaf itself is the root.
+        //        //
+        //        // This should be impossible.
+        //        // A proper state machine would make this logic more safe, but async/await is
+        //        // currently a bit immature for the design changes that would introduce.
+        //        None => unreachable!("CursorCreate leaf missing parent and has empty buffer"),
+        //        // If there is a parent, the root might be the parent, grandparent, etc.
+        //        Some(mut parent) => parent.flush(None).await,
+        //    }
+        // }
+        //         let storage = &self.storage;
+        //         let roller_config = &self.roller_config;
+        todo!("leaf flush")
     }
     /// Roll into `target_k` but **do not** roll the KV pair equal to `target_k`; instead
     /// dropping that equal pair.
     pub async fn roll_into(&mut self, target_k: &Key) -> Result<(), Error> {
-        // the resulting source_kvs may still be empty, or may contain only a single k:v
-        // which matches the `target_k`. This is supported / expected.
-
-        // now we roll the source_kvs up, one by one, so that this cursor is at the target.
+        // roll the source_kvs up, one by one, so that this cursor is at the target.
         loop {
             match self.source_kvs.last() {
                 // If the cursor is past the target, return - we can insert freely.
@@ -180,12 +203,11 @@ where
                 todo!("i'm now unsure if depth is useful at all.., since depth-1 can't be sure to fetch the neighbor K");
             }
         } else {
-            // let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            // if let Some(mut leaf) = self.reader.neighboring_leaf().await? {
-            //     leaf.reverse();
-            //     self.source_kvs.append(&mut leaf);
-            // }
-            todo!("expand neighbor");
+            let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
+            if let Some(mut leaf) = self.reader.right_of_key_owned_leaf(&neighbor_to.0).await? {
+                leaf.reverse();
+                self.source_kvs.append(&mut leaf);
+            }
         }
         Ok(())
     }
@@ -217,11 +239,11 @@ where
     pub async fn insert(&mut self, k: Key, v: Value) -> Result<(), Error> {
         self.roll_into(&k).await?;
         self.roll_kv((k, v)).await?;
-        todo!("insert")
+        Ok(())
     }
     pub async fn remove(&mut self, k: Key) -> Result<(), Error> {
         self.roll_into(&k).await?;
-        todo!("leaf remove")
+        Ok(())
     }
 }
 enum Resp {
