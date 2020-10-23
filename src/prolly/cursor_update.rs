@@ -86,6 +86,7 @@ pub enum Change {
 struct Leaf<'s, S> {
     storage: &'s S,
     reader: CursorRead<'s, S>,
+    root_addr: Addr,
     roller_config: RollerConfig,
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
@@ -97,13 +98,14 @@ struct Leaf<'s, S> {
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Value)>,
     source_depth: usize,
-    // parent: Option<Branch<'s, S>>,
+    parent: Option<Branch<'s, S>>,
 }
 impl<'s, S> Leaf<'s, S> {
     pub fn new(storage: &'s S, root_addr: Addr, roller_config: RollerConfig) -> Self {
         Self {
             storage,
-            reader: CursorRead::new(storage, root_addr),
+            reader: CursorRead::new(storage, root_addr.clone()),
+            root_addr,
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
             // NIT: we're wasting some initial allocation here. iirc this was done because
@@ -111,7 +113,7 @@ impl<'s, S> Leaf<'s, S> {
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
             source_depth: 0,
-            // parent: None,
+            parent: None,
         }
     }
 }
@@ -121,7 +123,7 @@ where
 {
     pub async fn flush(&mut self) -> Result<Addr, Error> {
         let source_kvs = mem::replace(&mut self.source_kvs, Vec::new());
-        for kv in self.source_kvs.into_iter() {
+        for kv in source_kvs.into_iter() {
             self.roll_kv(kv).await?;
         }
         let (node_key, node_addr) = {
@@ -231,10 +233,14 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            // self.parent
-            //     .get_or_insert_with(|| Box::new(Branch::new(storage, roller_config.clone())))
-            //     .push((node_key, node_addr.into()))
-            //     .await?;
+            let root_addr = self.root_addr.clone();
+            let branch_depth = self.source_depth - 1;
+            self.parent
+                .get_or_insert_with(|| {
+                    Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
+                })
+                .push((node_key, node_addr.into()))
+                .await?;
         }
         Ok(())
     }
@@ -254,6 +260,7 @@ enum Resp {
 struct Branch<'s, S> {
     storage: &'s S,
     reader: CursorRead<'s, S>,
+    root_addr: Addr,
     roller_config: RollerConfig,
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
@@ -264,17 +271,27 @@ struct Branch<'s, S> {
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Value)>,
+    source_depth: usize,
     parent: Option<Box<Branch<'s, S>>>,
 }
 impl<'s, S> Branch<'s, S> {
-    pub fn new(storage: &'s S, root_addr: Addr, roller_config: RollerConfig) -> Self {
+    pub fn new(
+        storage: &'s S,
+        root_addr: Addr,
+        roller_config: RollerConfig,
+        source_depth: usize,
+    ) -> Self {
         Self {
             storage,
-            reader: CursorRead::new(storage, root_addr),
+            reader: CursorRead::new(storage, root_addr.clone()),
+            root_addr,
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
+            // NIT: we're wasting some initial allocation here. iirc this was done because
+            // Async/Await doesn't like constructors - eg `Self` returns.
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
+            source_depth,
             parent: None,
         }
     }
@@ -283,7 +300,16 @@ impl<'s, S> Branch<'s, S>
 where
     S: StorageRead + StorageWrite,
 {
+    #[async_recursion::async_recursion]
     pub async fn flush(&mut self) -> Result<Addr, Error> {
-        todo!()
+        todo!("branch flush")
+    }
+    #[async_recursion::async_recursion]
+    pub async fn mutating_child_key(&mut self, k: &Key) -> Result<Addr, Error> {
+        todo!("branch mutating_child_key")
+    }
+    #[async_recursion::async_recursion]
+    pub async fn push(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
+        todo!("branch push")
     }
 }
