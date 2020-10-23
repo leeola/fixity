@@ -192,6 +192,8 @@ where
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
             if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
+                todo!("tell parent that the key of leaf is loaded, so they roll up to it and prune it");
+
                 leaf.inner.reverse();
                 self.source_kvs.append(&mut leaf.inner);
                 // NIT: this feels.. bad. I debated an init phase where after the constructor we
