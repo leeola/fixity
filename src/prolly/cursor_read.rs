@@ -47,10 +47,6 @@ where
                     if &v[0].0 > k {
                         return Ok(None);
                     }
-                    let last_kv = v.last().expect("key,value pair impossibly missing");
-                    if &last_kv.0 < &k {
-                        return Ok(None);
-                    }
                     return Ok(Some(Block {
                         depth,
                         inner: v.clone(),

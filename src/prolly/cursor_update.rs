@@ -1,11 +1,8 @@
-// TODO: remove allow(unused)
-#![allow(unused)]
-
 use {
     crate::{
         prolly::{
             roller::{Config as RollerConfig, Roller},
-            CursorRead, Node, NodeOwned,
+            CursorRead, NodeOwned,
         },
         storage::{StorageRead, StorageWrite},
         value::{Addr, Key, Value},
@@ -126,29 +123,34 @@ where
         for kv in source_kvs.into_iter() {
             self.roll_kv(kv).await?;
         }
-        let (node_key, node_addr) = {
-            let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
-            let node = NodeOwned::Leaf(kvs);
-            let (node_addr, node_bytes) = node.as_bytes()?;
-            self.storage.write(node_addr.clone(), &*node_bytes).await?;
-            (node.into_key_unchecked(), node_addr)
-        };
-        // if self.rolled_kvs.is_empty() {
-        //    match self.parent.take() {
-        //        // If there's no parent, this Leaf never hit a Boundary and thus this
-        //        // Leaf itself is the root.
-        //        //
-        //        // This should be impossible.
-        //        // A proper state machine would make this logic more safe, but async/await is
-        //        // currently a bit immature for the design changes that would introduce.
-        //        None => unreachable!("CursorCreate leaf missing parent and has empty buffer"),
-        //        // If there is a parent, the root might be the parent, grandparent, etc.
-        //        Some(mut parent) => parent.flush(None).await,
-        //    }
-        // }
-        //         let storage = &self.storage;
-        //         let roller_config = &self.roller_config;
-        todo!("leaf flush")
+        if self.rolled_kvs.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // Leaf itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("CursorUpdate leaf missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
+        } else {
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
+                let node = NodeOwned::Leaf(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root will be the parent, or grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+            }
+        }
     }
     /// Roll into `target_k` but **do not** roll the KV pair equal to `target_k`; instead
     /// dropping that equal pair.
@@ -198,6 +200,9 @@ where
                     if let Some((k, _)) = leaf.inner.get(0) {
                         // inform our parent that this leaf is (might be) mutating, causing
                         // the parent to remove it from the list of `(Key,Addr)` pairs.
+                        //
+                        // The key:addr pair gets added back when we roll into a new boundary,
+                        // which can change due to mutation.
                         parent.mutating_child_key(k).await?;
                     }
                 }
@@ -259,9 +264,6 @@ where
         Ok(())
     }
 }
-enum Resp {
-    Addr(Addr),
-}
 struct Branch<'s, S> {
     storage: &'s S,
     reader: CursorRead<'s, S>,
@@ -306,11 +308,45 @@ where
     S: StorageRead + StorageWrite,
 {
     #[async_recursion::async_recursion]
-    pub async fn flush(&mut self) -> Result<Addr, Error> {
-        todo!("branch flush")
+    pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
+        if let Some(kv) = kv {
+            self.push(kv).await?;
+        }
+        let source_kvs = mem::replace(&mut self.source_kvs, Vec::new());
+        for kv in source_kvs.into_iter() {
+            self.roll_kv(kv).await?;
+        }
+        if self.rolled_kvs.is_empty() {
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // Leaf itself is the root.
+                //
+                // This should be impossible.
+                // A proper state machine would make this logic more safe, but async/await is
+                // currently a bit immature for the design changes that would introduce.
+                None => unreachable!("CursorUpdate leaf missing parent and has empty buffer"),
+                // If there is a parent, the root might be the parent, grandparent, etc.
+                Some(mut parent) => parent.flush(None).await,
+            }
+        } else {
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
+                let node = NodeOwned::Branch(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            match self.parent.take() {
+                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // instance itself is the root.
+                None => Ok(node_addr),
+                // If there is a parent, the root will be the parent, or grandparent, etc.
+                Some(mut parent) => parent.flush(Some((node_key, node_addr))).await,
+            }
+        }
     }
-    /// Roll into `target_k` but **do not** roll the KV pair equal to `target_k`; instead
-    /// dropping that equal pair.
+    /// Roll this `Branch`'s window into `target_k` but **do not** roll the KV pair equal to
+    /// `target_k`; instead dropping that equal pair.
     #[async_recursion::async_recursion]
     pub async fn roll_into(&mut self, target_k: &Key) -> Result<(), Error> {
         // roll the source_kvs up, one by one, so that this cursor is at the target.
@@ -349,18 +385,28 @@ where
             };
         }
     }
+    /// Expand the `Branch` `Key:Addr` window.
     #[async_recursion::async_recursion]
     pub async fn expand_window(&mut self, target_k: &Key) -> Result<(), Error> {
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
+
+        // If the rolled_kvs vec is empty, the current window is "clean" - aka no modifications
+        // that need to be cleaned up by expanding the window. So instead of expanding, we load
+        // the correct window for `target_k`.
         if self.rolled_kvs.is_empty() {
-            let branch: Option<Vec<(Key, Addr)>> = todo!("expand branch");
-            if let Some(mut branch) = branch {
-                // if let Some(mut branch) = self.reader.within_branch_owned(target_k).await? {
-                if let Some(parent) = self.parent {
+            if let Some(mut branch) = self
+                .reader
+                .branch_matching_key_owned(target_k, self.source_depth)
+                .await?
+            {
+                if let Some(parent) = self.parent.as_mut() {
                     if let Some((k, _)) = branch.get(0) {
                         // inform our parent that this branch is (might be) mutating, causing
                         // the parent to remove it from the list of `(Key,Addr)` pairs.
+                        //
+                        // The key:addr pair gets added back when we roll into a new boundary,
+                        // which can change due to mutation.
                         parent.mutating_child_key(k).await?;
                     }
                 }
@@ -368,14 +414,14 @@ where
                 branch.reverse();
                 self.source_kvs.append(&mut branch);
             }
+        // If the rolled_kvs vec is not empty we need to expand the source_kvs to either find
+        // a border, or roll into the `target_k`.
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            let branch: Option<Vec<(Key, Addr)>> = todo!("right of key branch");
-            if let Some(mut branch) = branch
-            // if let Some(mut branch) = self
-            //     .reader
-            //     .right_of_key_owned_branch(&neighbor_to.0)
-            //     .await?
+            if let Some(mut branch) = self
+                .reader
+                .branch_right_of_key_owned(&neighbor_to.0, self.source_depth)
+                .await?
             {
                 branch.reverse();
                 self.source_kvs.append(&mut branch);
@@ -406,8 +452,12 @@ where
             let branch_depth = self.source_depth - 1;
             self.parent
                 .get_or_insert_with(|| {
-                    todo!("new branch")
-                    // Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
+                    Box::new(Branch::new(
+                        storage,
+                        root_addr,
+                        roller_config.clone(),
+                        branch_depth,
+                    ))
                 })
                 .push((node_key, node_addr.into()))
                 .await?;
@@ -415,15 +465,16 @@ where
         Ok(())
     }
     #[async_recursion::async_recursion]
-    pub async fn mutating_child_key(&mut self, k: &Key) -> Result<Addr, Error> {
+    pub async fn mutating_child_key(&mut self, k: &Key) -> Result<(), Error> {
         // roll into pops the key, which is all branches ever care about doing.
         // So roll-into handles most of the logic.
         self.roll_into(k).await?;
-        todo!("branch mutating_child_key")
+        Ok(())
     }
     #[async_recursion::async_recursion]
-    pub async fn push(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
+    pub async fn push(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
         self.roll_into(&kv.0).await?;
-        todo!("branch push")
+        self.roll_kv(kv).await?;
+        Ok(())
     }
 }
