@@ -194,8 +194,8 @@ where
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
             if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
-                if let Some(parent) = self.parent {
-                    if let Some((k, _)) = leaf.get(0) {
+                if let Some(parent) = self.parent.as_mut() {
+                    if let Some((k, _)) = leaf.inner.get(0) {
                         // inform our parent that this leaf is (might be) mutating, causing
                         // the parent to remove it from the list of `(Key,Addr)` pairs.
                         parent.mutating_child_key(k).await?;
@@ -270,12 +270,12 @@ struct Branch<'s, S> {
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
     /// is found via the Roller.
-    rolled_kvs: Vec<(Key, Value)>,
+    rolled_kvs: Vec<(Key, Addr)>,
     /// KVs being merged in one by one, as the cursor progresses via `insert()` and
     /// `remove()` methods.
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
-    source_kvs: Vec<(Key, Value)>,
+    source_kvs: Vec<(Key, Addr)>,
     source_depth: usize,
     parent: Option<Box<Branch<'s, S>>>,
 }
@@ -354,35 +354,37 @@ where
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
-            if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
+            let branch: Option<Vec<(Key, Addr)>> = todo!("expand branch");
+            if let Some(mut branch) = branch {
+                // if let Some(mut branch) = self.reader.within_branch_owned(target_k).await? {
                 if let Some(parent) = self.parent {
-                    if let Some((k, _)) = leaf.inner.get(0) {
-                        // inform our parent that this leaf is (might be) mutating, causing
+                    if let Some((k, _)) = branch.get(0) {
+                        // inform our parent that this branch is (might be) mutating, causing
                         // the parent to remove it from the list of `(Key,Addr)` pairs.
                         parent.mutating_child_key(k).await?;
                     }
                 }
 
-                leaf.inner.reverse();
-                self.source_kvs.append(&mut leaf.inner);
-                // NIT: this feels.. bad. I debated an init phase where after the constructor we
-                // figure the depth of this block, so we only do it once - but then we're traversing the
-                // tree at construction just to find this pointer. Where as the depth
-                // is basically free anytime we get a block. So... fixing this seems like a super
-                // micro-optimization
-                self.source_depth = leaf.depth;
+                branch.reverse();
+                self.source_kvs.append(&mut branch);
             }
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            if let Some(mut leaf) = self.reader.right_of_key_owned_leaf(&neighbor_to.0).await? {
-                leaf.reverse();
-                self.source_kvs.append(&mut leaf);
+            let branch: Option<Vec<(Key, Addr)>> = todo!("right of key branch");
+            if let Some(mut branch) = branch
+            // if let Some(mut branch) = self
+            //     .reader
+            //     .right_of_key_owned_branch(&neighbor_to.0)
+            //     .await?
+            {
+                branch.reverse();
+                self.source_kvs.append(&mut branch);
             }
         }
         Ok(())
     }
     #[async_recursion::async_recursion]
-    pub async fn roll_kv(&mut self, kv: (Key, Value)) -> Result<(), Error> {
+    pub async fn roll_kv(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
         self.rolled_kvs.push(kv);
         if boundary {
@@ -393,7 +395,7 @@ where
             }
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
-                let node = NodeOwned::Leaf(kvs);
+                let node = NodeOwned::Branch(kvs);
                 let (node_addr, node_bytes) = node.as_bytes()?;
                 self.storage.write(node_addr.clone(), &*node_bytes).await?;
                 (node.into_key_unchecked(), node_addr)
@@ -404,7 +406,8 @@ where
             let branch_depth = self.source_depth - 1;
             self.parent
                 .get_or_insert_with(|| {
-                    Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
+                    todo!("new branch")
+                    // Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
                 })
                 .push((node_key, node_addr.into()))
                 .await?;
@@ -420,7 +423,7 @@ where
     }
     #[async_recursion::async_recursion]
     pub async fn push(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
-        self.roll_into(k).await?;
+        self.roll_into(&kv.0).await?;
         todo!("branch push")
     }
 }
