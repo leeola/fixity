@@ -478,3 +478,23 @@ where
         Ok(())
     }
 }
+#[cfg(test)]
+pub mod test {
+    use {
+        super::*,
+        crate::prolly::{roller::Config as RollerConfig, CursorCreate},
+        crate::storage::Memory,
+    };
+    /// A smaller value to use with the roller, producing smaller average block sizes.
+    const TEST_PATTERN: u32 = (1 << 8) - 1;
+    #[tokio::test]
+    async fn fuzz_io() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        todo!()
+    }
+}
