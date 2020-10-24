@@ -194,7 +194,13 @@ where
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
             if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
-                todo!("tell parent that the key of leaf is loaded, so they roll up to it and prune it");
+                if let Some(parent) = self.parent {
+                    if let Some((k, _)) = leaf.get(0) {
+                        // inform our parent that this leaf is (might be) mutating, causing
+                        // the parent to remove it from the list of `(Key,Addr)` pairs.
+                        parent.mutating_child_key(k).await?;
+                    }
+                }
 
                 leaf.inner.reverse();
                 self.source_kvs.append(&mut leaf.inner);
@@ -204,7 +210,6 @@ where
                 // is basically free anytime we get a block. So... fixing this seems like a super
                 // micro-optimization
                 self.source_depth = leaf.depth;
-                todo!("i'm now unsure if depth is useful at all.., since depth-1 can't be sure to fetch the neighbor K");
             }
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
@@ -304,12 +309,118 @@ where
     pub async fn flush(&mut self) -> Result<Addr, Error> {
         todo!("branch flush")
     }
+    /// Roll into `target_k` but **do not** roll the KV pair equal to `target_k`; instead
+    /// dropping that equal pair.
+    #[async_recursion::async_recursion]
+    pub async fn roll_into(&mut self, target_k: &Key) -> Result<(), Error> {
+        // roll the source_kvs up, one by one, so that this cursor is at the target.
+        loop {
+            match self.source_kvs.last() {
+                // If the cursor is past the target, return - we can insert freely.
+                Some((cursor_k, _)) if cursor_k > target_k => {
+                    return Ok(());
+                }
+                // If the cursor is at the target, remove it and return.
+                // both Self::insert() and Self::remove() result in the old matching value
+                // getting removed.
+                Some((cursor_k, _)) if cursor_k == target_k => {
+                    self.source_kvs.pop();
+                    return Ok(());
+                }
+                // If the cursor is before the target, roll the kv.
+                Some(_) => {
+                    let kv = self.source_kvs.pop().expect("last kv impossibly missing");
+                    self.roll_kv(kv).await?;
+                }
+                // If the is no more source_kvs, load more data. Either the window for
+                // the target_key, or we expand the existing window.
+                None => {
+                    // if there is no more source kvs, we either need to expand the window or
+                    // load an entirely new window to complete the rolled_into request.
+                    self.expand_window(target_k).await?;
+                    // if we tried to expand the window but failed, there is no more matching
+                    // data for this window. If rolled_kvs is not empty this is fine,
+                    // we can just append the target_k.
+                    if self.source_kvs.is_empty() {
+                        // If we don't return, this loop is infinite.
+                        return Ok(());
+                    }
+                }
+            };
+        }
+    }
+    #[async_recursion::async_recursion]
+    pub async fn expand_window(&mut self, target_k: &Key) -> Result<(), Error> {
+        // if there is no more source kvs, we either need to expand the window or
+        // load an entirely new window to complete the rolled_into request.
+        if self.rolled_kvs.is_empty() {
+            if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
+                if let Some(parent) = self.parent {
+                    if let Some((k, _)) = leaf.inner.get(0) {
+                        // inform our parent that this leaf is (might be) mutating, causing
+                        // the parent to remove it from the list of `(Key,Addr)` pairs.
+                        parent.mutating_child_key(k).await?;
+                    }
+                }
+
+                leaf.inner.reverse();
+                self.source_kvs.append(&mut leaf.inner);
+                // NIT: this feels.. bad. I debated an init phase where after the constructor we
+                // figure the depth of this block, so we only do it once - but then we're traversing the
+                // tree at construction just to find this pointer. Where as the depth
+                // is basically free anytime we get a block. So... fixing this seems like a super
+                // micro-optimization
+                self.source_depth = leaf.depth;
+            }
+        } else {
+            let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
+            if let Some(mut leaf) = self.reader.right_of_key_owned_leaf(&neighbor_to.0).await? {
+                leaf.reverse();
+                self.source_kvs.append(&mut leaf);
+            }
+        }
+        Ok(())
+    }
+    #[async_recursion::async_recursion]
+    pub async fn roll_kv(&mut self, kv: (Key, Value)) -> Result<(), Error> {
+        let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
+        self.rolled_kvs.push(kv);
+        if boundary {
+            if self.rolled_kvs.len() == 1 {
+                log::warn!(
+                    "writing key & value that exceeds block size, this is highly inefficient"
+                );
+            }
+            let (node_key, node_addr) = {
+                let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
+                let node = NodeOwned::Leaf(kvs);
+                let (node_addr, node_bytes) = node.as_bytes()?;
+                self.storage.write(node_addr.clone(), &*node_bytes).await?;
+                (node.into_key_unchecked(), node_addr)
+            };
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            let root_addr = self.root_addr.clone();
+            let branch_depth = self.source_depth - 1;
+            self.parent
+                .get_or_insert_with(|| {
+                    Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
+                })
+                .push((node_key, node_addr.into()))
+                .await?;
+        }
+        Ok(())
+    }
     #[async_recursion::async_recursion]
     pub async fn mutating_child_key(&mut self, k: &Key) -> Result<Addr, Error> {
+        // roll into pops the key, which is all branches ever care about doing.
+        // So roll-into handles most of the logic.
+        self.roll_into(k).await?;
         todo!("branch mutating_child_key")
     }
     #[async_recursion::async_recursion]
     pub async fn push(&mut self, kv: (Key, Addr)) -> Result<Addr, Error> {
+        self.roll_into(k).await?;
         todo!("branch push")
     }
 }
