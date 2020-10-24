@@ -74,17 +74,27 @@ where
     pub async fn branch_matching_key_owned(
         &mut self,
         k: &Key,
-        depth: usize,
+        target_depth: usize,
     ) -> Result<Option<Vec<(Key, Addr)>>, Error> {
         let mut addr = self.root_addr.clone();
-        let mut depth = 0;
+        let mut current_depth = 0;
         loop {
             let node = self.cache.get(&k, &addr).await?;
             match node {
-                OwnedLeaf::Leaf(v) => {
-                    todo!("leaf?!");
+                OwnedLeaf::Leaf(_) => {
+                    return Err(Error::ProllyAddr {
+                        addr: self.root_addr.clone(),
+                        message: format!(
+                            "branch expected at depth:{}, but got leaf at depth:{}",
+                            target_depth, current_depth
+                        ),
+                    });
                 }
                 OwnedLeaf::Branch(v) => {
+                    if current_depth == target_depth {
+                        return Ok(Some(v.clone()));
+                    }
+
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
                     match child_node {
                         None => return Ok(None),
@@ -92,7 +102,7 @@ where
                     }
                 }
             }
-            depth += 1;
+            current_depth += 1;
         }
     }
     /// Return the leaf to the right of the leaf that the given `k` matches; The neighboring
@@ -140,6 +150,64 @@ where
                     }
                 }
             }
+        }
+    }
+    /// Fetch the branch block where the given `Key` is larger than the left boundary key, and smaller
+    /// than the *next* branch's left boundary key.
+    ///
+    /// The provided key may be larger than any keys in the returned block.
+    pub async fn branch_right_of_key_owned(
+        &mut self,
+        k: &Key,
+        target_depth: usize,
+    ) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        let mut current_depth = 0;
+        // Record each nighbor key as we search for the leaf of `k`.
+        // At each branch, record the key immediately to the right of
+        // the leaf `k` would be in.
+        //
+        // Once a leaf is reached, this value will be the neighboring
+        // leaf key, if any.
+        let mut immediate_right_key = None;
+        loop {
+            let node = self.cache.get(&k, &addr).await?;
+            match node {
+                OwnedLeaf::Leaf(_) => {
+                    return Err(Error::ProllyAddr {
+                        addr: self.root_addr.clone(),
+                        message: format!(
+                            "branch expected at depth:{}, but got leaf at depth:{}",
+                            target_depth, current_depth
+                        ),
+                    });
+                }
+                OwnedLeaf::Branch(v) => {
+                    if current_depth == target_depth {
+                        return match immediate_right_key {
+                            Some(k) => Ok(self.branch_matching_key_owned(&k, target_depth).await?),
+                            None => Ok(None),
+                        };
+                    }
+
+                    // NIT: is there a more efficient way to do this? Two iters is neat and clean,
+                    // but there's an additional cost per it iteration.. or so i believe.
+                    let mut immediate_right_iter = v.iter().skip(1);
+                    let child_node = v
+                        .iter()
+                        .take_while(|(lhs_k, _)| lhs_k <= k)
+                        .map(|kv| (kv, immediate_right_iter.next()))
+                        .last();
+                    match child_node {
+                        None => return Ok(None),
+                        Some(((_, child_addr), imri)) => {
+                            immediate_right_key = imri.map(|(k, _)| k.clone());
+                            addr = child_addr.clone();
+                        }
+                    }
+                }
+            }
+            current_depth += 1;
         }
     }
 }
