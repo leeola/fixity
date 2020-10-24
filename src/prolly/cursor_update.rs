@@ -193,7 +193,7 @@ where
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
-            if let Some(mut leaf) = self.reader.within_leaf_owned(target_k).await? {
+            if let Some(mut leaf) = self.reader.leaf_matching_key_owned(target_k).await? {
                 if let Some(parent) = self.parent.as_mut() {
                     if let Some((k, _)) = leaf.inner.get(0) {
                         // inform our parent that this leaf is (might be) mutating, causing
@@ -213,7 +213,7 @@ where
             }
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            if let Some(mut leaf) = self.reader.right_of_key_owned_leaf(&neighbor_to.0).await? {
+            if let Some(mut leaf) = self.reader.leaf_right_of_key_owned(&neighbor_to.0).await? {
                 leaf.reverse();
                 self.source_kvs.append(&mut leaf);
             }

@@ -26,10 +26,14 @@ impl<'s, S> CursorRead<'s, S>
 where
     S: StorageRead,
 {
-    /// Fetch a leaf block where the given `Key` is within the block boundary.
+    /// Fetch the leaf block where the given `Key` is larger than the left boundary key, and smaller
+    /// than the *next* leaf's left boundary key.
     ///
-    /// The resulting leaf may not include a key:value pair for the provided key.
-    pub async fn within_leaf_owned(&mut self, k: &Key) -> Result<Option<Block<Value>>, Error> {
+    /// The provided key may be larger than any keys in the returned block.
+    pub async fn leaf_matching_key_owned(
+        &mut self,
+        k: &Key,
+    ) -> Result<Option<Block<Value>>, Error> {
         let mut addr = self.root_addr.clone();
         let mut depth = 0;
         loop {
@@ -63,9 +67,37 @@ where
             depth += 1;
         }
     }
+    /// Fetch the branch block where the given `Key` is larger than the left boundary key, and smaller
+    /// than the *next* branch's left boundary key.
+    ///
+    /// The provided key may be larger than any keys in the returned block.
+    pub async fn branch_matching_key_owned(
+        &mut self,
+        k: &Key,
+        depth: usize,
+    ) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        let mut depth = 0;
+        loop {
+            let node = self.cache.get(&k, &addr).await?;
+            match node {
+                OwnedLeaf::Leaf(v) => {
+                    todo!("leaf?!");
+                }
+                OwnedLeaf::Branch(v) => {
+                    let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
+                    match child_node {
+                        None => return Ok(None),
+                        Some((_, child_addr)) => addr = child_addr.clone(),
+                    }
+                }
+            }
+            depth += 1;
+        }
+    }
     /// Return the leaf to the right of the leaf that the given `k` matches; The neighboring
     /// _(right)_ leaf.
-    pub async fn right_of_key_owned_leaf(
+    pub async fn leaf_right_of_key_owned(
         &mut self,
         k: &Key,
     ) -> Result<Option<Vec<(Key, Value)>>, Error> {
@@ -82,7 +114,10 @@ where
             match node {
                 OwnedLeaf::Leaf(_) => {
                     return match immediate_right_key {
-                        Some(k) => Ok(self.within_leaf_owned(&k).await?.map(|block| block.inner)),
+                        Some(k) => Ok(self
+                            .leaf_matching_key_owned(&k)
+                            .await?
+                            .map(|block| block.inner)),
                         None => Ok(None),
                     };
                 }
@@ -118,6 +153,7 @@ where
 /// If you have the depth, the combination of `(Depth, K)` gives you a position on
 /// the tree and allows the CursorRead to seek the neighbor of `K` when at
 /// the depth of `(Depth-1, K)`.
+#[derive(Debug, PartialEq)]
 pub struct Block<T> {
     pub depth: usize,
     pub inner: Vec<(Key, T)>,
@@ -216,7 +252,7 @@ pub mod test {
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
-    async fn within_leaf_owned() {
+    async fn leaf_matching_key_owned() {
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
         if std::env::var("RUST_LOG").is_err() {
@@ -235,20 +271,24 @@ pub mod test {
         };
         let mut read = CursorRead::new(&storage, root_addr);
 
-        let block = read.within_leaf_owned(0.into()).await.unwrap().unwrap();
-        let mid_block_key = block.get(block.len() / 2).unwrap().0.clone();
+        let block = read
+            .leaf_matching_key_owned(&0.into())
+            .await
+            .unwrap()
+            .unwrap();
+        let mid_block_key = block.inner.get(block.inner.len() / 2).unwrap().0.clone();
         assert_eq!(
             block,
-            read.within_leaf_owned(mid_block_key)
+            read.leaf_matching_key_owned(&mid_block_key)
                 .await
                 .unwrap()
                 .unwrap(),
             "expected block[len()/2] key in block to return the same block as the 0th key",
         );
-        let last_block_key = block.last().unwrap().0.clone();
+        let last_block_key = block.inner.last().unwrap().0.clone();
         assert_eq!(
             block,
-            read.within_leaf_owned(last_block_key)
+            read.leaf_matching_key_owned(&last_block_key)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -284,7 +324,7 @@ pub mod test {
         dbg!(&root_addr);
         let mut read = CursorRead::new(&storage, root_addr);
         for (k, want_v) in content {
-            read.within_leaf_owned(k).await.unwrap();
+            read.leaf_matching_key_owned(&k).await.unwrap();
         }
     }
 }
