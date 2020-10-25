@@ -83,7 +83,6 @@ pub enum Change {
 struct Leaf<'s, S> {
     storage: &'s S,
     reader: CursorRead<'s, S>,
-    root_addr: Addr,
     roller_config: RollerConfig,
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
@@ -102,7 +101,6 @@ impl<'s, S> Leaf<'s, S> {
         Self {
             storage,
             reader: CursorRead::new(storage, root_addr.clone()),
-            root_addr,
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
             // NIT: we're wasting some initial allocation here. iirc this was done because
@@ -248,7 +246,7 @@ where
             self.parent
                 .get_or_insert_with(|| {
                     let branch_reader = BranchReader::from_leaf(*source_depth, &reader);
-                    Branch::new(storage, root_addr, roller_config.clone(), branch_reader)
+                    Branch::new(storage, roller_config.clone(), branch_reader)
                 })
                 .push((node_key, node_addr.into()))
                 .await?;
@@ -293,7 +291,7 @@ impl<'s, S> BranchReader<'s, S> {
     pub fn parent(&self) -> Option<Self> {
         if self.depth > 0 {
             Some(Self {
-                depth: sept.depth - 1,
+                depth: self.depth - 1,
                 reader: self.reader.clone(),
             })
         } else {
@@ -424,13 +422,14 @@ where
         // load an entirely new window to complete the rolled_into request.
 
         // but only if we have a source. If we don't, there's no expand possibly.
-        if let Some((source_depth, source_reader)) = self.reader.as_mut() {
+        if let Some(source) = self.source_reader.as_mut() {
             // If the rolled_kvs vec is empty, the current window is "clean" - aka no modifications
             // that need to be cleaned up by expanding the window. So instead of expanding, we load
             // the correct window for `target_k`.
             if self.rolled_kvs.is_empty() {
-                if let Some(mut branch) = source_reader
-                    .branch_matching_key_owned(target_k, source_depth)
+                if let Some(mut branch) = source
+                    .reader
+                    .branch_matching_key_owned(target_k, source.depth)
                     .await?
                 {
                     if let Some(parent) = self.parent.as_mut() {
@@ -451,8 +450,9 @@ where
             // a border, or roll into the `target_k`.
             } else {
                 let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-                if let Some(mut branch) = source_reader
-                    .branch_right_of_key_owned(&neighbor_to.0, source_depth)
+                if let Some(mut branch) = source
+                    .reader
+                    .branch_right_of_key_owned(&neighbor_to.0, source.depth)
                     .await?
                 {
                     branch.reverse();
@@ -481,13 +481,13 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let source_reader = &self.source_reader;
+            let source = &self.source_reader;
             self.parent
                 .get_or_insert_with(|| {
                     Box::new(Branch::new(
                         storage,
                         roller_config.clone(),
-                        source_reader.parent(),
+                        source.as_ref().and_then(BranchReader::parent),
                     ))
                 })
                 .push((node_key, node_addr.into()))
