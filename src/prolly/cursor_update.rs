@@ -119,10 +119,10 @@ where
     S: StorageRead + StorageWrite,
 {
     pub async fn flush(&mut self) -> Result<Addr, Error> {
-        let source_kvs = mem::replace(&mut self.source_kvs, Vec::new());
-        for kv in source_kvs.into_iter() {
+        while let Some(kv) = self.source_kvs.pop() {
             self.roll_kv(kv).await?;
         }
+        dbg!(&self.rolled_kvs);
         if self.rolled_kvs.is_empty() {
             match self.parent.take() {
                 // If there's no parent, this Leaf never hit a Boundary and thus this
@@ -364,22 +364,23 @@ where
 {
     #[async_recursion::async_recursion]
     pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
+        dbg!(&kv, &self.rolled_kvs, &self.source_kvs);
+        // push will roll into kv
         if let Some(kv) = kv {
             self.push(kv).await?;
         }
-        let source_kvs = mem::replace(&mut self.source_kvs, Vec::new());
-        for kv in source_kvs.into_iter() {
+        while let Some(kv) = self.source_kvs.pop() {
             self.roll_kv(kv).await?;
         }
         if self.rolled_kvs.is_empty() {
             match self.parent.take() {
-                // If there's no parent, this Leaf never hit a Boundary and thus this
-                // Leaf itself is the root.
+                // If there's no parent, this Branch never hit a Boundary and thus this
+                // Branch itself is the root.
                 //
                 // This should be impossible.
                 // A proper state machine would make this logic more safe, but async/await is
                 // currently a bit immature for the design changes that would introduce.
-                None => unreachable!("CursorUpdate leaf missing parent and has empty buffer"),
+                None => unreachable!("CursorUpdate branch missing parent and has empty buffer"),
                 // If there is a parent, the root might be the parent, grandparent, etc.
                 Some(mut parent) => parent.flush(None).await,
             }
@@ -392,7 +393,7 @@ where
                 (node.into_key_unchecked(), node_addr)
             };
             match self.parent.take() {
-                // If there's no parent, this Leaf never hit a Boundary and thus this
+                // If there's no parent, this Branch never hit a Boundary and thus this
                 // instance itself is the root.
                 None => Ok(node_addr),
                 // If there is a parent, the root will be the parent, or grandparent, etc.
@@ -507,6 +508,7 @@ where
     }
     #[async_recursion::async_recursion]
     pub async fn roll_kv(&mut self, kv: (Key, Addr)) -> Result<(), Error> {
+        dbg!(&kv);
         let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
         self.rolled_kvs.push(kv);
         if boundary {
@@ -524,6 +526,7 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
+            dbg!("sending to parent..");
             self.parent
                 .get_or_insert_with(|| {
                     Box::new(Branch::new(
@@ -571,16 +574,33 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let test_cases = vec![(
-            (0..3),
-            vec![
-                vec![(0.into(), Change::Remove)],
-                vec![(0.into(), Change::Insert(0.into()))],
-            ],
-        )];
-        for (kvs, change_sets) in test_cases {
+        let test_cases = vec![
+            (
+                "left of single node tree",
+                (0..3),
+                vec![
+                    vec![(0.into(), Change::Remove)],
+                    vec![(0.into(), Change::Insert(0.into()))],
+                ],
+            ),
+            (
+                "mutating with a branch",
+                (0..7),
+                vec![
+                    vec![(0.into(), Change::Remove), (2.into(), Change::Remove)],
+                    vec![
+                        (0.into(), Change::Insert(0.into())),
+                        (2.into(), Change::Insert(2.into())),
+                    ],
+                ],
+            ),
+        ];
+        for (test_desc, kvs, change_sets) in test_cases.into_iter().nth(1) {
+            log::info!("test: {}", test_desc);
+            log::info!("test: {}", test_desc);
+            log::info!("test: {}", test_desc);
             let kvs = kvs
-                .map(|i| (i, i * 10))
+                .map(|i| (i, i))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
             let storage = Memory::new();
