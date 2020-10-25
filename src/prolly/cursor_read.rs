@@ -22,6 +22,11 @@ impl<'s, S> CursorRead<'s, S> {
         }
     }
 }
+impl<'s, S> Clone for CursorRead<'s, S> {
+    fn clone(&self) -> Self {
+        Self::new(&self.cache.storage, self.root_addr.clone())
+    }
+}
 impl<'s, S> CursorRead<'s, S>
 where
     S: StorageRead,

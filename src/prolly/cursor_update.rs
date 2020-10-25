@@ -214,7 +214,7 @@ where
                 // tree at construction just to find this pointer. Where as the depth
                 // is basically free anytime we get a block. So... fixing this seems like a super
                 // micro-optimization
-                self.source_depth = leaf.depth;
+                self.source_depth = dbg!(leaf.depth);
             }
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
@@ -243,11 +243,12 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let root_addr = self.root_addr.clone();
-            let branch_depth = self.source_depth - 1;
+            let source_depth = &self.source_depth;
+            let reader = &self.reader;
             self.parent
                 .get_or_insert_with(|| {
-                    Branch::new(storage, root_addr, roller_config.clone(), branch_depth)
+                    let branch_reader = BranchReader::from_leaf(*source_depth, &reader);
+                    Branch::new(storage, root_addr, roller_config.clone(), branch_reader)
                 })
                 .push((node_key, node_addr.into()))
                 .await?;
@@ -264,10 +265,44 @@ where
         Ok(())
     }
 }
+/// A `Branch` helper to store the source depth and reader in the same struct.
+struct BranchReader<'s, S> {
+    /// The depth in the source tree, not actively of the currently updating branch.
+    pub depth: usize,
+    /// A reader for the source tree.
+    pub reader: CursorRead<'s, S>,
+}
+impl<'s, S> BranchReader<'s, S> {
+    /// Create a BranchReader from the leaf, subtracting the depth as needed.
+    pub fn from_leaf(depth: usize, leaf_reader: &CursorRead<'s, S>) -> Option<Self> {
+        if depth > 0 {
+            Some(BranchReader {
+                depth: depth - 1,
+                reader: leaf_reader.clone(),
+            })
+        } else {
+            None
+        }
+    }
+    /// Return a `BranchReader` for the parent branch, if any.
+    ///
+    /// # Returns
+    ///
+    /// If this branch is already at source root, this returns None;
+    /// otherwise it returns a reader and depth for the parent.
+    pub fn parent(&self) -> Option<Self> {
+        if self.depth > 0 {
+            Some(Self {
+                depth: sept.depth - 1,
+                reader: self.reader.clone(),
+            })
+        } else {
+            None
+        }
+    }
+}
 struct Branch<'s, S> {
     storage: &'s S,
-    reader: CursorRead<'s, S>,
-    root_addr: Addr,
     roller_config: RollerConfig,
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
@@ -278,27 +313,24 @@ struct Branch<'s, S> {
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Addr)>,
-    source_depth: usize,
+    source_reader: Option<BranchReader<'s, S>>,
     parent: Option<Box<Branch<'s, S>>>,
 }
 impl<'s, S> Branch<'s, S> {
     pub fn new(
         storage: &'s S,
-        root_addr: Addr,
         roller_config: RollerConfig,
-        source_depth: usize,
+        source_reader: Option<BranchReader<'s, S>>,
     ) -> Self {
         Self {
             storage,
-            reader: CursorRead::new(storage, root_addr.clone()),
-            root_addr,
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
             // NIT: we're wasting some initial allocation here. iirc this was done because
             // Async/Await doesn't like constructors - eg `Self` returns.
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
-            source_depth,
+            source_reader,
             parent: None,
         }
     }
@@ -391,40 +423,41 @@ where
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
 
-        // If the rolled_kvs vec is empty, the current window is "clean" - aka no modifications
-        // that need to be cleaned up by expanding the window. So instead of expanding, we load
-        // the correct window for `target_k`.
-        if self.rolled_kvs.is_empty() {
-            if let Some(mut branch) = self
-                .reader
-                .branch_matching_key_owned(target_k, self.source_depth)
-                .await?
-            {
-                if let Some(parent) = self.parent.as_mut() {
-                    if let Some((k, _)) = branch.get(0) {
-                        // inform our parent that this branch is (might be) mutating, causing
-                        // the parent to remove it from the list of `(Key,Addr)` pairs.
-                        //
-                        // The key:addr pair gets added back when we roll into a new boundary,
-                        // which can change due to mutation.
-                        parent.mutating_child_key(k).await?;
+        // but only if we have a source. If we don't, there's no expand possibly.
+        if let Some((source_depth, source_reader)) = self.reader.as_mut() {
+            // If the rolled_kvs vec is empty, the current window is "clean" - aka no modifications
+            // that need to be cleaned up by expanding the window. So instead of expanding, we load
+            // the correct window for `target_k`.
+            if self.rolled_kvs.is_empty() {
+                if let Some(mut branch) = source_reader
+                    .branch_matching_key_owned(target_k, source_depth)
+                    .await?
+                {
+                    if let Some(parent) = self.parent.as_mut() {
+                        if let Some((k, _)) = branch.get(0) {
+                            // inform our parent that this branch is (might be) mutating, causing
+                            // the parent to remove it from the list of `(Key,Addr)` pairs.
+                            //
+                            // The key:addr pair gets added back when we roll into a new boundary,
+                            // which can change due to mutation.
+                            parent.mutating_child_key(k).await?;
+                        }
                     }
-                }
 
-                branch.reverse();
-                self.source_kvs.append(&mut branch);
-            }
-        // If the rolled_kvs vec is not empty we need to expand the source_kvs to either find
-        // a border, or roll into the `target_k`.
-        } else {
-            let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            if let Some(mut branch) = self
-                .reader
-                .branch_right_of_key_owned(&neighbor_to.0, self.source_depth)
-                .await?
-            {
-                branch.reverse();
-                self.source_kvs.append(&mut branch);
+                    branch.reverse();
+                    self.source_kvs.append(&mut branch);
+                }
+            // If the rolled_kvs vec is not empty we need to expand the source_kvs to either find
+            // a border, or roll into the `target_k`.
+            } else {
+                let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
+                if let Some(mut branch) = source_reader
+                    .branch_right_of_key_owned(&neighbor_to.0, source_depth)
+                    .await?
+                {
+                    branch.reverse();
+                    self.source_kvs.append(&mut branch);
+                }
             }
         }
         Ok(())
@@ -448,15 +481,13 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let root_addr = self.root_addr.clone();
-            let branch_depth = self.source_depth - 1;
+            let source_reader = &self.source_reader;
             self.parent
                 .get_or_insert_with(|| {
                     Box::new(Branch::new(
                         storage,
-                        root_addr,
                         roller_config.clone(),
-                        branch_depth,
+                        source_reader.parent(),
                     ))
                 })
                 .push((node_key, node_addr.into()))
