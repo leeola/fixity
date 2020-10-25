@@ -602,6 +602,7 @@ pub mod test {
             };
             let mut update_from_addr = full_tree_addr.clone();
             for changes in rand_mutations(0, 200, 0..20) {
+                log::trace!("new update cursor {:?}", update_from_addr);
                 let mut tree = CursorUpdate::with_roller(
                     &storage,
                     update_from_addr.clone(),
