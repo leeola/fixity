@@ -35,6 +35,10 @@ where
     /// than the *next* leaf's left boundary key.
     ///
     /// The provided key may be larger than any keys in the returned block.
+    ///
+    /// In the event that the provided key is left of the entire tree, eg the tree
+    /// starts at key `Key::from(1)` but the caller is loading `Key::from(0)`, then the left
+    /// most block will be matched.
     pub async fn leaf_matching_key_owned(
         &mut self,
         k: &Key,
@@ -48,16 +52,19 @@ where
                     if v.is_empty() {
                         return Ok(None);
                     }
-                    // The first key might be bigger if this leaf is the root of the tree.
-                    if &v[0].0 > k {
-                        return Ok(None);
-                    }
                     return Ok(Some(Block { depth, inner: v }));
                 }
                 OwnedLeaf::Branch(v) => {
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
                     match child_node {
-                        None => return Ok(None),
+                        None => {
+                            addr = v.first().map(|(_, addr)| addr.clone()).ok_or_else(|| {
+                                Error::ProllyAddr {
+                                    addr: addr.clone(),
+                                    message: "prolly branch loaded with zero key:addr pairs".into(),
+                                }
+                            })?;
+                        }
                         Some((_, child_addr)) => addr = child_addr.clone(),
                     }
                 }
@@ -95,7 +102,14 @@ where
 
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
                     match child_node {
-                        None => return Ok(None),
+                        None => {
+                            addr = v.first().map(|(_, addr)| addr.clone()).ok_or_else(|| {
+                                Error::ProllyAddr {
+                                    addr: addr.clone(),
+                                    message: "prolly branch loaded with zero key:addr pairs".into(),
+                                }
+                            })?;
+                        }
                         Some((_, child_addr)) => addr = child_addr.clone(),
                     }
                 }

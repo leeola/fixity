@@ -572,7 +572,7 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let test_cases = vec![(
-            (0..20),
+            (0..3),
             vec![
                 vec![(0.into(), Change::Remove)],
                 vec![(0.into(), Change::Insert(0.into()))],
