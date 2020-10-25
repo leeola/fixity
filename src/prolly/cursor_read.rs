@@ -52,10 +52,7 @@ where
                     if &v[0].0 > k {
                         return Ok(None);
                     }
-                    return Ok(Some(Block {
-                        depth,
-                        inner: v.clone(),
-                    }));
+                    return Ok(Some(Block { depth, inner: v }));
                 }
                 OwnedLeaf::Branch(v) => {
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
@@ -111,7 +108,7 @@ where
     pub async fn leaf_right_of_key_owned(
         &mut self,
         k: &Key,
-    ) -> Result<Option<Vec<(Key, Value)>>, Error> {
+    ) -> Result<Option<Block<Value>>, Error> {
         let mut addr = self.root_addr.clone();
         // Record each nighbor key as we search for the leaf of `k`.
         // At each branch, record the key immediately to the right of
@@ -125,10 +122,7 @@ where
             match node {
                 OwnedLeaf::Leaf(_) => {
                     return match immediate_right_key {
-                        Some(k) => Ok(self
-                            .leaf_matching_key_owned(&k)
-                            .await?
-                            .map(|block| block.inner)),
+                        Some(k) => Ok(self.leaf_matching_key_owned(&k).await?),
                         None => Ok(None),
                     };
                 }
@@ -248,8 +242,6 @@ impl<'s, S> BranchCache<'s, S> {
             cache: HashMap::new(),
         }
     }
-    // pub fn is_cached(&self, addr: &Addr) -> bool {
-    // }
 }
 impl<'s, S> BranchCache<'s, S>
 where
@@ -270,8 +262,8 @@ where
                 Node::Leaf(v) => Ok(OwnedLeaf::Leaf(v)),
                 Node::Branch(v) => {
                     // NOTE: This GC of the cache relies on cache hits working correctly.
-                    // Since Branches can't know the end Key of the _last leaf_, we expect that requests for
-                    // keys past the end are _cache hits_.
+                    // Since Branches can't know the end Key of the _last leaf_, we expect that
+                    // requests for keys past the end are _cache hits_.
                     {
                         let drops = self
                             .boundary_index

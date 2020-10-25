@@ -1,6 +1,7 @@
 use {
     crate::{
         prolly::{
+            cursor_read::Block,
             roller::{Config as RollerConfig, Roller},
             CursorRead, NodeOwned,
         },
@@ -23,6 +24,7 @@ impl<'s, S> CursorUpdate<'s, S> {
         Self::with_roller(storage, root_addr, RollerConfig::default())
     }
     pub fn with_roller(storage: &'s S, root_addr: Addr, roller_config: RollerConfig) -> Self {
+        dbg!(&root_addr);
         Self {
             leaf: Leaf::new(storage, root_addr, roller_config),
         }
@@ -194,19 +196,10 @@ where
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
             if let Some(mut leaf) = self.reader.leaf_matching_key_owned(target_k).await? {
-                if let Some(parent) = self.parent.as_mut() {
-                    if let Some((k, _)) = leaf.inner.get(0) {
-                        // inform our parent that this leaf is (might be) mutating, causing
-                        // the parent to remove it from the list of `(Key,Addr)` pairs.
-                        //
-                        // The key:addr pair gets added back when we roll into a new boundary,
-                        // which can change due to mutation.
-                        parent.mutating_child_key(k).await?;
-                    }
-                }
-
+                self.notify_parent_of_mutation(&leaf).await?;
                 leaf.inner.reverse();
-                self.source_kvs.append(&mut leaf.inner);
+                leaf.inner.append(&mut self.source_kvs);
+                self.source_kvs = leaf.inner;
                 // NIT: this feels.. bad. I debated an init phase where after the constructor we
                 // figure the depth of this block, so we only do it once - but then we're traversing the
                 // tree at construction just to find this pointer. Where as the depth
@@ -217,9 +210,36 @@ where
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
             if let Some(mut leaf) = self.reader.leaf_right_of_key_owned(&neighbor_to.0).await? {
-                leaf.reverse();
-                self.source_kvs.append(&mut leaf);
+                self.notify_parent_of_mutation(&leaf).await?;
+                leaf.inner.reverse();
+                leaf.inner.append(&mut self.source_kvs);
+                self.source_kvs = leaf.inner;
             }
+        }
+        Ok(())
+    }
+    pub async fn notify_parent_of_mutation(&mut self, block: &Block<Value>) -> Result<(), Error> {
+        // conceptually if the source data does not expand to the parent, there's no need
+        // to notify the parent about mutations of the source data.
+        if block.depth == 0 {
+            return Ok(());
+        }
+        let parent = {
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            let reader = &self.reader;
+            self.parent.get_or_insert_with(|| {
+                let branch_reader = BranchReader::from_leaf(block.depth, &reader);
+                Branch::new(storage, roller_config.clone(), branch_reader)
+            })
+        };
+        if let Some((k, _)) = block.inner.get(0usize) {
+            // inform our parent that this leaf is (might be) mutating, causing
+            // the parent to remove it from the list of `(Key,Addr)` pairs.
+            //
+            // The key:addr pair gets added back when we roll into a new boundary,
+            // which can change due to mutation.
+            parent.mutating_child_key(k).await?;
         }
         Ok(())
     }
@@ -311,14 +331,19 @@ struct Branch<'s, S> {
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Addr)>,
-    source_reader: Option<BranchReader<'s, S>>,
+    /// A reader and depth for the source material that this branch depth is updating.
+    ///
+    /// Since this is assigned on creation, if None this Branch has no source material,
+    /// meaning that the child has expanded the tree depth such that the source
+    /// tree no longer overlaps.
+    source: Option<BranchReader<'s, S>>,
     parent: Option<Box<Branch<'s, S>>>,
 }
 impl<'s, S> Branch<'s, S> {
     pub fn new(
         storage: &'s S,
         roller_config: RollerConfig,
-        source_reader: Option<BranchReader<'s, S>>,
+        source: Option<BranchReader<'s, S>>,
     ) -> Self {
         Self {
             storage,
@@ -328,7 +353,7 @@ impl<'s, S> Branch<'s, S> {
             // Async/Await doesn't like constructors - eg `Self` returns.
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
-            source_reader,
+            source,
             parent: None,
         }
     }
@@ -421,8 +446,8 @@ where
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
 
-        // but only if we have a source. If we don't, there's no expand possibly.
-        if let Some(source) = self.source_reader.as_mut() {
+        // but only if we have a source. If we don't, there's no expand possible.
+        if let Some(source) = self.source.as_mut() {
             // If the rolled_kvs vec is empty, the current window is "clean" - aka no modifications
             // that need to be cleaned up by expanding the window. So instead of expanding, we load
             // the correct window for `target_k`.
@@ -432,19 +457,10 @@ where
                     .branch_matching_key_owned(target_k, source.depth)
                     .await?
                 {
-                    if let Some(parent) = self.parent.as_mut() {
-                        if let Some((k, _)) = branch.get(0) {
-                            // inform our parent that this branch is (might be) mutating, causing
-                            // the parent to remove it from the list of `(Key,Addr)` pairs.
-                            //
-                            // The key:addr pair gets added back when we roll into a new boundary,
-                            // which can change due to mutation.
-                            parent.mutating_child_key(k).await?;
-                        }
-                    }
-
+                    self.notify_parent_of_mutation(&branch).await?;
                     branch.reverse();
-                    self.source_kvs.append(&mut branch);
+                    branch.append(&mut self.source_kvs);
+                    self.source_kvs = branch;
                 }
             // If the rolled_kvs vec is not empty we need to expand the source_kvs to either find
             // a border, or roll into the `target_k`.
@@ -455,10 +471,37 @@ where
                     .branch_right_of_key_owned(&neighbor_to.0, source.depth)
                     .await?
                 {
+                    self.notify_parent_of_mutation(&branch).await?;
                     branch.reverse();
-                    self.source_kvs.append(&mut branch);
+                    branch.append(&mut self.source_kvs);
+                    self.source_kvs = branch;
                 }
             }
+        }
+        Ok(())
+    }
+    pub async fn notify_parent_of_mutation(&mut self, block: &[(Key, Addr)]) -> Result<(), Error> {
+        // conceptually if the source data does not expand to the parent, there's no need
+        // to notify the parent about mutations of the source data.
+        let source = match &self.source {
+            Some(source) if source.depth == 0 => return Ok(()),
+            None => return Ok(()),
+            Some(source) => source,
+        };
+        let parent = {
+            let storage = &self.storage;
+            let roller_config = &self.roller_config;
+            self.parent.get_or_insert_with(|| {
+                Box::new(Branch::new(storage, roller_config.clone(), source.parent()))
+            })
+        };
+        if let Some((k, _)) = block.get(0usize) {
+            // inform our parent that this leaf is (might be) mutating, causing
+            // the parent to remove it from the list of `(Key,Addr)` pairs.
+            //
+            // The key:addr pair gets added back when we roll into a new boundary,
+            // which can change due to mutation.
+            parent.mutating_child_key(k).await?;
         }
         Ok(())
     }
@@ -481,13 +524,15 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let source = &self.source_reader;
             self.parent
                 .get_or_insert_with(|| {
                     Box::new(Branch::new(
                         storage,
                         roller_config.clone(),
-                        source.as_ref().and_then(BranchReader::parent),
+                        // notify_parent_of_mutation will always expand parents for all source depths.
+                        // if we ever expand parents here, we have to be past all possible sources,
+                        // and thus this value can always be None.
+                        None,
                     ))
                 })
                 .push((node_key, node_addr.into()))
@@ -518,9 +563,52 @@ pub mod test {
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
-    pub enum TestAction<K, V> {
-        Insert((K, V)),
-        Remove(K),
+    #[tokio::test]
+    async fn addr_after_mutations() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        let test_cases = vec![(
+            (0..20),
+            vec![
+                vec![(0.into(), Change::Remove)],
+                vec![(0.into(), Change::Insert(0.into()))],
+            ],
+        )];
+        for (kvs, change_sets) in test_cases {
+            let kvs = kvs
+                .map(|i| (i, i * 10))
+                .map(|(k, v)| (Key::from(k), Value::from(v)))
+                .collect::<Vec<_>>();
+            let storage = Memory::new();
+            let original_addr = {
+                let tree =
+                    CursorCreate::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+                tree.with_kvs(kvs).await.unwrap()
+            };
+            let mut change_set_addr = original_addr.clone();
+            for change_set in change_sets {
+                log::trace!("new update cursor {:?}", change_set_addr);
+                let mut tree = CursorUpdate::with_roller(
+                    &storage,
+                    change_set_addr.clone(),
+                    RollerConfig::with_pattern(TEST_PATTERN),
+                );
+                for (k, change) in change_set {
+                    log::info!("key:{:?}, change:{:?}", k, change);
+                    tree.change(k, change).await.unwrap();
+                }
+                change_set_addr = tree.flush().await.unwrap();
+                log::info!("flushed into {:?}", change_set_addr);
+            }
+            assert_eq!(
+                original_addr, change_set_addr,
+                "mutating a tree and then restoring the content should result in the same Addr",
+            )
+        }
     }
     enum MutState {
         Inserted,
