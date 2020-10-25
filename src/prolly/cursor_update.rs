@@ -487,6 +487,68 @@ pub mod test {
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
+    pub enum TestAction<K, V> {
+        Insert((K, V)),
+        Remove(K),
+    }
+    enum MutState {
+        Inserted,
+        Removed,
+    }
+    fn rand_mutations(
+        seed: u64,
+        limit: usize,
+        values: impl Iterator<Item = u32>,
+    ) -> impl Iterator<Item = impl Iterator<Item = (Key, Change)>> {
+        use rand::Rng;
+        let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(seed);
+        let mut mutable_values = values
+            .filter(|_| rng.gen_range(0, 10) >= 5)
+            .take(limit)
+            .map(|i| (i, i * 10, MutState::Removed))
+            .collect::<Vec<_>>();
+        let init_remove_values = mutable_values
+            .iter()
+            .map(|&(k, _, _)| (k.into(), Change::Remove))
+            .collect::<Vec<_>>();
+        std::iter::once_with(move || init_remove_values.into_iter()).chain(std::iter::from_fn(
+            move || {
+                if mutable_values.is_empty() {
+                    return None;
+                }
+                let changes: Vec<(Key, Change)> = replace_with::replace_with_or_abort_and_return(
+                    &mut mutable_values,
+                    |mutable_values| {
+                        let (new_mutable_values, changes) = mutable_values
+                            .into_iter()
+                            .filter_map(|(k, v, rand_mut)| {
+                                match rand_mut {
+                                    MutState::Inserted => {
+                                        // A 50/50 on whether previously inserted values will be removed again,
+                                        // or dropped from this mutation list.
+                                        if rng.gen_range(0, 10) >= 5 {
+                                            None
+                                        } else {
+                                            Some((
+                                                (k, v, MutState::Removed),
+                                                (Key::from(k), Change::Remove),
+                                            ))
+                                        }
+                                    }
+                                    MutState::Removed => Some((
+                                        (k, v.clone(), MutState::Inserted),
+                                        (k.into(), Change::Insert(v.into())),
+                                    )),
+                                }
+                            })
+                            .unzip();
+                        (changes, new_mutable_values)
+                    },
+                );
+                Some(changes.into_iter())
+            },
+        ))
+    }
     #[tokio::test]
     async fn fuzz_io() {
         let mut env_builder = env_logger::builder();
@@ -495,6 +557,32 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        todo!()
+        let contents = vec![(0..20)];
+        for content in contents {
+            let content = content
+                .map(|i| (i, i * 10))
+                .map(|(k, v)| (Key::from(k), Value::from(v)))
+                .collect::<Vec<_>>();
+            let storage = Memory::new();
+            let full_tree_addr = {
+                let tree =
+                    CursorCreate::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+                tree.with_kvs(content).await.unwrap()
+            };
+            let mut update_from_addr = full_tree_addr.clone();
+            for changes in rand_mutations(0, 200, 0..20) {
+                let mut tree = CursorUpdate::with_roller(
+                    &storage,
+                    update_from_addr.clone(),
+                    RollerConfig::with_pattern(TEST_PATTERN),
+                );
+                for (k, change) in changes {
+                    log::info!("key:{:?}, change:{:?}", k, change);
+                    tree.change(k, change).await.unwrap();
+                }
+                update_from_addr = tree.flush().await.unwrap();
+                log::info!("flushed into {:?}", update_from_addr);
+            }
+        }
     }
 }

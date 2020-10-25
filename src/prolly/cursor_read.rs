@@ -289,7 +289,6 @@ where
                         .0
                         .clone();
                     self.boundary_index.insert(last_key, addr.clone());
-                    dbg!(&self.boundary_index);
                     self.cache.insert(addr.clone(), v);
                     let v = self
                         .cache
@@ -387,7 +386,7 @@ pub mod test {
         };
         dbg!(&root_addr);
         let mut read = CursorRead::new(&storage, root_addr);
-        for (k, want_v) in content {
+        for (k, _want_v) in content {
             read.leaf_matching_key_owned(&k).await.unwrap();
         }
     }
