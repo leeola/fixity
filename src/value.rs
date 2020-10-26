@@ -70,6 +70,14 @@ impl From<u32> for Scalar {
         Self::Uint32(t)
     }
 }
+impl fmt::Display for Scalar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Addr(v) => write!(f, "{}", v),
+            Self::Uint32(v) => write!(f, "{}", v),
+        }
+    }
+}
 /// Key exists as a very thin layer over a [`Value`] for ease of use and reading.
 ///
 /// Ultimately there is no difference between a Key and a Value.
@@ -80,6 +88,11 @@ impl From<u32> for Scalar {
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Key(pub Value);
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 impl<T> From<T> for Key
 where
     T: Into<Value>,
@@ -98,6 +111,22 @@ pub enum Value {
     Addr(Addr),
     Uint32(u32),
     Vec(Vec<Scalar>),
+}
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Addr(v) => write!(f, "{}", v),
+            Self::Uint32(v) => write!(f, "{}", v),
+            Self::Vec(v) => write!(
+                f,
+                "{}",
+                v.iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        }
+    }
 }
 /// A helper to centralize serialization logic for a potential future
 /// where we change/tweak/configure serialization.

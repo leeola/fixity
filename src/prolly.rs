@@ -1,6 +1,7 @@
 pub mod cursor_create;
 pub mod cursor_read;
 pub mod cursor_update;
+pub mod debug_read;
 pub mod lru_read;
 pub mod node;
 pub mod roller;

@@ -561,7 +561,7 @@ where
 pub mod test {
     use {
         super::*,
-        crate::prolly::{roller::Config as RollerConfig, CursorCreate},
+        crate::prolly::{debug_read::DebugNode, roller::Config as RollerConfig, CursorCreate},
         crate::storage::Memory,
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
@@ -623,6 +623,10 @@ pub mod test {
                 }
                 change_set_addr = tree.flush().await.unwrap();
                 log::info!("flushed into {:?}", change_set_addr);
+                DebugNode::new(&storage, &change_set_addr)
+                    .await
+                    .unwrap()
+                    .print();
             }
             assert_eq!(
                 original_addr, change_set_addr,
