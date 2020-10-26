@@ -516,6 +516,14 @@ where
                 log::warn!(
                     "writing key & value that exceeds block size, this is highly inefficient"
                 );
+                // In the event that the KV is a boundary itself, we run into the risk of the
+                // single block being pushed to a parent, which then also encounters a single block.
+                // This is unlikely with a proper average block size, but still a design flaw
+                // in this implementation. The next CursorUpdate implementation needs to resolve this.
+                if self.source.is_none() && self.parent.is_none() {
+                    log::debug!("not pushing new parent on single length branch block");
+                    return Ok(());
+                }
             }
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
