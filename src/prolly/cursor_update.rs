@@ -43,7 +43,7 @@ where
         }
         self.leaf.flush().await
     }
-    pub async fn flush(&mut self) -> Result<Addr, Error> {
+    pub async fn flush(mut self) -> Result<Addr, Error> {
         self.leaf.flush().await
     }
     pub async fn insert(&mut self, k: Key, v: Value) -> Result<(), Error> {
@@ -122,7 +122,20 @@ where
         while let Some(kv) = self.source_kvs.pop() {
             self.roll_kv(kv).await?;
         }
-        dbg!(&self.rolled_kvs);
+        // attempt to clean the rolled_kvs with a natural boundary if they haven't
+        // found one.
+        while let Some((k, _)) = self.rolled_kvs.last() {
+            let leaf = self.reader.leaf_right_of_key_owned(&k).await?;
+            match leaf {
+                Some(mut leaf) => {
+                    self.notify_parent_of_mutation(&leaf).await?;
+                    for kv in leaf.inner {
+                        self.roll_kv(kv).await?;
+                    }
+                }
+                None => break,
+            }
+        }
         if self.rolled_kvs.is_empty() {
             match self.parent.take() {
                 // If there's no parent, this Leaf never hit a Boundary and thus this
@@ -364,13 +377,34 @@ where
 {
     #[async_recursion::async_recursion]
     pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
-        dbg!(&kv, &self.rolled_kvs, &self.source_kvs);
         // push will roll into kv
         if let Some(kv) = kv {
             self.push(kv).await?;
         }
         while let Some(kv) = self.source_kvs.pop() {
             self.roll_kv(kv).await?;
+        }
+        // attempt to clean the rolled_kvs with a natural boundary if they haven't
+        // found one. If there is no source, we can't find anymore boundaries.
+        if self.source.is_some() {
+            while let Some((k, _)) = self.rolled_kvs.last() {
+                // using an expect instead of if-let to let NLLs help us with the multiple
+                // borrow overlaps.
+                let source = self.source.as_mut().expect("source impossibly missing");
+                let branch = source
+                    .reader
+                    .branch_right_of_key_owned(&k, source.depth)
+                    .await?;
+                match branch {
+                    Some(branch) => {
+                        self.notify_parent_of_mutation(&branch).await?;
+                        for kv in branch {
+                            self.roll_kv(kv).await?;
+                        }
+                    }
+                    None => break,
+                }
+            }
         }
         if self.rolled_kvs.is_empty() {
             match self.parent.take() {
@@ -645,6 +679,10 @@ pub mod test {
                     .unwrap()
                     .print();
             }
+            DebugNode::new(&storage, &original_addr)
+                .await
+                .unwrap()
+                .print();
             assert_eq!(
                 original_addr, change_set_addr,
                 "mutating a tree and then restoring the content should result in the same Addr",
