@@ -127,7 +127,7 @@ where
         while let Some((k, _)) = self.rolled_kvs.last() {
             let leaf = self.reader.leaf_right_of_key_owned(&k).await?;
             match leaf {
-                Some(mut leaf) => {
+                Some(leaf) => {
                     self.notify_parent_of_mutation(&leaf).await?;
                     for kv in leaf.inner {
                         self.roll_kv(kv).await?;
@@ -246,7 +246,8 @@ where
                 Branch::new(storage, roller_config.clone(), branch_reader)
             })
         };
-        if let Some((k, _)) = block.inner.get(0usize) {
+        if let Some((k, _)) = block.inner.get(0) {
+            log::trace!("notifying leaf parent of key:{}", k);
             // inform our parent that this leaf is (might be) mutating, causing
             // the parent to remove it from the list of `(Key,Addr)` pairs.
             //
@@ -448,17 +449,20 @@ where
     /// `target_k`; instead dropping that equal pair.
     #[async_recursion::async_recursion]
     pub async fn roll_into(&mut self, target_k: &Key) -> Result<(), Error> {
+        log::trace!("rolling into key:{}", target_k);
         // roll the source_kvs up, one by one, so that this cursor is at the target.
         loop {
-            match self.source_kvs.last() {
+            match dbg!(self.source_kvs.last()) {
                 // If the cursor is past the target, return - we can insert freely.
                 Some((cursor_k, _)) if cursor_k > target_k => {
+                    log::trace!("greater than match");
                     return Ok(());
                 }
                 // If the cursor is at the target, remove it and return.
                 // both Self::insert() and Self::remove() result in the old matching value
                 // getting removed.
                 Some((cursor_k, _)) if cursor_k == target_k => {
+                    log::trace!("exact key match");
                     self.source_kvs.pop();
                     return Ok(());
                 }
@@ -539,7 +543,8 @@ where
                 Box::new(Branch::new(storage, roller_config.clone(), source.parent()))
             })
         };
-        if let Some((k, _)) = block.get(0usize) {
+        if let Some((k, _)) = block.get(0) {
+            log::trace!("notifying branch parent of key:{}", k);
             // inform our parent that this leaf is (might be) mutating, causing
             // the parent to remove it from the list of `(Key,Addr)` pairs.
             //
@@ -577,7 +582,6 @@ where
             };
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            dbg!("sending to parent..");
             self.parent
                 .get_or_insert_with(|| {
                     Box::new(Branch::new(

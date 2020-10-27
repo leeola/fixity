@@ -1,11 +1,8 @@
-use {
-    crate::{
-        prolly::node::{Node, NodeOwned},
-        storage::StorageRead,
-        value::{Addr, Key, Value},
-        Error,
-    },
-    std::collections::HashMap,
+use crate::{
+    prolly::node::{Node, NodeOwned},
+    storage::StorageRead,
+    value::{Addr, Key, Value},
+    Error,
 };
 
 #[derive(Debug)]
