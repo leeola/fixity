@@ -385,6 +385,15 @@ where
                 Some(mut parent) => parent.flush(None).await,
             }
         } else {
+            // If there's no parent and there's only one key, no need to roll this
+            // branch - we can return the inner addr since it's already root.
+            if self.parent.is_none() && self.rolled_kvs.len() == 1 {
+                return Ok(self
+                    .rolled_kvs
+                    .pop()
+                    .expect("key:addr impossibly missing")
+                    .1);
+            }
             let (node_key, node_addr) = {
                 let kvs = mem::replace(&mut self.rolled_kvs, Vec::new());
                 let node = NodeOwned::Branch(kvs);
