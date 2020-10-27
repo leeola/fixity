@@ -51,7 +51,7 @@ impl<'s, S> Leaf<'s, S> {
         Self {
             storage,
             roller_config,
-            roller: Roller::with_config(roller_config.clone()),
+            roller: Roller::with_config(roller_config),
             buffer: Vec::new(),
             parent: None,
         }
@@ -114,7 +114,7 @@ where
             let storage = &self.storage;
             let roller_config = &self.roller_config;
             self.parent
-                .get_or_insert_with(|| Branch::new(storage, roller_config.clone()))
+                .get_or_insert_with(|| Branch::new(storage, *roller_config))
                 .push((node_key, node_addr.into()))
                 .await?;
         }

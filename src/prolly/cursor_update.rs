@@ -378,10 +378,13 @@ where
 {
     #[async_recursion::async_recursion]
     pub async fn flush(&mut self, kv: Option<(Key, Addr)>) -> Result<Addr, Error> {
+        log::trace!("flushing branch, key:{:?}", kv.as_ref().map(|(k, _)| k));
+        dbg!(self.rolled_kvs.len(), self.source_kvs.len());
         // push will roll into kv
         if let Some(kv) = kv {
             self.push(kv).await?;
         }
+        dbg!(self.rolled_kvs.len(), self.source_kvs.len());
         while let Some(kv) = self.source_kvs.pop() {
             self.roll_kv(kv).await?;
         }

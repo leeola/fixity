@@ -8,6 +8,11 @@ use {
     std::collections::HashMap,
 };
 
+// TODO: Replace
+// pub type CursorRead = CursorLeafRead;
+pub struct CursorLeafRead<'s, S>;
+pub struct CursorBranchRead<'s, S>;
+
 /// A prolly reader optimized for reading value blocks with a forward progressing cursor.
 pub struct CursorRead<'s, S> {
     cache: BranchCache<'s, S>,
