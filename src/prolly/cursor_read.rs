@@ -68,8 +68,162 @@ where
             }
         }
     }
+    pub async fn right_of_key_owned(
+        &mut self,
+        k: &Key,
+    ) -> Result<Option<Vec<(Key, Value)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        // Record each nighbor key as we search for the leaf of `k`.
+        // At each branch, record the key immediately to the right of
+        // the leaf `k` would be in.
+        //
+        // Once a leaf is reached, this value will be the neighboring
+        // leaf key, if any.
+        let mut immediate_right_key = None;
+        loop {
+            let mut buf = Vec::new();
+            self.storage.read(addr.clone(), &mut buf).await?;
+            let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+            match node {
+                Node::Leaf(_) => {
+                    return match immediate_right_key {
+                        Some(k) => Ok(self.matching_key_owned(&k).await?),
+                        None => Ok(None),
+                    };
+                }
+                Node::Branch(v) => {
+                    // NIT: is there a more efficient way to do this? Two iters is neat and clean,
+                    // but there's an additional cost per it iteration.. or so i believe.
+                    let mut immediate_right_iter = v.iter().skip(1);
+                    let child_node = v
+                        .iter()
+                        .take_while(|(lhs_k, _)| lhs_k <= k)
+                        .map(|kv| (kv, immediate_right_iter.next()))
+                        .last();
+                    match child_node {
+                        None => return Ok(None),
+                        Some(((_, child_addr), imri)) => {
+                            immediate_right_key = imri.map(|(k, _)| k.clone());
+                            addr = child_addr.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 // pub struct CursorBranchRead<'s, S>;
+pub struct CursorReadBranch<'s, S> {
+    storage: &'s S,
+    root_addr: Addr,
+    cursor: Option<Key>,
+    depth: usize,
+}
+impl<'s, S> CursorReadBranch<'s, S> {
+    /// Construct a new CursorRead.
+    pub fn new(storage: &'s S, root_addr: Addr, depth: usize) -> Self {
+        Self {
+            storage,
+            root_addr,
+            cursor: None,
+            depth,
+        }
+    }
+}
+impl<'s, S> CursorReadBranch<'s, S>
+where
+    S: StorageRead,
+{
+    pub async fn matching_key_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        let mut current_depth = 0;
+        loop {
+            let mut buf = Vec::new();
+            self.storage.read(addr.clone(), &mut buf).await?;
+            let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+            match node {
+                Node::Leaf(_) => {
+                    return Err(Error::ProllyAddr {
+                        addr: self.root_addr.clone(),
+                        message: format!(
+                            "expected branch at depth:{}, but got leaf at depth:{}",
+                            self.depth, current_depth
+                        ),
+                    });
+                }
+                Node::Branch(v) => {
+                    if current_depth == self.depth {
+                        return Ok(Some(v));
+                    }
+                    let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
+                    match child_node {
+                        None => {
+                            addr = v.first().map(|(_, addr)| addr.clone()).ok_or_else(|| {
+                                Error::ProllyAddr {
+                                    addr: addr.clone(),
+                                    message: "prolly branch loaded with zero key:addr pairs".into(),
+                                }
+                            })?;
+                        }
+                        Some((_, child_addr)) => addr = child_addr.clone(),
+                    }
+                }
+            }
+            current_depth += 1;
+        }
+    }
+    pub async fn right_of_key_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        let mut addr = self.root_addr.clone();
+        let mut current_depth = 0;
+        // Record each nighbor key as we search for the leaf of `k`.
+        // At each branch, record the key immediately to the right of
+        // the leaf `k` would be in.
+        //
+        // Once a leaf is reached, this value will be the neighboring
+        // leaf key, if any.
+        let mut immediate_right_key = None;
+        loop {
+            let mut buf = Vec::new();
+            self.storage.read(addr.clone(), &mut buf).await?;
+            let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+            match node {
+                Node::Leaf(_) => {
+                    return Err(Error::ProllyAddr {
+                        addr: self.root_addr.clone(),
+                        message: format!(
+                            "expected branch at depth:{}, but got leaf at depth:{}",
+                            self.depth, current_depth
+                        ),
+                    });
+                }
+                Node::Branch(v) => {
+                    if current_depth == self.depth {
+                        return match immediate_right_key {
+                            Some(k) => Ok(self.matching_key_owned(&k).await?),
+                            None => Ok(None),
+                        };
+                    }
+                    // NIT: is there a more efficient way to do this? Two iters is neat and clean,
+                    // but there's an additional cost per it iteration.. or so i believe.
+                    let mut immediate_right_iter = v.iter().skip(1);
+                    let child_node = v
+                        .iter()
+                        .take_while(|(lhs_k, _)| lhs_k <= k)
+                        .map(|kv| (kv, immediate_right_iter.next()))
+                        .last();
+                    match child_node {
+                        None => return Ok(None),
+                        Some(((_, child_addr), imri)) => {
+                            immediate_right_key = imri.map(|(k, _)| k.clone());
+                            addr = child_addr.clone();
+                        }
+                    }
+                }
+            }
+            current_depth += 1;
+        }
+    }
+}
 
 /// A prolly reader optimized for reading value blocks with a forward progressing cursor.
 pub struct CursorRead<'s, S> {
