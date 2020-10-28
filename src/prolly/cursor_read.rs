@@ -10,8 +10,66 @@ use {
 
 // TODO: Replace
 // pub type CursorRead = CursorLeafRead;
-pub struct CursorLeafRead<'s, S>;
-pub struct CursorBranchRead<'s, S>;
+/// A prolly reader optimized for reading value blocks with a forward progressing cursor.
+pub struct CursorReadLeaf<'s, S> {
+    storage: &'s S,
+    root_addr: Addr,
+    cursor: Option<Key>,
+}
+impl<'s, S> CursorReadLeaf<'s, S> {
+    /// Construct a new CursorRead.
+    pub fn new(storage: &'s S, root_addr: Addr) -> Self {
+        Self {
+            storage,
+            root_addr,
+            cursor: None,
+        }
+    }
+}
+impl<'s, S> CursorReadLeaf<'s, S>
+where
+    S: StorageRead,
+{
+    pub async fn matching_key_owned(
+        &mut self,
+        k: &Key,
+    ) -> Result<Option<Vec<(Key, Value)>>, Error> {
+        if let Some(cursor) = self.cursor.as_ref() {
+            if cursor >= k {
+                return Ok(None);
+            }
+        }
+        let mut addr = self.root_addr.clone();
+        loop {
+            let mut buf = Vec::new();
+            self.storage.read(addr.clone(), &mut buf).await?;
+            let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+            match node {
+                Node::Leaf(v) => {
+                    if v.is_empty() {
+                        return Ok(None);
+                    }
+                    return Ok(Some(v));
+                }
+                Node::Branch(v) => {
+                    let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
+                    match child_node {
+                        None => {
+                            addr = v.first().map(|(_, addr)| addr.clone()).ok_or_else(|| {
+                                Error::ProllyAddr {
+                                    addr: addr.clone(),
+                                    message: "prolly branch loaded with zero key:addr pairs".into(),
+                                }
+                            })?;
+                        }
+                        Some((_, child_addr)) => addr = child_addr.clone(),
+                    }
+                }
+            }
+        }
+    }
+}
+// pub struct CursorBranchRead<'s, S>;
 
 /// A prolly reader optimized for reading value blocks with a forward progressing cursor.
 pub struct CursorRead<'s, S> {
