@@ -47,8 +47,10 @@ where
             match node {
                 Node::Leaf(v) => {
                     if v.is_empty() {
+                        self.cursor = Some(k.clone());
                         return Ok(None);
                     }
+                    self.cursor = v.last().map(|(k, _)| k.clone());
                     return Ok(Some(v));
                 }
                 Node::Branch(v) => {
@@ -72,6 +74,11 @@ where
         &mut self,
         k: &Key,
     ) -> Result<Option<Vec<(Key, Value)>>, Error> {
+        if let Some(cursor) = self.cursor.as_ref() {
+            if cursor >= k {
+                return Ok(None);
+            }
+        }
         let mut addr = self.root_addr.clone();
         // Record each nighbor key as we search for the leaf of `k`.
         // At each branch, record the key immediately to the right of
@@ -87,6 +94,7 @@ where
             match node {
                 Node::Leaf(_) => {
                     return match immediate_right_key {
+                        // self.matching_key_owned() will move the cursor
                         Some(k) => Ok(self.matching_key_owned(&k).await?),
                         None => Ok(None),
                     };
@@ -135,6 +143,11 @@ where
     S: StorageRead,
 {
     pub async fn matching_key_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        if let Some(cursor) = self.cursor.as_ref() {
+            if cursor >= k {
+                return Ok(None);
+            }
+        }
         let mut addr = self.root_addr.clone();
         let mut current_depth = 0;
         loop {
@@ -143,6 +156,7 @@ where
             let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
             match node {
                 Node::Leaf(_) => {
+                    self.cursor = Some(k.clone());
                     return Err(Error::ProllyAddr {
                         addr: self.root_addr.clone(),
                         message: format!(
@@ -152,7 +166,12 @@ where
                     });
                 }
                 Node::Branch(v) => {
+                    if v.is_empty() {
+                        self.cursor = Some(k.clone());
+                        return Ok(None);
+                    }
                     if current_depth == self.depth {
+                        self.cursor = v.last().map(|(k, _)| k.clone());
                         return Ok(Some(v));
                     }
                     let child_node = v.iter().take_while(|(lhs_k, _)| lhs_k <= k).last();
@@ -173,6 +192,11 @@ where
         }
     }
     pub async fn right_of_key_owned(&mut self, k: &Key) -> Result<Option<Vec<(Key, Addr)>>, Error> {
+        if let Some(cursor) = self.cursor.as_ref() {
+            if cursor >= k {
+                return Ok(None);
+            }
+        }
         let mut addr = self.root_addr.clone();
         let mut current_depth = 0;
         // Record each nighbor key as we search for the leaf of `k`.
@@ -199,6 +223,7 @@ where
                 Node::Branch(v) => {
                     if current_depth == self.depth {
                         return match immediate_right_key {
+                            // self.matching_key_owned() will move the cursor
                             Some(k) => Ok(self.matching_key_owned(&k).await?),
                             None => Ok(None),
                         };

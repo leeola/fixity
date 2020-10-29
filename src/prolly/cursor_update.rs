@@ -1,7 +1,7 @@
 use {
     crate::{
         prolly::{
-            cursor_read::Block,
+            cursor_read::{Block, CursorReadBranch, CursorReadLeaf},
             roller::{Config as RollerConfig, Roller},
             CursorRead, NodeOwned,
         },
@@ -84,7 +84,6 @@ pub enum Change {
 }
 struct Leaf<'s, S> {
     storage: &'s S,
-    reader: CursorRead<'s, S>,
     roller_config: RollerConfig,
     roller: Roller,
     /// Rolled KVs in sorted order, to be eventually written to Storage once a boundary
@@ -95,21 +94,20 @@ struct Leaf<'s, S> {
     ///
     /// These are stored in **reverse order**, allowing removal of values at low cost.
     source_kvs: Vec<(Key, Value)>,
-    source_depth: usize,
+    source: CursorReadLeaf<'s, S>,
     parent: Option<Branch<'s, S>>,
 }
 impl<'s, S> Leaf<'s, S> {
     pub fn new(storage: &'s S, root_addr: Addr, roller_config: RollerConfig) -> Self {
         Self {
             storage,
-            reader: CursorRead::new(storage, root_addr.clone()),
             roller_config,
             roller: Roller::with_config(roller_config.clone()),
             // NIT: we're wasting some initial allocation here. iirc this was done because
             // Async/Await doesn't like constructors - eg `Self` returns.
             rolled_kvs: Vec::new(),
             source_kvs: Vec::new(),
-            source_depth: 0,
+            source: CursorReadLeaf::new(storage, root_addr.clone()),
             parent: None,
         }
     }
@@ -125,11 +123,11 @@ where
         // attempt to clean the rolled_kvs with a natural boundary if they haven't
         // found one.
         while let Some((k, _)) = self.rolled_kvs.last() {
-            let leaf = self.reader.leaf_right_of_key_owned(&k).await?;
+            let leaf = self.source.right_of_key_owned(&k).await?;
             match leaf {
                 Some(leaf) => {
                     self.notify_parent_of_mutation(&leaf).await?;
-                    for kv in leaf.inner {
+                    for kv in leaf {
                         self.roll_kv(kv).await?;
                     }
                 }
@@ -231,12 +229,7 @@ where
         }
         Ok(())
     }
-    pub async fn notify_parent_of_mutation(&mut self, block: &Block<Value>) -> Result<(), Error> {
-        // conceptually if the source data does not expand to the parent, there's no need
-        // to notify the parent about mutations of the source data.
-        if block.depth == 0 {
-            return Ok(());
-        }
+    pub async fn notify_parent_of_mutation(&mut self, block: &[(Key, Value)]) -> Result<(), Error> {
         let parent = {
             let storage = &self.storage;
             let roller_config = &self.roller_config;
