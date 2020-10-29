@@ -206,40 +206,32 @@ where
         // if there is no more source kvs, we either need to expand the window or
         // load an entirely new window to complete the rolled_into request.
         if self.rolled_kvs.is_empty() {
-            if let Some(mut leaf) = self.reader.leaf_matching_key_owned(target_k).await? {
+            if let Some(mut leaf) = self.source.matching_key_owned(target_k).await? {
                 self.notify_parent_of_mutation(&leaf).await?;
-                leaf.inner.reverse();
-                leaf.inner.append(&mut self.source_kvs);
-                self.source_kvs = leaf.inner;
-                // NIT: this feels.. bad. I debated an init phase where after the constructor we
-                // figure the depth of this block, so we only do it once - but then we're traversing the
-                // tree at construction just to find this pointer. Where as the depth
-                // is basically free anytime we get a block. So... fixing this seems like a super
-                // micro-optimization
-                self.source_depth = dbg!(leaf.depth);
+                leaf.reverse();
+                leaf.append(&mut self.source_kvs);
+                self.source_kvs = leaf;
             }
         } else {
             let neighbor_to = self.rolled_kvs.last().expect("impossibly missing");
-            if let Some(mut leaf) = self.reader.leaf_right_of_key_owned(&neighbor_to.0).await? {
+            if let Some(mut leaf) = self.source.right_of_key_owned(&neighbor_to.0).await? {
                 self.notify_parent_of_mutation(&leaf).await?;
-                leaf.inner.reverse();
-                leaf.inner.append(&mut self.source_kvs);
-                self.source_kvs = leaf.inner;
+                leaf.reverse();
+                leaf.append(&mut self.source_kvs);
+                self.source_kvs = leaf;
             }
         }
         Ok(())
     }
-    pub async fn notify_parent_of_mutation(&mut self, block: &[(Key, Value)]) -> Result<(), Error> {
+    pub async fn notify_parent_of_mutation(&mut self, leaf: &[(Key, Value)]) -> Result<(), Error> {
         let parent = {
             let storage = &self.storage;
             let roller_config = &self.roller_config;
-            let reader = &self.reader;
-            self.parent.get_or_insert_with(|| {
-                let branch_reader = BranchReader::from_leaf(block.depth, &reader);
-                Branch::new(storage, roller_config.clone(), branch_reader)
-            })
+            let source = &self.source;
+            self.parent
+                .get_or_insert_with(|| Branch::new(storage, roller_config.clone(), source.parent()))
         };
-        if let Some((k, _)) = block.inner.get(0) {
+        if let Some((k, _)) = leaf.get(0) {
             log::trace!("notifying leaf parent of key:{}", k);
             // inform our parent that this leaf is (might be) mutating, causing
             // the parent to remove it from the list of `(Key,Addr)` pairs.

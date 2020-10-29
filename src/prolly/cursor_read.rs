@@ -30,6 +30,9 @@ impl<'s, S> CursorReadLeaf<'s, S>
 where
     S: StorageRead,
 {
+    pub async fn parent(&self) -> CursorReadBranch<'s, S> {
+        todo!()
+    }
     pub async fn matching_key_owned(
         &mut self,
         k: &Key,
