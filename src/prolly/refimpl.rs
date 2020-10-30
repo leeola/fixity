@@ -40,13 +40,16 @@ where
     /// If the provided vec contains non-unique keys or any writes to storage fail
     /// an error is returned.
     pub async fn from_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
-        // unstable should be fine, since the incoming values will be unique.
+        // Ensure the kvs are sorted - as the trees require sorting.
+        // unstable should be fine, since the keys will (soon) be unique.
         kvs.sort_unstable();
+        // Ensure the kvs are unique.
         {
-            let (_, dupes) = kvs.partition_dedup_by_key(|(k, _)| k);
-            if !dupes.is_none() {
+            let maybe_dups_len = kvs.len();
+            kvs.dedup_by(|a, b| a.0 == b.0);
+            if maybe_dups_len != kvs.len() {
                 return Err(Error::Prolly {
-                    message: "cannot construct prolly tree with non-unique keys",
+                    message: "cannot construct prolly tree with non-unique keys".to_owned(),
                 });
             }
         }
@@ -54,5 +57,11 @@ where
             self.push(kv).await?;
         }
         self.flush().await
+    }
+    async fn flush(self) -> Result<Addr, Error> {
+        todo!()
+    }
+    async fn push(&self, kv: (Key, Value)) -> Result<Addr, Error> {
+        todo!()
     }
 }
