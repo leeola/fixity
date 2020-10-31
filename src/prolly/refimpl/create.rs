@@ -10,7 +10,10 @@ use {
     },
     std::mem,
 };
-
+enum Kvs {
+    KeyValues(Vec<(Key, Value)>),
+    KeyAddrs(Vec<(Key, Addr)>),
+}
 pub struct Create<'s, S> {
     storage: &'s S,
     roller: Roller,
@@ -50,6 +53,51 @@ where
                 });
             }
         }
+        let mut block_addrs = Vec::new();
+        let mut block_buf = Vec::new();
+        for kv in kvs.into_iter() {
+            let boundary = self.roller.roll_bytes(&crate::value::serialize(&kv)?);
+            block_buf.push(kv);
+            if boundary {
+                // Check for a case where a single key:value pair is equal to or exceeds
+                // the bytes of an individual block. This typically indicates that the average
+                // block size is too small or that the value being stored would be better
+                // represented as a chunked byte array.
+                let one_len_block = block_buf.len() == 1 && block_addrs.is_empty();
+                if one_len_block {
+                    log::warn!(
+                        "writing key & value that exceeds block size, this is highly inefficient"
+                    );
+                }
+                let block_key = block_buf
+                    .first()
+                    .expect("first key impossibly missing")
+                    .0
+                    .clone();
+                let block_addr = self
+                    .leaf_into_node_unchecked(mem::replace(&mut block_buf, Vec::new()))
+                    .await?;
+                block_addrs.push((block_key, block_addr));
+            }
+        }
+        // if there are any remaining key:value pairs, no boundary was found for the
+        // final block - so write them together as the last block in the series.
+        if !block_buf.is_empty() {
+            let block_key = block_buf
+                .first()
+                .expect("first key impossibly missing")
+                .0
+                .clone();
+            let block_addr = self.leaf_into_node_unchecked(block_buf).await?;
+            block_addrs.push((block_key, block_addr));
+        }
+        if block_addrs.len() == 1 {
+            Ok(block_addrs.pop().expect("key:addr impossibly missing").1)
+        } else {
+            self.branches_from_vec(block_addrs).await
+        }
+    }
+    async fn node(mut self, mut kvs: Kvs) -> Result<Addr, Error> {
         let mut block_addrs = Vec::new();
         let mut block_buf = Vec::new();
         for kv in kvs.into_iter() {
