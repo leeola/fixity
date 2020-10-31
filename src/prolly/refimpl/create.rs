@@ -1,5 +1,3 @@
-//! A [`crate::prolly`] reference implementation.
-
 use {
     crate::{
         prolly::{
@@ -13,7 +11,6 @@ use {
     std::mem,
 };
 
-/// Create a prolly tree with a cursor, optimized for and requiring sorted insertions.
 pub struct Create<'s, S> {
     storage: &'s S,
     roller: Roller,
