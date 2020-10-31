@@ -18,6 +18,8 @@ impl Addr {
         self.0.split_at(ADDR_SHORT_LEN).0
     }
 }
+impl crate::deser::Serialize for Addr {}
+impl crate::deser::Deserialize for Addr {}
 impl std::borrow::Borrow<str> for Addr {
     fn borrow(&self) -> &str {
         self.0.as_str()
@@ -65,6 +67,8 @@ pub enum Scalar {
     Addr(Addr),
     Uint32(u32),
 }
+impl crate::deser::Serialize for Scalar {}
+impl crate::deser::Deserialize for Scalar {}
 impl From<u32> for Scalar {
     fn from(t: u32) -> Self {
         Self::Uint32(t)
@@ -88,6 +92,8 @@ impl fmt::Display for Scalar {
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Key(pub Value);
+impl crate::deser::Serialize for Key {}
+impl crate::deser::Deserialize for Key {}
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -112,6 +118,8 @@ pub enum Value {
     Uint32(u32),
     Vec(Vec<Scalar>),
 }
+impl crate::deser::Serialize for Value {}
+impl crate::deser::Deserialize for Value {}
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

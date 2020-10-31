@@ -1,5 +1,5 @@
 use {
-    crate::{storage::Error as StorageError, value::Addr},
+    crate::{deser, storage::Error as StorageError, value::Addr},
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -24,6 +24,8 @@ pub enum Error {
         but was expected to write {expected} bytes"
     )]
     IncompleteWrite { got: usize, expected: usize },
+    #[error("deser error: `{0}`")]
+    Deser(#[from] deser::Error),
     #[cfg(feature = "serde_json")]
     #[error("serde json error: `{0}`")]
     SerdeJson(#[from] serde_json::error::Error),

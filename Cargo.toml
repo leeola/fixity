@@ -6,7 +6,8 @@ edition = "2018"
 
 [features]
 default = [
-  "borsh",
+  "deser_borsh",
+  "deser_json",
   # Enabling more costly debug checks for all initial prototypes.
   # Benchmarking should be run without default features for this
   # reason.
@@ -21,18 +22,19 @@ debug_checks = []
 # various states of abandon. This lib should not be trusted until we
 # can fork and establish some trust.
 deser_json = ["serde", "cjson", "serde_json"]
-# deser_cbor = ["serde", "serde_cbor"]
 deser_borsh = ["borsh"]
 # An eventual cbor comparison encoding.
 
 [dependencies]
+# feature: deser_borsh
 borsh = { version = "0.7", optional = true }
-#serde_cbor = { version = "0.11", optional = true }
-# feature: serialize_json
+# feature: deser_json
 cjson= { version = "0.1", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
-# normal, non-optional deps.
+# optionally include structopt on config structures for CLI lib users.
+structopt = { version = "0.3", optional = true }
+# non-feature oriented deps.
 fbuzhash = { path = "./fbuzhash" }
 log = "0.4"
 thiserror = "1.0.21"
@@ -42,7 +44,6 @@ multibase = "0.8"
 async-trait = "0.1"
 speedy = "0.7.0"
 tokio = { version = "0.2.22", features = ["macros", "fs", "io-util"] }
-structopt = { version = "0.3", optional = true }
 async-recursion = "0.3.1"
 lru = "0.6.0"
 
