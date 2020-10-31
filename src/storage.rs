@@ -8,7 +8,7 @@ pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
 
 #[async_trait::async_trait]
-pub trait StorageRead {
+pub trait StorageRead: Sync {
     async fn read<S, W>(&self, hash: S, w: W) -> Result<(), Error>
     where
         S: AsRef<str> + 'static + Send,

@@ -172,7 +172,7 @@ pub mod test {
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
-    async fn poc() {
+    async fn create_without_failure() {
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
         if std::env::var("RUST_LOG").is_err() {
