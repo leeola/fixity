@@ -9,7 +9,7 @@ use {
         value::{Key, Value},
         Addr, Error,
     },
-    std::mem,
+    std::{collections::HashMap, mem},
 };
 pub struct Create<'s, S> {
     storage: &'s S,
@@ -48,6 +48,19 @@ where
                 message: "cannot construct prolly tree with non-unique keys".to_owned(),
             });
         }
+        self.recursive_from_kvs(KeyValues::from(kvs)).await
+    }
+    /// Constructs a prolly tree based on the given `Key, Value` pairs.
+    ///
+    /// # Errors
+    ///
+    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// an error is returned.
+    pub async fn from_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
+        let mut kvs = kvs.into_iter().collect::<Vec<_>>();
+        // Ensure the kvs are sorted - as the trees require sorting.
+        // unstable should be fine, since the keys will (soon) be unique.
+        kvs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         self.recursive_from_kvs(KeyValues::from(kvs)).await
     }
     #[async_recursion::async_recursion]
