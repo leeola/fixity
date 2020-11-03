@@ -20,11 +20,14 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub fn map<P>(&self, _path: P) -> Map<S>
+    pub fn map<'f, P>(&'f mut self, _path: P) -> Guard<'f, S, Map<'f, S>>
     where
         P: AsRef<str>,
     {
-        unimplemented!("map")
+        Guard {
+            fixity: &mut self,
+            inner: todo!("map inner"),
+        }
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
@@ -39,6 +42,10 @@ where
         log::trace!("{} bytes written to {}", n, addr);
         Ok(addr)
     }
+}
+pub struct Guard<'f, S, T> {
+    fixity: &'f mut Fixity<S>,
+    inner: T,
 }
 pub struct Builder<S> {
     storage: Option<S>,
