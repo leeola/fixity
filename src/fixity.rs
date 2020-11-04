@@ -20,11 +20,11 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub fn map<'f, P>(&'f mut self, _path: P) -> HeadGuard<'f, S, Map<'f, S>>
+    pub fn map<'f, P>(&'f mut self, _path: P) -> RefGuard<'f, S, Map<'f, S>>
     where
         P: AsRef<str>,
     {
-        HeadGuard {
+        RefGuard {
             fixity: self,
             inner: todo!("map inner"),
         }
@@ -43,7 +43,7 @@ where
         Ok(addr)
     }
 }
-pub struct HeadGuard<'f, S, T> {
+pub struct RefGuard<'f, S, T> {
     fixity: &'f mut Fixity<S>,
     inner: T,
 }
