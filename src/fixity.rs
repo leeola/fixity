@@ -20,12 +20,12 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub fn map<'f, P>(&'f mut self, _path: P) -> Guard<'f, S, Map<'f, S>>
+    pub fn map<'f, P>(&'f mut self, _path: P) -> HeadGuard<'f, S, Map<'f, S>>
     where
         P: AsRef<str>,
     {
-        Guard {
-            fixity: &mut self,
+        HeadGuard {
+            fixity: self,
             inner: todo!("map inner"),
         }
     }
@@ -43,9 +43,20 @@ where
         Ok(addr)
     }
 }
-pub struct Guard<'f, S, T> {
+pub struct HeadGuard<'f, S, T> {
     fixity: &'f mut Fixity<S>,
     inner: T,
+}
+impl<'f, S, T> std::ops::Deref for HeadGuard<'f, S, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+impl<'f, S, T> std::ops::DerefMut for HeadGuard<'f, S, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }
 pub struct Builder<S> {
     storage: Option<S>,
