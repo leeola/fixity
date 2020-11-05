@@ -66,6 +66,43 @@ impl fmt::Display for Addr {
 pub enum Scalar {
     Addr(Addr),
     Uint32(u32),
+    String(String),
+}
+impl Scalar {
+    /// An experimental implementation to parse a [`Scalar`] value from a string
+    /// focused interface; eg parsing values from the command line.
+    ///
+    /// This differs from a `FromStr` implementation in that there may be multiple
+    /// interfaces tailored towards different user interfaces.
+    ///
+    /// This is a likely candidate to move out of the core library.
+    //
+    // TODO: improve the general parsing behavior. I'd like to defer
+    // almost entirely to a proper language, eg JSON values, rather
+    // than reinvent parsing in that nature.
+    pub fn from_implicit_str<S>(s: S) -> Self
+    where
+        S: AsRef<str>,
+    {
+        let s = s.as_ref();
+        // if the type is explicitly defined, use that. This is only important for
+        // Addr's.
+        let mut split = s.splitn(2, ":");
+        match (split.next(), split.next()) {
+            (Some("Addr"), Some(v)) => return Self::Addr(v.into()),
+            (Some("Uint32"), Some(v)) => {
+                if let Ok(v) = v.parse() {
+                    return Self::Uint32(v);
+                }
+            }
+            (Some("String"), Some(v)) => return Self::String(v.to_owned()),
+            _ => {}
+        }
+        if let Ok(v) = s.parse::<u32>() {
+            return Self::Uint32(v);
+        }
+        Self::String(s.to_owned())
+    }
 }
 impl crate::deser::Serialize for Scalar {}
 impl crate::deser::Deserialize for Scalar {}
@@ -79,6 +116,7 @@ impl fmt::Display for Scalar {
         match self {
             Self::Addr(v) => write!(f, "{}", v),
             Self::Uint32(v) => write!(f, "{}", v),
+            Self::String(v) => write!(f, "{}", v),
         }
     }
 }
@@ -116,6 +154,7 @@ where
 pub enum Value {
     Addr(Addr),
     Uint32(u32),
+    String(String),
     Vec(Vec<Scalar>),
 }
 impl crate::deser::Serialize for Value {}
@@ -125,6 +164,7 @@ impl fmt::Display for Value {
         match self {
             Self::Addr(v) => write!(f, "{}", v),
             Self::Uint32(v) => write!(f, "{}", v),
+            Self::String(v) => write!(f, "{}", v),
             Self::Vec(v) => write!(
                 f,
                 "{}",
@@ -210,6 +250,7 @@ where
         match t.into() {
             Scalar::Addr(v) => Self::Addr(v),
             Scalar::Uint32(v) => Self::Uint32(v),
+            Scalar::String(v) => Self::String(v),
         }
     }
 }

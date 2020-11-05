@@ -1,7 +1,7 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{Fixity, StorageWrite},
+    fixity::{value::Scalar, Fixity, StorageWrite},
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -44,11 +44,18 @@ enum RawCommand {
         /// Put with the provided String instead of using Stdin.
         #[structopt(long, short = "i")]
         with_input: Option<String>,
+        /// A Fixity Path, where the last value is a put into the store.
+        ///
+        /// A single value fails.
+        #[structopt(name = "VALUES")]
+        values: Vec<String>,
     },
     // Fetch {},
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("error: {0}")]
+    User(String),
     #[error("fixity error: {0}")]
     Fixity(#[from] fixity::Error),
     #[error("fixity storage error: {0}")]
@@ -81,7 +88,9 @@ async fn main() -> Result<(), Error> {
 
             match cmd {
                 RawCommand::Get { address } => cmd_raw_get(address).await,
-                RawCommand::Put { with_input } => cmd_raw_put(fixi, with_input).await,
+                RawCommand::Put { with_input, values } => {
+                    cmd_raw_put(fixi, with_input, values).await
+                }
             }
         }
         #[cfg(feature = "web")]
@@ -92,10 +101,24 @@ async fn main() -> Result<(), Error> {
 async fn cmd_raw_get(_address: String) -> Result<(), Error> {
     unimplemented!("cmd_raw_get")
 }
-async fn cmd_raw_put<S>(fixi: Fixity<S>, with_input: Option<String>) -> Result<(), Error>
+async fn cmd_raw_put<S>(
+    fixi: Fixity<S>,
+    with_input: Option<String>,
+    values: Vec<String>,
+) -> Result<(), Error>
 where
     S: StorageWrite,
 {
+    if values.len() <= 1 {
+        return Err(Error::User("requires two or more values".into()));
+    }
+
+    let values = values
+        .into_iter()
+        .map(Scalar::from_implicit_str)
+        .collect::<Vec<_>>();
+    todo!("values");
+
     let addr = if let Some(s) = with_input {
         fixi.put_reader(s.as_bytes()).await?
     } else {
