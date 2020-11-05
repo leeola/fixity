@@ -21,8 +21,12 @@ struct Opt {
 /// which may or may not be managed by StructOpt.
 #[derive(Debug, StructOpt)]
 struct FixiOpt {
-    #[structopt(long, default_value = "_storage")]
-    pub storage_path: PathBuf,
+    #[structopt(long, env = "FIXI_DIR")]
+    pub fixi_dir: PathBuf,
+    #[structopt(long, env = "FIXI_WORKSPACE", default_value = "default")]
+    pub workspace: String,
+    #[structopt(long, env = "FIXI_STORAGE_PATH")]
+    pub storage_path: Option<PathBuf>,
 }
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -57,12 +61,20 @@ async fn main() -> Result<(), Error> {
     match opt.cmd {
         Command::Raw(cmd) => {
             let fixi = {
+                let FixiOpt {
+                    storage_path,
+                    fixi_dir,
+                    workspace,
+                } = opt.fixi_opt;
+                let storage_path = storage_path.unwrap_or_else(|| fixi_dir.join("storage"));
                 let s = fixity::storage::fs::Fs::new(fixity::storage::fs::Config {
-                    path: opt.fixi_opt.storage_path.clone(),
+                    path: storage_path,
                 })
                 .await?;
                 Fixity::new()
+                    .with_fixity_dir(fixi_dir)
                     .with_storage(s)
+                    .with_workspace(workspace)
                     .build()
                     .expect("constructing Fixity")
             };

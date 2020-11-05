@@ -4,12 +4,15 @@ pub use map::Map;
 use {
     crate::{Error, StorageWrite},
     multibase::Base,
+    std::path::PathBuf,
     tokio::io::{self, AsyncRead},
 };
 
 // TODO: move to fixity.rs
 pub struct Fixity<S> {
     storage: S,
+    fixity_dir: PathBuf,
+    workspace: String,
 }
 impl<S> Fixity<S> {
     pub fn new() -> Builder<S> {
@@ -47,23 +50,29 @@ pub struct RefGuard<'f, S, T> {
     fixity: &'f mut Fixity<S>,
     inner: T,
 }
-impl<'f, S, T> std::ops::Deref for HeadGuard<'f, S, T> {
+impl<'f, S, T> std::ops::Deref for RefGuard<'f, S, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
-impl<'f, S, T> std::ops::DerefMut for HeadGuard<'f, S, T> {
+impl<'f, S, T> std::ops::DerefMut for RefGuard<'f, S, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 pub struct Builder<S> {
+    fixity_dir: Option<PathBuf>,
     storage: Option<S>,
+    workspace: Option<String>,
 }
 impl<S> Default for Builder<S> {
     fn default() -> Self {
-        Self { storage: None }
+        Self {
+            storage: None,
+            fixity_dir: None,
+            workspace: None,
+        }
     }
 }
 impl<S> Builder<S> {
@@ -71,11 +80,29 @@ impl<S> Builder<S> {
         self.storage.replace(storage);
         self
     }
+    pub fn with_fixity_dir(mut self, fixity_dir: PathBuf) -> Self {
+        self.fixity_dir.replace(fixity_dir);
+        self
+    }
+    pub fn with_workspace(mut self, workspace: String) -> Self {
+        self.workspace.replace(workspace);
+        self
+    }
     pub fn build(self) -> Result<Fixity<S>, Error> {
+        let fixity_dir = self.fixity_dir.ok_or_else(|| Error::Builder {
+            message: "missing fixity_dir".into(),
+        })?;
         let storage = self.storage.ok_or_else(|| Error::Builder {
             message: "missing storage".into(),
         })?;
-        Ok(Fixity { storage })
+        let workspace = self.workspace.ok_or_else(|| Error::Builder {
+            message: "missing workspace".into(),
+        })?;
+        Ok(Fixity {
+            storage,
+            fixity_dir,
+            workspace,
+        })
     }
 }
 
