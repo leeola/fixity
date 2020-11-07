@@ -2,13 +2,15 @@ pub mod map;
 pub use map::Map;
 
 use {
-    crate::{Error, StorageWrite},
+    crate::{
+        value::{Key, Path},
+        Error, StorageWrite,
+    },
     multibase::Base,
     std::path::PathBuf,
     tokio::io::{self, AsyncRead},
 };
 
-// TODO: move to fixity.rs
 pub struct Fixity<S> {
     storage: S,
     fixity_dir: PathBuf,

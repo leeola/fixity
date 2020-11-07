@@ -9,7 +9,7 @@ pub use {
     self::{
         error::{Error, Result},
         fixity::Fixity,
-        value::Addr,
+        value::{Addr, Path},
     },
     storage::{Storage, StorageRead, StorageWrite},
 };

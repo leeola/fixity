@@ -1,7 +1,7 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{value::Scalar, Fixity, StorageWrite},
+    fixity::{value::Value, Fixity, Path, StorageWrite},
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -44,11 +44,11 @@ enum RawCommand {
         /// Put with the provided String instead of using Stdin.
         #[structopt(long, short = "i")]
         with_input: Option<String>,
-        /// A Fixity Path, where the last value is a put into the store.
-        ///
-        /// A single value fails.
-        #[structopt(name = "VALUES")]
-        values: Vec<String>,
+        /// Construct a Fixity Path from the provided keys.
+        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
+        path: Path,
+        #[structopt(name = "VALUE", parse(try_from_str = Value::from_cli_str))]
+        value: Option<Value>,
     },
     // Fetch {},
 }
@@ -88,9 +88,11 @@ async fn main() -> Result<(), Error> {
 
             match cmd {
                 RawCommand::Get { address } => cmd_raw_get(address).await,
-                RawCommand::Put { with_input, values } => {
-                    cmd_raw_put(fixi, with_input, values).await
-                }
+                RawCommand::Put {
+                    with_input,
+                    path,
+                    value,
+                } => cmd_raw_put(fixi, with_input, path, value).await,
             }
         }
         #[cfg(feature = "web")]
@@ -104,21 +106,12 @@ async fn cmd_raw_get(_address: String) -> Result<(), Error> {
 async fn cmd_raw_put<S>(
     fixi: Fixity<S>,
     with_input: Option<String>,
-    values: Vec<String>,
+    path: Path,
+    value: Option<Value>,
 ) -> Result<(), Error>
 where
     S: StorageWrite,
 {
-    if values.len() <= 1 {
-        return Err(Error::User("requires two or more values".into()));
-    }
-
-    let values = values
-        .into_iter()
-        .map(Scalar::from_implicit_str)
-        .collect::<Vec<_>>();
-    todo!("values");
-
     let addr = if let Some(s) = with_input {
         fixi.put_reader(s.as_bytes()).await?
     } else {
