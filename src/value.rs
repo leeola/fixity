@@ -77,6 +77,11 @@ impl From<u32> for Scalar {
         Self::Uint32(t)
     }
 }
+impl From<&str> for Scalar {
+    fn from(t: &str) -> Self {
+        Self::String(t.to_owned())
+    }
+}
 impl fmt::Display for Scalar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -220,5 +225,42 @@ where
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Path(Vec<Key>);
+impl Path {
+    /// Construct a new [`Path`].
+    pub fn new(keys: Vec<Key>) -> Self {
+        Self(keys)
+    }
+    /// Push the `T` to this `Path`.
+    pub fn push<T>(&mut self, t: T)
+    where
+        T: Into<Key>,
+    {
+        self.0.push(t.into())
+    }
+    /// A helper to push to the `Path` in an owned, chained fashion.
+    pub fn push_chain<T>(mut self, t: T) -> Self
+    where
+        T: Into<Key>,
+    {
+        self.push(t);
+        self
+    }
+}
+impl<T> From<T> for Path
+where
+    T: Into<Key>,
+{
+    fn from(t: T) -> Self {
+        Self::new(vec![t.into()])
+    }
+}
+impl<T> From<&[T]> for Path
+where
+    T: Clone + Into<Key>,
+{
+    fn from(t: &[T]) -> Self {
+        Self::new(t.iter().map(|t| t.clone().into()).collect())
+    }
+}

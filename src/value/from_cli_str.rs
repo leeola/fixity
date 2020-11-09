@@ -2,9 +2,10 @@ use {
     super::{Addr, Key, Path, Scalar, Value},
     nom::{
         branch::alt,
-        bytes::complete::tag_no_case,
-        character::complete::{alphanumeric1, digit1},
+        bytes::complete::{escaped, tag, tag_no_case, take_until},
+        character::complete::{alphanumeric1, digit1, one_of},
         combinator::{map, map_res},
+        multi::separated_list1,
         sequence::preceded,
         IResult,
     },
@@ -86,6 +87,25 @@ fn parse_typed_scalar(input: &str) -> IResult<&str, Scalar> {
 fn parse_scalar(input: &str) -> IResult<&str, Scalar> {
     alt((parse_typed_scalar, parse_untyped_scalar))(input)
 }
+fn scalar<'a, F>(mut f: F) -> impl FnMut(&'a str) -> IResult<&'a str, Scalar>
+where
+    F: FnMut(&'a str) -> IResult<&'a str, &'a str>,
+{
+    move |input| {
+        let (input, scalar_input) = f(input)?;
+        let (_, scalar) = alt((parse_typed_scalar, parse_untyped_scalar))(scalar_input)?;
+        Ok((input, scalar))
+    }
+}
+fn parse_path(input: &str) -> IResult<&str, Path> {
+    map(
+        separated_list1(
+            tag("/"),
+            scalar(escaped(take_until("/"), '\\', one_of("/"))),
+        ),
+        |v: Vec<Scalar>| Path::new(v.into_iter().map(Key::from).collect()),
+    )(input)
+}
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -115,5 +135,19 @@ pub mod test {
             Ok(("", Scalar::String("foo".into()))),
         );
         assert_eq!(parse_scalar("u32:5"), Ok(("", Scalar::Uint32(5))));
+        assert_eq!(
+            parse_scalar("foo/bar"),
+            Ok(("", Scalar::String("foo/bar".into())))
+        );
+    }
+    #[test]
+    fn path() {
+        assert_eq!(parse_path("5"), Ok(("", Path::from(5u32))),);
+        assert_eq!(
+            parse_path("5/foo"),
+            Ok(("", Path::from(5u32).push_chain("foo"))),
+        );
+        assert_eq!(parse_path("foo\\/bar"), Ok(("", Path::from("foo/bar"))),);
+        assert_eq!(parse_path("5\\/foo"), Ok(("", Path::from("5/foo"))),);
     }
 }
