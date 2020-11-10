@@ -43,11 +43,14 @@ enum RawCommand {
     Put {
         /// Put with the provided String instead of using Stdin.
         #[structopt(long, short = "i")]
-        with_input: Option<String>,
+        stdin: bool,
         /// Construct a Fixity Path from the provided keys.
         #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
         path: Path,
-        #[structopt(name = "VALUE", parse(try_from_str = Value::from_cli_str))]
+        #[structopt(
+            name = "VALUE", parse(try_from_str = Value::from_cli_str),
+            required_if("stdin", "false"),
+        )]
         value: Option<Value>,
     },
     // Fetch {},
@@ -65,6 +68,7 @@ pub enum Error {
 async fn main() -> Result<(), Error> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
+    dbg!(&opt);
     match opt.cmd {
         Command::Raw(cmd) => {
             let fixi = {
@@ -88,11 +92,9 @@ async fn main() -> Result<(), Error> {
 
             match cmd {
                 RawCommand::Get { address } => cmd_raw_get(address).await,
-                RawCommand::Put {
-                    with_input,
-                    path,
-                    value,
-                } => cmd_raw_put(fixi, with_input, path, value).await,
+                RawCommand::Put { stdin, path, value } => {
+                    cmd_raw_put(fixi, stdin, path, value).await
+                }
             }
         }
         #[cfg(feature = "web")]
@@ -105,18 +107,19 @@ async fn cmd_raw_get(_address: String) -> Result<(), Error> {
 }
 async fn cmd_raw_put<S>(
     fixi: Fixity<S>,
-    with_input: Option<String>,
+    with_stdin: bool,
     path: Path,
     value: Option<Value>,
 ) -> Result<(), Error>
 where
     S: StorageWrite,
 {
-    let addr = if let Some(s) = with_input {
-        fixi.put_reader(s.as_bytes()).await?
-    } else {
-        fixi.put_reader(tokio::io::stdin()).await?
-    };
-    println!("{}", addr);
+    todo!();
+    // let addr = if let Some(s) = with_stdin {
+    //     fixi.put_reader(s.as_bytes()).await?
+    // } else {
+    //     fixi.put_reader(tokio::io::stdin()).await?
+    // };
+    // println!("{}", addr);
     Ok(())
 }
