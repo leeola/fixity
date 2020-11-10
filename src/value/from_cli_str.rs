@@ -2,12 +2,15 @@ use {
     super::{Addr, Key, Path, Scalar, Value},
     nom::{
         branch::alt,
-        bytes::complete::{escaped, tag, tag_no_case, take_until},
+        bytes::complete::{
+            escaped, escaped_transform, is_not, tag, tag_no_case, take_until, take_while,
+        },
         character::complete::{alphanumeric1, digit1, one_of},
-        combinator::{map, map_res},
+        combinator::{all_consuming, map, map_res, rest, value},
+        error::ParseError,
         multi::separated_list1,
         sequence::preceded,
-        IResult,
+        IResult, Parser,
     },
 };
 
@@ -57,9 +60,8 @@ pub enum Error {
     #[error("invalid u32: `{0}`")]
     InvalidUint32(String),
 }
-
 fn parse_uint32(input: &str) -> IResult<&str, u32> {
-    map_res(digit1, |s| u32::from_str_radix(s, 10))(input)
+    map_res(all_consuming(digit1), |s| u32::from_str_radix(s, 10))(input)
 }
 fn parse_string(input: &str) -> IResult<&str, String> {
     Ok(("", input.to_owned()))
@@ -67,7 +69,7 @@ fn parse_string(input: &str) -> IResult<&str, String> {
 fn parse_addr(input: &str) -> IResult<&str, Addr> {
     // all addrs are alphanum currently, so we may as well
     // enforce it.
-    map(alphanumeric1, Addr::from)(input)
+    map(all_consuming(digit1), Addr::from)(input)
 }
 fn parse_untyped_scalar(input: &str) -> IResult<&str, Scalar> {
     alt((
@@ -87,23 +89,21 @@ fn parse_typed_scalar(input: &str) -> IResult<&str, Scalar> {
 fn parse_scalar(input: &str) -> IResult<&str, Scalar> {
     alt((parse_typed_scalar, parse_untyped_scalar))(input)
 }
-fn scalar<'a, F>(mut f: F) -> impl FnMut(&'a str) -> IResult<&'a str, Scalar>
-where
-    F: FnMut(&'a str) -> IResult<&'a str, &'a str>,
-{
-    move |input| {
-        let (input, scalar_input) = f(input)?;
-        let (_, scalar) = alt((parse_typed_scalar, parse_untyped_scalar))(scalar_input)?;
-        Ok((input, scalar))
-    }
-}
 fn parse_path(input: &str) -> IResult<&str, Path> {
     map(
         separated_list1(
             tag("/"),
-            scalar(escaped(take_until("/"), '\\', one_of("/"))),
+            map_res(
+                escaped_transform(is_not("/\\"), '\\', value("/", tag("/"))),
+                |s: String| match parse_scalar(s.as_str()) {
+                    Ok((_, scalar)) => Ok(Key::from(scalar)),
+                    // Error should be impossible, since any string is a valid scalar
+                    // as a last resort.
+                    Err(_) => Err(()),
+                },
+            ),
         ),
-        |v: Vec<Scalar>| Path::new(v.into_iter().map(Key::from).collect()),
+        Path::new,
     )(input)
 }
 #[cfg(test)]
@@ -149,5 +149,9 @@ pub mod test {
         );
         assert_eq!(parse_path("foo\\/bar"), Ok(("", Path::from("foo/bar"))),);
         assert_eq!(parse_path("5\\/foo"), Ok(("", Path::from("5/foo"))),);
+        assert_eq!(
+            parse_path("5/foo/bar\\/"),
+            Ok(("", Path::from(5u32).push_chain("foo").push_chain("bar/"))),
+        );
     }
 }
