@@ -2,36 +2,24 @@ use {
     super::{Addr, Key, Path, Scalar, Value},
     nom::{
         branch::alt,
-        bytes::complete::{
-            escaped, escaped_transform, is_not, tag, tag_no_case, take_until, take_while,
-        },
-        character::complete::{alphanumeric1, digit1, one_of},
-        combinator::{all_consuming, map, map_res, rest, value},
-        error::ParseError,
+        bytes::complete::{escaped_transform, is_not, tag, tag_no_case},
+        character::complete::digit1,
+        combinator::{all_consuming, map, map_res, value},
         multi::separated_list1,
         sequence::preceded,
         IResult, Parser,
     },
 };
 
-impl Scalar {
-    /// An experimental implementation to parse a [`Scalar`] value from a string
-    /// focused interface; eg parsing values from the command line.
-    ///
-    /// This differs from a `FromStr` implementation in that there may be multiple
-    /// interfaces tailored towards different user interfaces.
-    pub fn from_cli_str(__s: &str) -> Result<Self, Error> {
-        todo!("Scalar from cli str")
-    }
-}
 impl Value {
     /// An experimental implementation to parse a [`Value`] value from a string
     /// focused interface; eg parsing values from the command line.
     ///
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
-    pub fn from_cli_str(__s: &str) -> Result<Self, Error> {
-        todo!("Value from cli str")
+    pub fn from_cli_str(s: &str) -> Result<Self, Error> {
+        let (_, scalar) = parse_scalar(s).map_err(|err| Error::InvalidValue(format!("{}", err)))?;
+        Ok(scalar.into())
     }
 }
 impl Key {
@@ -40,8 +28,9 @@ impl Key {
     ///
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
-    pub fn from_cli_str(__s: &str) -> Result<Self, Error> {
-        todo!("Key from cli str")
+    pub fn from_cli_str(s: &str) -> Result<Self, Error> {
+        let (_, scalar) = parse_scalar(s).map_err(|err| Error::InvalidKey(format!("{}", err)))?;
+        Ok(scalar.into())
     }
 }
 impl Path {
@@ -50,15 +39,19 @@ impl Path {
     ///
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
-    pub fn from_cli_str(__s: &str) -> Result<Self, Error> {
-        todo!("Path from cli str")
+    pub fn from_cli_str(s: &str) -> Result<Self, Error> {
+        let (_, path) = parse_path(s).map_err(|err| Error::InvalidPath(format!("{}", err)))?;
+        Ok(path)
     }
 }
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("invalid u32: `{0}`")]
-    InvalidUint32(String),
+    #[error("unable to create Key from cli: `{0}`")]
+    InvalidKey(String),
+    #[error("unable to create Value from cli: `{0}`")]
+    InvalidValue(String),
+    #[error("unable to create Path from cli: `{0}`")]
+    InvalidPath(String),
 }
 fn parse_uint32(input: &str) -> IResult<&str, u32> {
     map_res(all_consuming(digit1), |s| u32::from_str_radix(s, 10))(input)
@@ -87,10 +80,10 @@ fn parse_typed_scalar(input: &str) -> IResult<&str, Scalar> {
     ))(input)
 }
 fn parse_scalar(input: &str) -> IResult<&str, Scalar> {
-    alt((parse_typed_scalar, parse_untyped_scalar))(input)
+    all_consuming(alt((parse_typed_scalar, parse_untyped_scalar)))(input)
 }
 fn parse_path(input: &str) -> IResult<&str, Path> {
-    map(
+    all_consuming(map(
         separated_list1(
             tag("/"),
             map_res(
@@ -104,7 +97,7 @@ fn parse_path(input: &str) -> IResult<&str, Path> {
             ),
         ),
         Path::new,
-    )(input)
+    ))(input)
 }
 #[cfg(test)]
 pub mod test {
