@@ -41,15 +41,16 @@ enum RawCommand {
         address: String,
     },
     Put {
-        /// Put with the provided String instead of using Stdin.
+        /// Write stdin to the given [`Path`].
         #[structopt(long, short = "i")]
         stdin: bool,
-        /// Construct a Fixity Path from the provided keys.
+        /// The destination to write a `Value` or Bytes to.
         #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
         path: Path,
+        /// Write the [`Value`] to the given [`Path`].
         #[structopt(
             name = "VALUE", parse(try_from_str = Value::from_cli_str),
-            required_if("stdin", "false"),
+            required_unless("stdin"),
         )]
         value: Option<Value>,
     },
@@ -68,7 +69,6 @@ pub enum Error {
 async fn main() -> Result<(), Error> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
-    dbg!(&opt);
     match opt.cmd {
         Command::Raw(cmd) => {
             let fixi = {
@@ -92,9 +92,11 @@ async fn main() -> Result<(), Error> {
 
             match cmd {
                 RawCommand::Get { address } => cmd_raw_get(address).await,
-                RawCommand::Put { stdin, path, value } => {
-                    cmd_raw_put(fixi, stdin, path, value).await
-                }
+                RawCommand::Put { stdin, path, value } => match (stdin, value) {
+                    (false, Some(value)) => cmd_raw_put_value(fixi, path, value).await,
+                    (true, None) => cmd_raw_put_stdin(fixi, path).await,
+                    _ => unreachable!("Structopt should be configured to make this unreachable"),
+                },
             }
         }
         #[cfg(feature = "web")]
@@ -105,21 +107,18 @@ async fn main() -> Result<(), Error> {
 async fn cmd_raw_get(_address: String) -> Result<(), Error> {
     unimplemented!("cmd_raw_get")
 }
-async fn cmd_raw_put<S>(
-    fixi: Fixity<S>,
-    with_stdin: bool,
-    path: Path,
-    value: Option<Value>,
-) -> Result<(), Error>
+async fn cmd_raw_put_stdin<S>(fixi: Fixity<S>, path: Path) -> Result<(), Error>
 where
     S: StorageWrite,
 {
-    todo!();
-    // let addr = if let Some(s) = with_stdin {
-    //     fixi.put_reader(s.as_bytes()).await?
-    // } else {
-    //     fixi.put_reader(tokio::io::stdin()).await?
-    // };
-    // println!("{}", addr);
+    let addr = fixi.put_reader(tokio::io::stdin()).await?;
+    println!("{}", addr);
+    Ok(())
+}
+async fn cmd_raw_put_value<S>(fixi: Fixity<S>, path: Path, value: Value) -> Result<(), Error>
+where
+    S: StorageWrite,
+{
+    todo!("put value");
     Ok(())
 }
