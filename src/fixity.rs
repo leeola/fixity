@@ -3,18 +3,58 @@ pub use map::Map;
 
 use {
     crate::{
+        error::InitError,
+        storage::{fs::Config as FsConfig, Fs, Storage},
         value::{Key, Path},
         Error, StorageWrite,
     },
     multibase::Base,
     std::path::PathBuf,
-    tokio::io::{self, AsyncRead},
+    tokio::{
+        fs::{self},
+        io::{self, AsyncRead},
+    },
 };
+
+#[derive(Debug)]
+pub struct InitConfig {
+    storage_dir: PathBuf,
+}
 
 pub struct Fixity<S> {
     storage: S,
     fixity_dir: PathBuf,
     workspace: String,
+}
+impl Fixity<Fs> {
+    pub async fn init(
+        fixity_dir: PathBuf,
+        workspace: String,
+        fs_config: FsConfig,
+    ) -> Result<Self, Error> {
+        fs::create_dir(&fixity_dir)
+            .await
+            .map_err(|source| InitError::CreateDir { source })?;
+        let storage = Fs::new(fs_config)
+            .await
+            .map_err(|source| InitError::Storage { source })?;
+        Ok(Self {
+            fixity_dir,
+            workspace,
+            storage,
+        })
+    }
+    pub async fn open(
+        fixity_dir: PathBuf,
+        workspace: String,
+        fs_config: FsConfig,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            fixity_dir,
+            workspace,
+            storage: Fs::new(fs_config).await?,
+        })
+    }
 }
 impl<S> Fixity<S> {
     pub fn new() -> Builder<S> {

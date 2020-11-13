@@ -1,7 +1,7 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{value::Value, Fixity, Path, StorageWrite},
+    fixity::{storage::Fs, value::Value, Fixity, Path, StorageWrite},
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -78,16 +78,12 @@ async fn main() -> Result<(), Error> {
                     workspace,
                 } = opt.fixi_opt;
                 let storage_path = storage_path.unwrap_or_else(|| fixi_dir.join("storage"));
-                let s = fixity::storage::fs::Fs::new(fixity::storage::fs::Config {
-                    path: storage_path,
-                })
-                .await?;
-                Fixity::new()
-                    .with_fixity_dir(fixi_dir)
-                    .with_storage(s)
-                    .with_workspace(workspace)
-                    .build()
-                    .expect("constructing Fixity")
+                fixity::Fixity::<Fs>::open(
+                    fixi_dir,
+                    workspace,
+                    fixity::storage::fs::Config { path: storage_path },
+                )
+                .await?
             };
 
             match cmd {

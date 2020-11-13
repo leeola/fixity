@@ -7,6 +7,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("unhandled error: `{0}`")]
     Unhandled(String),
+    #[error("fixity failed to initialize a new repository: {source}")]
+    InitError {
+        #[from]
+        source: InitError,
+    },
+    #[error("a fixity repository was not found")]
+    RepositoryNotFound,
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]
@@ -50,4 +57,11 @@ impl From<cjson::Error> for Error {
     fn from(err: cjson::Error) -> Self {
         Self::Cjson(err)
     }
+}
+#[derive(Debug, thiserror::Error)]
+pub enum InitError {
+    #[error("failed creating fixity directory: `{source}`")]
+    CreateDir { source: io::Error },
+    #[error("failed setting up storage: `{source}`")]
+    Storage { source: StorageError },
 }
