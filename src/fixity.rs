@@ -16,11 +16,6 @@ use {
     },
 };
 
-#[derive(Debug)]
-pub struct InitConfig {
-    storage_dir: PathBuf,
-}
-
 pub struct Fixity<S> {
     storage: S,
     fixity_dir: PathBuf,

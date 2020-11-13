@@ -25,11 +25,12 @@ struct FixiOpt {
     pub fixi_dir: PathBuf,
     #[structopt(long, env = "FIXI_WORKSPACE", default_value = "default")]
     pub workspace: String,
-    #[structopt(long, env = "FIXI_STORAGE_PATH")]
-    pub storage_path: Option<PathBuf>,
+    #[structopt(long, env = "FIXI_STORAGE_DIR")]
+    pub storage_dir: Option<PathBuf>,
 }
 #[derive(Debug, StructOpt)]
 enum Command {
+    Init,
     Raw(RawCommand),
     #[cfg(feature = "web")]
     Web(WebConfig),
@@ -69,23 +70,25 @@ pub enum Error {
 async fn main() -> Result<(), Error> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
+
+    let FixiOpt {
+        fixi_dir,
+        workspace,
+        storage_dir,
+    } = opt.fixi_opt;
+    let storage_dir = storage_dir.unwrap_or_else(|| fixi_dir.join("storage"));
+
     match opt.cmd {
+        Command::Init => cmd_init(fixi_dir, workspace, storage_dir).await,
         Command::Raw(cmd) => {
             let fixi = {
-                let FixiOpt {
-                    storage_path,
-                    fixi_dir,
-                    workspace,
-                } = opt.fixi_opt;
-                let storage_path = storage_path.unwrap_or_else(|| fixi_dir.join("storage"));
                 fixity::Fixity::<Fs>::open(
                     fixi_dir,
                     workspace,
-                    fixity::storage::fs::Config { path: storage_path },
+                    fixity::storage::fs::Config { path: storage_dir },
                 )
                 .await?
             };
-
             match cmd {
                 RawCommand::Get { address } => cmd_raw_get(address).await,
                 RawCommand::Put { stdin, path, value } => match (stdin, value) {
@@ -99,6 +102,15 @@ async fn main() -> Result<(), Error> {
         Command::Web(c) => unimplemented!("web serve"),
         // Command::Web(c) => fixi_web::serve(c).await,
     }
+}
+async fn cmd_init(fixi_dir: PathBuf, workspace: String, storage_dir: PathBuf) -> Result<(), Error> {
+    let _ = fixity::Fixity::<Fs>::init(
+        fixi_dir,
+        workspace,
+        fixity::storage::fs::Config { path: storage_dir },
+    )
+    .await?;
+    Ok(())
 }
 async fn cmd_raw_get(_address: String) -> Result<(), Error> {
     unimplemented!("cmd_raw_get")
