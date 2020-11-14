@@ -22,6 +22,7 @@ pub struct Fixity<S> {
     workspace: String,
 }
 impl Fixity<Fs> {
+    /// Initialize a new Fixity repository.
     pub async fn init(
         fixity_dir: PathBuf,
         workspace: String,
@@ -39,6 +40,7 @@ impl Fixity<Fs> {
             storage,
         })
     }
+    /// Open an existing Fixity repository.
     pub async fn open(
         fixity_dir: PathBuf,
         workspace: String,
@@ -60,14 +62,13 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub fn map<'f, P>(&'f mut self, _path: P) -> RefGuard<'f, S, Map<'f, S>>
-    where
-        P: AsRef<str>,
-    {
-        RefGuard {
+    pub fn map<'f, P>(&'f mut self, path: Path) -> Result<RefGuard<'f, S, Map<'f, S>>, Error> {
+        // // Temporarily only support a single key, ie not a path.
+        // let key = path.first()
+        Ok(RefGuard {
+            inner: Map::new(&self.storage, None),
             fixity: self,
-            inner: todo!("map inner"),
-        }
+        })
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where

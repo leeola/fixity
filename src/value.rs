@@ -239,6 +239,10 @@ impl Path {
     {
         self.0.push(t.into())
     }
+    /// Return the first key, if any.
+    pub fn first(&self) -> Option<&Key> {
+        self.0.first()
+    }
     /// A helper to push to the `Path` in an owned, chained fashion.
     pub fn push_chain<T>(mut self, t: T) -> Self
     where
