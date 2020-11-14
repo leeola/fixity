@@ -47,7 +47,7 @@ impl<'s, S> Map<'s, S>
 where
     S: StorageWrite,
 {
-    pub async fn commit(&mut self) -> Result<Addr, Error> {
+    pub async fn flush(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.stage, HashMap::new())
             .into_iter()
             .collect::<Vec<_>>();

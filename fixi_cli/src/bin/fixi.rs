@@ -123,11 +123,14 @@ where
     println!("{}", addr);
     Ok(())
 }
-async fn cmd_raw_put_value<S>(fixi: Fixity<S>, path: Path, value: Value) -> Result<(), Error>
+async fn cmd_raw_put_value<S>(fixi: Fixity<S>, mut path: Path, value: Value) -> Result<(), Error>
 where
     S: StorageWrite,
 {
-    let map_key = path.pop().expect("CLI interface enforces at least one key");
-    let _map = fixi.map(path).await?;
+    let key = path.pop().expect("CLI interface enforces at least one key");
+    let mut map = fixi.map(path).await?;
+    map.insert(key, value);
+    let addr = map.commit().await?;
+    dbg!(addr);
     Ok(())
 }
