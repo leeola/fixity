@@ -127,6 +127,7 @@ async fn cmd_raw_put_value<S>(fixi: Fixity<S>, path: Path, value: Value) -> Resu
 where
     S: StorageWrite,
 {
-    todo!("put value");
+    let map_key = path.pop().expect("CLI interface enforces at least one key");
+    let _map = fixi.map(path).await?;
     Ok(())
 }

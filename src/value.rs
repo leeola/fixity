@@ -251,6 +251,14 @@ impl Path {
         self.push(t);
         self
     }
+    /// Pop the last [`Key`] from the Path.
+    pub fn pop(&mut self) -> Option<Key> {
+        self.0.pop()
+    }
+    /// Returns `true` is this Path is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 impl<T> From<T> for Path
 where

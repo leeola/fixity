@@ -63,9 +63,9 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub async fn map<'f>(&'f self, path: Option<Path>) -> Result<RefGuard<Map<'f, S>>, Error> {
+    pub async fn map<'f>(&'f self, path: Path) -> Result<RefGuard<Map<'f, S>>, Error> {
         // TODO: recursively load Map's until the Path is met.
-        if path.is_some() {
+        if !path.is_empty() {
             unimplemented!("opening a map with a path");
         }
 
