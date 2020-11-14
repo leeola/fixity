@@ -1,5 +1,5 @@
 use {
-    crate::{deser, storage::Error as StorageError, value::Addr},
+    crate::{deser, head, storage, value::Addr},
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -14,6 +14,11 @@ pub enum Error {
     },
     #[error("a fixity repository was not found")]
     RepositoryNotFound,
+    #[error("fixity to acquire HEAD: {source}")]
+    HeadError {
+        #[from]
+        source: head::Error,
+    },
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]
@@ -21,7 +26,7 @@ pub enum Error {
     #[error("prolly@`{addr}`, error: `{message}`")]
     ProllyAddr { addr: Addr, message: String },
     #[error("store error: `{0}`")]
-    Storage(#[from] StorageError),
+    Storage(#[from] storage::Error),
     #[error("io error: `{0}`")]
     Io(#[from] io::Error),
     #[error("reading input error: `{err}`")]
@@ -63,5 +68,5 @@ pub enum InitError {
     #[error("failed creating fixity directory: `{source}`")]
     CreateDir { source: io::Error },
     #[error("failed setting up storage: `{source}`")]
-    Storage { source: StorageError },
+    Storage { source: storage::Error },
 }
