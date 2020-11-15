@@ -3,9 +3,8 @@ pub use map::Map;
 
 use {
     crate::{
-        error::InitError,
         head::{Guard, Head},
-        storage::{fs::Config as FsConfig, Fs, Storage},
+        storage::{self, fs::Config as FsConfig, Fs, Storage},
         value::{Key, Path},
         Error, StorageWrite,
     },
@@ -32,7 +31,7 @@ impl Fixity<Fs> {
         fs::create_dir(&fixity_dir)
             .await
             .map_err(|source| InitError::CreateDir { source })?;
-        let storage = Fs::new(fs_config)
+        let storage = Fs::init(fs_config)
             .await
             .map_err(|source| InitError::Storage { source })?;
         Ok(Self {
@@ -50,7 +49,7 @@ impl Fixity<Fs> {
         Ok(Self {
             fixity_dir,
             workspace,
-            storage: Fs::new(fs_config).await?,
+            storage: Fs::open(fs_config)?,
         })
     }
 }
@@ -131,7 +130,16 @@ impl<S> Builder<S> {
         })
     }
 }
-
+#[derive(Debug, thiserror::Error)]
+pub enum InitError {
+    #[error("failed creating fixity directory: `{source}`")]
+    CreateDir { source: io::Error },
+    #[error("failed creating new storage: `{source}`")]
+    Storage {
+        #[from]
+        source: storage::Error,
+    },
+}
 /*
 pub mod table;
 pub use table::Table;

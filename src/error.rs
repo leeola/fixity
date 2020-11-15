@@ -1,19 +1,21 @@
 use {
-    crate::{deser, head, storage, value::Addr},
-    std::io,
+    crate::{deser, fixity, head, storage, value::Addr},
+    std::{io, path::PathBuf},
 };
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unhandled error: `{0}`")]
     Unhandled(String),
-    #[error("fixity failed to initialize a new repository: {source}")]
-    InitError {
+    /// An internal error to Fixity where user action is not expected.
+    #[error("fixity encountered an internal error: {source}")]
+    Internal {
         #[from]
-        source: InitError,
+        source: InternalError,
     },
-    #[error("a fixity repository was not found")]
-    RepositoryNotFound,
+    /// The repository was not found a `path`, possibly needs to be initialized.
+    #[error("fixity repository was not found at `{path:?}`")]
+    RepositoryNotFound { path: PathBuf },
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]
@@ -52,16 +54,32 @@ pub enum Error {
     #[error("cjson error: `{0:?}`")]
     Cjson(cjson::Error),
 }
+#[derive(Debug, thiserror::Error)]
+pub enum InternalError {
+    #[error("fixity failed to initialize a new repository: {source}")]
+    Init {
+        #[from]
+        source: fixity::InitError,
+    },
+    #[error("head: `{source}`")]
+    Head {
+        #[from]
+        source: head::Error,
+    },
+}
 #[cfg(feature = "cjson")]
 impl From<cjson::Error> for Error {
     fn from(err: cjson::Error) -> Self {
         Self::Cjson(err)
     }
 }
-#[derive(Debug, thiserror::Error)]
-pub enum InitError {
-    #[error("failed creating fixity directory: `{source}`")]
-    CreateDir { source: io::Error },
-    #[error("failed setting up storage: `{source}`")]
-    Storage { source: storage::Error },
+impl From<head::Error> for Error {
+    fn from(err: head::Error) -> Self {
+        Self::Internal { source: err.into() }
+    }
+}
+impl From<fixity::InitError> for Error {
+    fn from(err: fixity::InitError) -> Self {
+        Self::Internal { source: err.into() }
+    }
 }
