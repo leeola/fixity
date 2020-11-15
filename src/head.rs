@@ -2,7 +2,14 @@ use {
     crate::{Addr, Error},
     std::path::Path,
 };
-pub struct Head {}
+pub enum Ref {
+    Addr(Addr),
+    Ref(String),
+}
+pub struct Head {
+    stage: Addr,
+    head: Ref,
+}
 impl Head {
     pub async fn open(_fixi_dir: &Path, _workspace: &str) -> Result<Self, Error> {
         todo!("open head")
@@ -18,6 +25,9 @@ pub struct Guard<T> {
 impl<T> Guard<T> {
     pub fn new(head: Head, inner: T) -> Self {
         Self { head, inner }
+    }
+    pub async fn stage(&self) -> Result<Addr, Error> {
+        todo!("guard stage")
     }
     pub async fn commit(&self) -> Result<Addr, Error> {
         todo!("guard commit")
