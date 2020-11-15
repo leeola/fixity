@@ -1,4 +1,7 @@
-use {crate::Addr, std::path::Path};
+use {
+    crate::{Addr, Error},
+    std::path::Path,
+};
 pub struct Head {}
 impl Head {
     pub async fn open(_fixi_dir: &Path, _workspace: &str) -> Result<Self, Error> {
@@ -8,5 +11,26 @@ impl Head {
         todo!("head addr")
     }
 }
-#[derive(Debug, thiserror::Error)]
-pub enum Error {}
+pub struct Guard<T> {
+    head: Head,
+    inner: T,
+}
+impl<T> Guard<T> {
+    pub fn new(head: Head, inner: T) -> Self {
+        Self { head, inner }
+    }
+    pub async fn commit(&self) -> Result<Addr, Error> {
+        todo!("guard commit")
+    }
+}
+impl<T> std::ops::Deref for Guard<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+impl<T> std::ops::DerefMut for Guard<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}

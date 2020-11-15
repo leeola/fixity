@@ -14,11 +14,6 @@ pub enum Error {
     },
     #[error("a fixity repository was not found")]
     RepositoryNotFound,
-    #[error("fixity to acquire HEAD: {source}")]
-    HeadError {
-        #[from]
-        source: head::Error,
-    },
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]

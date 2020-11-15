@@ -4,7 +4,7 @@ pub use map::Map;
 use {
     crate::{
         error::InitError,
-        head::Head,
+        head::{Guard, Head},
         storage::{fs::Config as FsConfig, Fs, Storage},
         value::{Key, Path},
         Error, StorageWrite,
@@ -63,7 +63,7 @@ impl<S> Fixity<S>
 where
     S: StorageWrite,
 {
-    pub async fn map<'f>(&'f self, path: Path) -> Result<RefGuard<Map<'f, S>>, Error> {
+    pub async fn map<'f>(&'f self, path: Path) -> Result<Guard<Map<'f, S>>, Error> {
         // TODO: recursively load Map's until the Path is met.
         if !path.is_empty() {
             unimplemented!("opening a map with a path");
@@ -71,7 +71,7 @@ where
 
         let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
         let inner = Map::new(&self.storage, head.addr());
-        Ok(RefGuard { inner, head })
+        Ok(Guard::new(head, inner))
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
@@ -85,21 +85,6 @@ where
         let n = self.storage.write(addr.clone(), r).await?;
         log::trace!("{} bytes written to {}", n, addr);
         Ok(addr)
-    }
-}
-pub struct RefGuard<T> {
-    head: Head,
-    inner: T,
-}
-impl<T> std::ops::Deref for RefGuard<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-impl<T> std::ops::DerefMut for RefGuard<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 pub struct Builder<S> {
