@@ -115,7 +115,7 @@ async fn cmd_init(fixi_dir: PathBuf, workspace: String, storage_dir: PathBuf) ->
 async fn cmd_raw_get(_address: String) -> Result<(), Error> {
     unimplemented!("cmd_raw_get")
 }
-async fn cmd_raw_put_stdin<S>(fixi: Fixity<S>, path: Path) -> Result<(), Error>
+async fn cmd_raw_put_stdin<S>(fixi: Fixity<S>, _path: Path) -> Result<(), Error>
 where
     S: StorageWrite,
 {

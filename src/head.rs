@@ -4,7 +4,10 @@ use {
         path::{Path, PathBuf},
         str::FromStr,
     },
-    tokio::{fs::File, io::AsyncReadExt},
+    tokio::{
+        fs::{File, OpenOptions},
+        io::AsyncReadExt,
+    },
 };
 /// A separator between the lhs and optional rhs of a [`Ref`].
 const REF_SEP: &str = ": ";
@@ -23,6 +26,19 @@ struct InnerHead {
     head: Ref,
 }
 impl Head {
+    /// Create a new `HEAD` at the specified [`Addr`].
+    ///
+    /// # Errors
+    ///
+    /// If the `HEAD`, `STAGE` or default branch already exist.
+    pub async fn init<P, S>(fixi_dir: P, workspace: S, addr: Addr) -> Result<Self, Error>
+    where
+        P: AsRef<Path>,
+        S: AsRef<str>,
+    {
+        todo!("head init")
+    }
+    /// Open an existing `HEAD`.
     pub async fn open<P, S>(fixi_dir: P, workspace: S) -> Result<Self, Error>
     where
         P: AsRef<Path>,
@@ -72,10 +88,10 @@ impl<T> Guard<T> {
     pub fn new(head: Head, inner: T) -> Self {
         Self { head, inner }
     }
-    pub async fn stage(&self) -> Result<Addr, Error> {
+    pub async fn stage(&self) -> Result<Addr, crate::Error> {
         todo!("guard stage")
     }
-    pub async fn commit(&self) -> Result<Addr, Error> {
+    pub async fn commit(&self) -> Result<Addr, crate::Error> {
         todo!("guard commit")
     }
 }
