@@ -2,6 +2,7 @@ pub mod deser;
 pub mod error;
 pub mod fixity;
 pub mod head;
+pub mod internal;
 pub mod prolly;
 pub mod storage;
 pub mod value;
