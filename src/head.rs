@@ -1,12 +1,12 @@
 use {
-    crate::Addr,
+    crate::{fixity::Flush, Addr},
     std::{
         path::{Path, PathBuf},
         str::FromStr,
     },
     tokio::{
         fs::{File, OpenOptions},
-        io::AsyncReadExt,
+        io::{AsyncReadExt, AsyncWriteExt},
     },
 };
 /// A separator between the lhs and optional rhs of a [`Ref`].
@@ -19,6 +19,7 @@ const REF_TYPE_HEAD: &str = "head";
 const HEAD_FILE_NAME: &str = "HEAD";
 const STAGE_FILE_NAME: &str = "STAGE";
 pub struct Head {
+    workspace_path: PathBuf,
     inner: Option<InnerHead>,
 }
 struct InnerHead {
@@ -44,25 +45,24 @@ impl Head {
         P: AsRef<Path>,
         S: AsRef<str>,
     {
+        let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
         let head_ref = {
-            let path = fixi_dir
-                .as_ref()
-                .join(workspace.as_ref())
-                .join(HEAD_FILE_NAME);
+            let path = workspace_path.join(HEAD_FILE_NAME);
             Ref::open(path).await?
         };
         let stage_ref = {
-            let path = fixi_dir
-                .as_ref()
-                .join(workspace.as_ref())
-                .join(STAGE_FILE_NAME);
+            let path = workspace_path.join(STAGE_FILE_NAME);
             StageRef::open(path).await?
         };
         match (head_ref, stage_ref) {
             (Some(head), Some(stage)) => Ok(Self {
+                workspace_path,
                 inner: Some(InnerHead { stage, head }),
             }),
-            (None, None) => Ok(Self { inner: None }),
+            (None, None) => Ok(Self {
+                workspace_path,
+                inner: None,
+            }),
             (Some(_), None) => Err(Error::CorruptHead {
                 message: "have HEAD, missing STAGE".to_owned(),
             }),
@@ -71,13 +71,39 @@ impl Head {
             }),
         }
     }
-    /// Return the address HEAD points to.
-    pub fn addr(&self) -> Option<Addr> {
-        todo!("head addr")
+    /// Commit the address that `STAGE` is at to that of the branch the `HEAD` points to.
+    pub async fn commit(&mut self) -> Result<(), Error> {
+        let inner = match self.inner.as_mut() {
+            None => return Err(Error::CommitEmptyStage),
+            Some(inner) => inner,
+        };
+        // TODO: ensure that after every commit, stage points to HEAD, not just the same addr
+        // as HEAD.
+        let stage_addr = inner.stage.addr();
+        if inner.head.addr() == stage_addr {
+            return Ok(());
+        }
+        let branch_name = match inner.head {
+            Ref::Addr(_) => return Err(Error::DetatchedHead),
+            Ref::Branch { branch, .. } => branch,
+        };
+        todo!("move branch")
     }
-    /// Return the address HEAD points to.
-    pub fn stage_addr(&self) -> Option<Addr> {
-        todo!("head addr")
+    /// Move the `HEAD`
+    pub async fn stage(&mut self, addr: &Addr) -> Result<(), Error> {
+        if let Some(inner) = self.inner.as_ref() {
+            if addr == inner.stage.addr() {
+                return Ok(());
+            }
+        }
+        let stage_ref = StageRef::Addr(addr.clone());
+        stage_ref.write(&self.workspace_path).await
+    }
+    /// Return the address `STAGE` points to.
+    pub fn addr(&self) -> Option<Addr> {
+        self.inner
+            .as_ref()
+            .map(|InnerHead { stage, .. }| stage.addr().clone())
     }
 }
 pub struct Guard<T> {
@@ -88,11 +114,19 @@ impl<T> Guard<T> {
     pub fn new(head: Head, inner: T) -> Self {
         Self { head, inner }
     }
-    pub async fn stage(&self) -> Result<Addr, crate::Error> {
+}
+impl<T> Guard<T>
+where
+    T: Flush,
+{
+    pub async fn stage(&mut self) -> Result<Addr, crate::Error> {
         todo!("guard stage")
     }
-    pub async fn commit(&self) -> Result<Addr, crate::Error> {
-        todo!("guard commit")
+    pub async fn commit(&mut self) -> Result<Addr, crate::Error> {
+        let addr = self.inner.flush().await?;
+        self.head.stage(&addr).await?;
+        self.head.commit().await?;
+        Ok(addr)
     }
 }
 impl<T> std::ops::Deref for Guard<T> {
@@ -106,6 +140,7 @@ impl<T> std::ops::DerefMut for Guard<T> {
         &mut self.inner
     }
 }
+#[derive(Debug, Clone)]
 pub enum Ref {
     Addr(Addr),
     Branch { branch: String, addr: Addr },
@@ -144,6 +179,12 @@ impl Ref {
         };
         Ok(Some(ref_))
     }
+    /// Return the underlying addr for this `Ref`.
+    pub fn addr(&self) -> &Addr {
+        match self {
+            Ref::Addr(addr) | Ref::Branch { addr, .. } => &addr,
+        }
+    }
 }
 /// A helper to abstract the ref opening behavior over [`Ref::open`] and
 /// [`StageRef::open`].
@@ -169,6 +210,7 @@ async fn open_ref_path(path: &Path) -> Result<Option<String>, Error> {
         })?;
     Ok(Some(s))
 }
+#[derive(Debug, Clone)]
 pub enum StageRef {
     Head(Ref),
     Addr(Addr),
@@ -223,6 +265,31 @@ impl StageRef {
         };
         Ok(Some(ref_))
     }
+    /// Write this [`StageRef`] to the given workspace.
+    pub async fn write<P>(&self, workspace_path: P) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        let ref_contents = match self {
+            Self::Head(_) => REF_TYPE_HEAD.to_owned(),
+            Self::Addr(addr) => format!("{}{}{}", REF_TYPE_ADDR, REF_SEP, addr),
+            Self::Branch { branch, .. } => format!("{}{}{}", REF_TYPE_BRANCH, REF_SEP, branch),
+        };
+        let path = workspace_path.as_ref().join(STAGE_FILE_NAME);
+        write_string_to_path(&path).await
+            .map_err(|err| Error::WriteRef {
+                path: path.to_owned(),
+                message: format!("failed to open ref for writing: {}", err),
+            })?;
+        Ok(())
+    }
+    /// Return the underlying addr for this `StageRef`.
+    pub fn addr(&self) -> &Addr {
+        match self {
+            StageRef::Head(ref_) => ref_.addr(),
+            StageRef::Addr(addr) | StageRef::Branch { addr, .. } => &addr,
+        }
+    }
 }
 impl From<Ref> for StageRef {
     fn from(ref_: Ref) -> Self {
@@ -232,10 +299,28 @@ impl From<Ref> for StageRef {
         }
     }
 }
+async fn write_string_to_path<P>(path: P) -> Result<(), std::io::Error> {
+        let mut f = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(path)
+            .await?;
+        f.write_all(ref_contents.as_bytes())
+            .await?
+        f.sync_all().await?;
+        Ok(())
+}
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("cannot commit empty STAGE")]
+    CommitEmptyStage,
+    #[error("cannot commit detatched HEAD")]
+    DetatchedHead,
     #[error("unable to open ref `{path:?}`: `{message}`")]
     OpenRef { path: PathBuf, message: String },
+    #[error("unable to write ref `{path:?}`: `{message}`")]
+    WriteRef { path: PathBuf, message: String },
     #[error("invalid ref `{path:?}`: `{message}`")]
     InvalidRef { path: PathBuf, message: String },
     #[error("corrupt head: `{message}`")]

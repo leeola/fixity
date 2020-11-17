@@ -1,6 +1,7 @@
 use {
     crate::storage::{StorageRead, StorageWrite},
     crate::{
+        fixity::Flush,
         prolly::{CursorCreate, LruRead},
         value::{Key, Value},
         Addr, Error,
@@ -43,11 +44,12 @@ impl<'s, S> Map<'s, S> {
         });
     }
 }
-impl<'s, S> Map<'s, S>
+#[async_trait::async_trait]
+impl<'s, S> Flush for Map<'s, S>
 where
     S: StorageWrite,
 {
-    pub async fn flush(&mut self) -> Result<Addr, Error> {
+    async fn flush(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.stage, HashMap::new())
             .into_iter()
             .collect::<Vec<_>>();

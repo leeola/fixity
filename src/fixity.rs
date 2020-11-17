@@ -5,7 +5,7 @@ use {
     crate::{
         head::{Guard, Head},
         storage::{self, fs::Config as FsConfig, Fs, Storage},
-        value::{Key, Path},
+        value::{Addr, Key, Path},
         Error, StorageWrite,
     },
     multibase::Base,
@@ -129,6 +129,10 @@ impl<S> Builder<S> {
             workspace,
         })
     }
+}
+#[async_trait::async_trait]
+pub trait Flush {
+    async fn flush(&mut self) -> Result<Addr, Error>;
 }
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
