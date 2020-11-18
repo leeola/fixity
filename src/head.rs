@@ -20,7 +20,7 @@ const REF_TYPE_HEAD: &str = "head";
 const HEAD_FILE_NAME: &str = "HEAD";
 pub struct Head {
     workspace_path: PathBuf,
-    head: Option<Ref>,
+    ref_: Option<Ref>,
 }
 impl Head {
     /// Create a new `HEAD` at the specified [`Addr`].
@@ -89,11 +89,8 @@ impl Head {
         let stage_ref = StageRef::Addr(addr.clone());
         stage_ref.write(&self.workspace_path).await
     }
-    /// Return the address `STAGE` points to.
     pub fn addr(&self) -> Option<Addr> {
-        self.inner
-            .as_ref()
-            .map(|InnerHead { stage, .. }| stage.addr().clone())
+        self.ref_.as_ref().map(|ref_| ref_.addr().clone())
     }
 }
 pub struct Guard<T> {
@@ -133,14 +130,10 @@ impl<T> std::ops::DerefMut for Guard<T> {
 #[derive(Debug, Clone)]
 pub enum Ref {
     Addr(Addr),
-    BranchWithStaged {
-        branch: String,
-        staged: Addr,
-        addr: Addr,
-    },
     Branch {
         branch: String,
         addr: Addr,
+        staged: Option<Addr>,
     },
 }
 impl Ref {
