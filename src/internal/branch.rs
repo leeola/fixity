@@ -13,8 +13,7 @@ use {
 const BRANCHES_DIR: &str = "branches";
 pub struct Branch {
     branch_path: PathBuf,
-    ref_: Addr,
-    staged: Option<Addr>,
+    addr: Addr,
 }
 impl Branch {
     /// Create a new branch at the specified [`Addr`].
@@ -31,14 +30,23 @@ impl Branch {
         let mut f = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(path)
-            .await?;
-        f.write_all(addr.as_bytes()).await?;
-        f.sync_all().await?;
-        Ok(Self {
-            ref_: addr,
-            staged: None,
-        })
+            .open(&branch_path)
+            .await
+            .map_err(|err| Error::Io {
+                path: branch_path.clone(),
+                message: format!("create branch: {}", err),
+            })?;
+        f.write_all(addr.as_bytes())
+            .await
+            .map_err(|err| Error::Io {
+                path: branch_path.clone(),
+                message: format!("writing branch: {}", err),
+            })?;
+        f.sync_all().await.map_err(|err| Error::Io {
+            path: branch_path.clone(),
+            message: format!("syncing branch: {}", err),
+        })?;
+        Ok(Self { branch_path, addr })
     }
     /// Open an existing branch.
     ///
@@ -59,4 +67,6 @@ impl Branch {
 pub enum Error {
     #[error("branch already exists")]
     BranchAlreadyExists,
+    #[error("unable to write branch `{path:?}`: `{message}`")]
+    Io { path: PathBuf, message: String },
 }
