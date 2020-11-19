@@ -15,12 +15,12 @@ const STAGE_SEP: &str = "\n";
 /// The internal folder where branch HEADs are stored.
 const BRANCHES_DIR: &str = "branches";
 const REF_TYPE_ADDR: &str = "addr";
-const REF_TYPE_BRANCH: &str = "branch";
-const REF_TYPE_HEAD: &str = "head";
+const REF_TYPE_REF: &str = "ref";
 const HEAD_FILE_NAME: &str = "HEAD";
+const INIT_HEAD_REF: &str = "refs/heads/default";
 pub struct Head {
     workspace_path: PathBuf,
-    ref_: Option<Ref>,
+    state: State,
 }
 impl Head {
     /// Create a new `HEAD` at the specified [`Addr`].
@@ -35,21 +35,15 @@ impl Head {
     {
         let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
         let head_path = workspace_path.join(HEAD_FILE_NAME);
-        let mut f = OpenOptions::new()
-            .create_new(true)
-            .open(&head_path)
-            .await
-            .map_err(|err| Error::OpenRef {
-                path: head_path.clone(),
-                message: format!("create head: {}", err),
-            })?;
-        f.sync_all().await.map_err(|err| Error::OpenRef {
-            path: head_path.clone(),
-            message: format!("syncing head: {}", err),
-        })?;
+        let state = State::Ref {
+            ref_: INIT_HEAD_REF.to_owned(),
+            addr: None,
+            staged: None,
+        };
+        state.create(head_path).await?;
         Ok(Self {
             workspace_path,
-            head: None,
+            state,
         })
     }
     /// Open an existing `HEAD`.
@@ -60,10 +54,10 @@ impl Head {
     {
         let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
         let head_path = workspace_path.join(HEAD_FILE_NAME);
-        let head = Ref::open(head_path).await?;
+        let state = State::open(head_path).await?;
         Ok(Self {
             workspace_path,
-            head,
+            state,
         })
     }
     /// Commit the address that `STAGE` is at to that of the branch the `HEAD` points to.
@@ -81,16 +75,16 @@ impl Head {
     }
     /// Move the `HEAD`
     pub async fn stage(&mut self, addr: &Addr) -> Result<(), Error> {
-        if let Some(inner) = self.inner.as_ref() {
-            if addr == inner.stage.addr() {
-                return Ok(());
-            }
-        }
-        let stage_ref = StageRef::Addr(addr.clone());
-        stage_ref.write(&self.workspace_path).await
+        todo!("head stage")
+        // if self.state.is_detached() {
+        //     return Err(Error::
+        // }
+        // let stage_ref = StageRef::Addr(addr.clone());
+        // stage_ref.write(&self.workspace_path).await
     }
     pub fn addr(&self) -> Option<Addr> {
-        self.ref_.as_ref().map(|ref_| ref_.addr().clone())
+        todo!("head addr")
+        // self.ref_.as_ref().map(|ref_| ref_.addr().clone())
     }
 }
 pub struct Guard<T> {
@@ -127,38 +121,43 @@ impl<T> std::ops::DerefMut for Guard<T> {
         &mut self.inner
     }
 }
+/// An internal HEAD state, representing either a detatched HEAD or a pointer to a Ref,
+/// with an optional stage value to move the ref to.
 #[derive(Debug, Clone)]
-pub enum Ref {
-    Addr(Addr),
-    Branch {
-        branch: String,
-        addr: Addr,
+enum State {
+    Detached(Addr),
+    Ref {
+        ref_: String,
+        /// An optional [`Addr`] that the `ref` resolved to.
+        addr: Option<Addr>,
+        /// An optional staged [`Addr`], to be
         staged: Option<Addr>,
     },
 }
-impl Ref {
-    /// Open the given path as a [HEAD Ref](Ref), with a `None` if the file does not exist.
-    pub async fn open<P>(path: P) -> Result<Option<Self>, Error>
+impl State {
+    /// Open the given path and parse it into `State`.
+    pub async fn open<P>(path: P) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
         let path = path.as_ref();
-        let head_contents = read_to_string(path).await.map_or_else(
-            |err| {
-                Err(Error::OpenRef {
-                    path: path.to_owned(),
-                    message: "failed to open HEAD".to_owned(),
+        let head_contents = match read_to_string(path).await.map_err(|err| Error::OpenRef {
+            path: path.to_owned(),
+            message: "failed to open HEAD".to_owned(),
+        })? {
+            Some(s) => s,
+            None => {
+                return Err(Error::CorruptHead {
+                    message: "HEAD is missing".to_owned(),
                 })
-            },
-            |s| match s {
-                Some(s) => Ok(s),
-                None => Err(Error::DanglingHead),
-            },
-        )?;
+            }
+        };
         if head_contents.is_empty() {
-            return Ok(None);
+            return Err(Error::CorruptHead {
+                message: "HEAD is empty".to_owned(),
+            });
         }
-        let (staged_addr, head) = {
+        let (staged, head) = {
             let mut maybe_staged = head_contents.splitn(2, STAGE_SEP);
             match (maybe_staged.next(), maybe_staged.next()) {
                 (Some(stage_addr), Some(head)) => (Some(Addr::from(stage_addr.clone())), head),
@@ -169,25 +168,21 @@ impl Ref {
             }
         };
         let mut head_split = head.splitn(2, REF_SEP);
-        let ref_ = match (head_split.next(), head_split.next()) {
-            (Some(REF_TYPE_ADDR), Some(addr)) => Self::Addr(addr.to_owned().into()),
-            (Some(REF_TYPE_BRANCH), Some(branch_name)) => {
-                let path = path.join(BRANCHES_DIR).join(branch_name);
-                let branch_addr = read_to_string(path.as_path()).await.map_or_else(
-                    |err| {
-                        Err(Error::OpenRef {
-                            path: path.to_owned(),
-                            message: "failed to open branch".to_owned(),
-                        })
-                    },
-                    |s| match s {
-                        Some(branch_addr) => Ok(Addr::from(branch_addr)),
-                        None => Err(Error::DanglingHead),
-                    },
-                )?;
-                Self::Branch {
-                    branch: branch_name.to_owned(),
-                    addr: branch_addr.into(),
+        let state = match (head_split.next(), head_split.next()) {
+            (Some(REF_TYPE_ADDR), Some(addr)) => Self::Detached(addr.to_owned().into()),
+            (Some(REF_TYPE_REF), Some(ref_)) => {
+                let path = path.join(ref_);
+                let addr = read_to_string(path.as_path())
+                    .await
+                    .map_err(|err| Error::OpenRef {
+                        path: path.to_owned(),
+                        message: "failed to open branch".to_owned(),
+                    })?
+                    .map(Addr::from);
+                Self::Ref {
+                    ref_: ref_.to_owned(),
+                    addr,
+                    staged,
                 }
             }
             (Some(ref_type), _) => {
@@ -200,14 +195,81 @@ impl Ref {
                 "split has to return at least one item, and cannot return None then Some"
             ),
         };
-        Ok(Some(ref_))
+        Ok(state)
     }
-    /// Return the underlying addr for this `Ref`.
-    pub fn addr(&self) -> &Addr {
+    pub async fn create<P>(&self, path: P) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        self.write_or_create(path, true).await
+    }
+    pub async fn write<P>(&self, path: P) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        self.write_or_create(path, false).await
+    }
+    async fn write_or_create<P>(&self, path: P, create_new: bool) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        let mut f = OpenOptions::new()
+            .create_new(create_new)
+            .truncate(true)
+            .write(true)
+            .open(path)
+            .await
+            .map_err(|err| Error::WriteRef {
+                path: path.to_owned(),
+                message: format!("create state: {}", err),
+            })?;
         match self {
-            Ref::Addr(addr) | Ref::Branch { addr, .. } => &addr,
+            Self::Detached(addr) => {
+                f.write_all(addr.as_bytes())
+                    .await
+                    .map_err(|err| Error::WriteRef {
+                        path: path.to_owned(),
+                        message: format!("write state: {}", err),
+                    })?;
+            }
+            Self::Ref {
+                ref_,
+                staged: Some(staged),
+                ..
+            } => {
+                let body = format!("{}\nref: {}", staged, ref_);
+                f.write_all(body.as_bytes())
+                    .await
+                    .map_err(|err| Error::WriteRef {
+                        path: path.to_owned(),
+                        message: format!("write state: {}", err),
+                    })?;
+            }
+            Self::Ref {
+                ref_, staged: None, ..
+            } => {
+                let body = format!("ref: {}", ref_);
+                f.write_all(body.as_bytes())
+                    .await
+                    .map_err(|err| Error::WriteRef {
+                        path: path.to_owned(),
+                        message: format!("write state: {}", err),
+                    })?;
+            }
         }
+        f.sync_all().await.map_err(|err| Error::WriteRef {
+            path: path.to_owned(),
+            message: format!("syncing state: {}", err),
+        })?;
+        Ok(())
     }
+    // /// Return the underlying addr for this `Ref`.
+    // pub fn addr(&self) -> &Addr {
+    //     match self {
+    //         Ref::Addr(addr) | Ref::Branch { addr, .. } => &addr,
+    //     }
+    // }
 }
 /// A helper to abstract the file opening behavior.
 async fn read_to_string(path: &Path) -> Result<Option<String>, std::io::Error> {
@@ -239,7 +301,7 @@ where
 pub enum Error {
     #[error("cannot commit empty STAGE")]
     CommitEmptyStage,
-    #[error("cannot commit detatched HEAD")]
+    #[error("cannot commit or stage on a detatched HEAD")]
     DetatchedHead,
     #[error("unable to open ref `{path:?}`: `{message}`")]
     OpenRef { path: PathBuf, message: String },
@@ -251,6 +313,4 @@ pub enum Error {
     CorruptHead { message: String },
     #[error("corrupt branch `{branch}`: `{message}`")]
     CorruptBranch { branch: String, message: String },
-    #[error("HEAD pointing to ref or commit that's not found")]
-    DanglingHead,
 }
