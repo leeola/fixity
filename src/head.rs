@@ -5,7 +5,7 @@ use {
         str::FromStr,
     },
     tokio::{
-        fs::{File, OpenOptions},
+        fs::{self, File, OpenOptions},
         io::{AsyncReadExt, AsyncWriteExt},
     },
 };
@@ -28,13 +28,25 @@ impl Head {
     /// # Errors
     ///
     /// If the `HEAD` or default branch already exist.
-    pub async fn init<P, S>(fixi_dir: P, workspace: S, addr: Addr) -> Result<Self, Error>
+    pub async fn init<P, S>(fixi_dir: P, workspace: S) -> Result<Self, Error>
     where
         P: AsRef<Path>,
         S: AsRef<str>,
     {
         let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
         let head_path = workspace_path.join(HEAD_FILE_NAME);
+        fs::create_dir(&workspace_path)
+            .await
+            .map_err(|source| Error::Init {
+                path: workspace_path.clone(),
+                message: format!("create workspace"),
+            })?;
+        fs::create_dir_all(workspace_path.join("refs").join("heads"))
+            .await
+            .map_err(|source| Error::Init {
+                path: workspace_path.clone(),
+                message: format!("create refs/heads"),
+            })?;
         let state = State::Ref {
             ref_: INIT_HEAD_REF.to_owned(),
             addr: None,
@@ -53,8 +65,7 @@ impl Head {
         S: AsRef<str>,
     {
         let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
-        let head_path = workspace_path.join(HEAD_FILE_NAME);
-        let state = State::open(head_path).await?;
+        let state = State::open(&workspace_path).await?;
         Ok(Self {
             workspace_path,
             state,
@@ -136,22 +147,26 @@ enum State {
 }
 impl State {
     /// Open the given path and parse it into `State`.
-    pub async fn open<P>(path: P) -> Result<Self, Error>
+    pub async fn open<P>(workspace_path: P) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
-        let path = path.as_ref();
-        let head_contents = match read_to_string(path).await.map_err(|err| Error::OpenRef {
-            path: path.to_owned(),
-            message: "failed to open HEAD".to_owned(),
-        })? {
-            Some(s) => s,
-            None => {
-                return Err(Error::CorruptHead {
-                    message: "HEAD is missing".to_owned(),
-                })
-            }
-        };
+        let workspace_path = workspace_path.as_ref();
+        let head_path = workspace_path.join(HEAD_FILE_NAME);
+        let head_contents =
+            match read_to_string(&head_path)
+                .await
+                .map_err(|err| Error::OpenRef {
+                    path: head_path.to_owned(),
+                    message: "failed to open HEAD".to_owned(),
+                })? {
+                Some(s) => s,
+                None => {
+                    return Err(Error::CorruptHead {
+                        message: "HEAD is missing".to_owned(),
+                    })
+                }
+            };
         if head_contents.is_empty() {
             return Err(Error::CorruptHead {
                 message: "HEAD is empty".to_owned(),
@@ -171,7 +186,7 @@ impl State {
         let state = match (head_split.next(), head_split.next()) {
             (Some(REF_TYPE_ADDR), Some(addr)) => Self::Detached(addr.to_owned().into()),
             (Some(REF_TYPE_REF), Some(ref_)) => {
-                let path = path.join(ref_);
+                let path = workspace_path.join(ref_);
                 let addr = read_to_string(path.as_path())
                     .await
                     .map_err(|err| Error::OpenRef {
@@ -187,7 +202,7 @@ impl State {
             }
             (Some(ref_type), _) => {
                 return Err(Error::InvalidRef {
-                    path: path.to_owned(),
+                    path: workspace_path.to_owned(),
                     message: format!("unrecognized ref type: {}", ref_type),
                 })
             }
@@ -279,7 +294,7 @@ async fn read_to_string(path: &Path) -> Result<Option<String>, std::io::Error> {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             return Ok(None);
         }
-        Err(err) => return Err(err),
+        Err(err) => return Err(dbg!(err)),
     };
     f.read_to_string(&mut s).await?;
     Ok(Some(s))
@@ -303,6 +318,8 @@ pub enum Error {
     CommitEmptyStage,
     #[error("cannot commit or stage on a detatched HEAD")]
     DetatchedHead,
+    #[error("unable to init head `{path:?}`: `{message}`")]
+    Init { path: PathBuf, message: String },
     #[error("unable to open ref `{path:?}`: `{message}`")]
     OpenRef { path: PathBuf, message: String },
     #[error("unable to write ref `{path:?}`: `{message}`")]

@@ -34,6 +34,8 @@ impl Fixity<Fs> {
         let storage = Fs::init(fs_config)
             .await
             .map_err(|source| InitError::Storage { source })?;
+        // init the HEAD
+        Head::init(fixity_dir.as_path(), workspace.as_str()).await?;
         Ok(Self {
             fixity_dir,
             workspace,
