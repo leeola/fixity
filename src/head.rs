@@ -34,7 +34,6 @@ impl Head {
         S: AsRef<str>,
     {
         let workspace_path = fixi_dir.as_ref().join(workspace.as_ref());
-        let head_path = workspace_path.join(HEAD_FILE_NAME);
         fs::create_dir(&workspace_path)
             .await
             .map_err(|source| Error::Init {
@@ -52,7 +51,7 @@ impl Head {
             addr: None,
             staged: None,
         };
-        state.create(head_path).await?;
+        state.create(&workspace_path).await?;
         Ok(Self {
             workspace_path,
             state,
@@ -86,16 +85,19 @@ impl Head {
     }
     /// Move the `HEAD`
     pub async fn stage(&mut self, addr: &Addr) -> Result<(), Error> {
-        todo!("head stage")
-        // if self.state.is_detached() {
-        //     return Err(Error::
-        // }
-        // let stage_ref = StageRef::Addr(addr.clone());
-        // stage_ref.write(&self.workspace_path).await
+        match &mut self.state {
+            State::Detached(_) => return Err(Error::DetatchedHead),
+            State::Ref { staged, .. } => {
+                staged.replace(addr.clone());
+            }
+        }
+        self.state.write(&self.workspace_path).await
     }
     pub fn addr(&self) -> Option<Addr> {
-        todo!("head addr")
-        // self.ref_.as_ref().map(|ref_| ref_.addr().clone())
+        match &self.state {
+            State::Detached(addr) => Some(addr.clone()),
+            State::Ref { addr, staged, .. } => staged.clone().or_else(|| addr.clone()),
+        }
     }
 }
 pub struct Guard<T> {
@@ -112,12 +114,15 @@ where
     T: Flush,
 {
     pub async fn stage(&mut self) -> Result<Addr, crate::Error> {
-        todo!("guard stage")
+        let addr = self.inner.flush().await?;
+        self.head.stage(&addr).await?;
+        Ok(addr)
     }
     pub async fn commit(&mut self) -> Result<Addr, crate::Error> {
         let addr = self.inner.flush().await?;
         self.head.stage(&addr).await?;
         self.head.commit().await?;
+        log::warn!("content hash being returned instead of commit hash");
         Ok(addr)
     }
 }
@@ -212,31 +217,31 @@ impl State {
         };
         Ok(state)
     }
-    pub async fn create<P>(&self, path: P) -> Result<(), Error>
+    pub async fn create<P>(&self, workspace_path: P) -> Result<(), Error>
     where
         P: AsRef<Path>,
     {
-        self.write_or_create(path, true).await
+        self.write_or_create(workspace_path, true).await
     }
-    pub async fn write<P>(&self, path: P) -> Result<(), Error>
+    pub async fn write<P>(&self, workspace_path: P) -> Result<(), Error>
     where
         P: AsRef<Path>,
     {
-        self.write_or_create(path, false).await
+        self.write_or_create(workspace_path, false).await
     }
-    async fn write_or_create<P>(&self, path: P, create_new: bool) -> Result<(), Error>
+    async fn write_or_create<P>(&self, workspace_path: P, create_new: bool) -> Result<(), Error>
     where
         P: AsRef<Path>,
     {
-        let path = path.as_ref();
+        let path = workspace_path.as_ref().join(HEAD_FILE_NAME);
         let mut f = OpenOptions::new()
             .create_new(create_new)
             .truncate(true)
             .write(true)
-            .open(path)
+            .open(&path)
             .await
             .map_err(|err| Error::WriteRef {
-                path: path.to_owned(),
+                path: path.clone(),
                 message: format!("create state: {}", err),
             })?;
         match self {
@@ -244,7 +249,7 @@ impl State {
                 f.write_all(addr.as_bytes())
                     .await
                     .map_err(|err| Error::WriteRef {
-                        path: path.to_owned(),
+                        path: path.clone(),
                         message: format!("write state: {}", err),
                     })?;
             }
@@ -257,7 +262,7 @@ impl State {
                 f.write_all(body.as_bytes())
                     .await
                     .map_err(|err| Error::WriteRef {
-                        path: path.to_owned(),
+                        path: path.clone(),
                         message: format!("write state: {}", err),
                     })?;
             }
@@ -279,12 +284,6 @@ impl State {
         })?;
         Ok(())
     }
-    // /// Return the underlying addr for this `Ref`.
-    // pub fn addr(&self) -> &Addr {
-    //     match self {
-    //         Ref::Addr(addr) | Ref::Branch { addr, .. } => &addr,
-    //     }
-    // }
 }
 /// A helper to abstract the file opening behavior.
 async fn read_to_string(path: &Path) -> Result<Option<String>, std::io::Error> {
