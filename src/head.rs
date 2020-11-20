@@ -71,17 +71,43 @@ impl Head {
         })
     }
     /// Commit the address that `STAGE` is at to that of the branch the `HEAD` points to.
-    pub async fn commit(&mut self) -> Result<(), Error> {
-        // match self.head
-        // let stage_addr = stage.addr();
-        // if inner.head.addr() == stage_addr {
-        //     return Ok(());
-        // }
-        // // let branch_name = match inner.head {
-        // //     Ref::Addr(_) => return Err(Error::DetatchedHead),
-        // //     Ref::Branch { branch, .. } => branch,
-        // // };
-        todo!("move branch")
+    pub async fn commit(&mut self) -> Result<Addr, Error> {
+        match &mut self.state {
+            State::Detached(_) => return Err(Error::DetatchedHead),
+            State::Ref { ref_, addr, staged } => {
+                {
+                    let staged = match staged {
+                        Some(staged) => staged,
+                        None => return Err(Error::CommitEmptyStage),
+                    };
+                    let path = self.workspace_path.join(ref_);
+                    let mut f = OpenOptions::new()
+                        .create(true)
+                        .truncate(true)
+                        .write(true)
+                        .open(&path)
+                        .await
+                        .map_err(|err| Error::Io {
+                            path: path.to_owned(),
+                            message: format!("open ref: {}", err),
+                        })?;
+                    f.write_all(staged.as_bytes())
+                        .await
+                        .map_err(|err| Error::Io {
+                            path: path.to_owned(),
+                            message: format!("write ref: {}", err),
+                        })?;
+                    f.sync_all().await.map_err(|err| Error::Io {
+                        path: path.to_owned(),
+                        message: format!("sync ref: {}", err),
+                    })?;
+                }
+                let staged_addr = staged.take().expect("staged impossibly missing");
+                addr.replace(staged_addr.clone());
+                log::warn!("content hash being returned instead of commit hash");
+                Ok(staged_addr)
+            }
+        }
     }
     /// Move the `HEAD`
     pub async fn stage(&mut self, addr: &Addr) -> Result<(), Error> {
@@ -119,10 +145,9 @@ where
         Ok(addr)
     }
     pub async fn commit(&mut self) -> Result<Addr, crate::Error> {
-        let addr = self.inner.flush().await?;
-        self.head.stage(&addr).await?;
-        self.head.commit().await?;
-        log::warn!("content hash being returned instead of commit hash");
+        let content_addr = self.inner.flush().await?;
+        self.head.stage(&content_addr).await?;
+        let addr = self.head.commit().await?;
         Ok(addr)
     }
 }
@@ -258,7 +283,7 @@ impl State {
                 staged: Some(staged),
                 ..
             } => {
-                let body = format!("{}\nref: {}", staged, ref_);
+                let body = format!("{}\nref: {}", staged.as_str(), ref_);
                 f.write_all(body.as_bytes())
                     .await
                     .map_err(|err| Error::WriteRef {
@@ -329,4 +354,6 @@ pub enum Error {
     CorruptHead { message: String },
     #[error("corrupt branch `{branch}`: `{message}`")]
     CorruptBranch { branch: String, message: String },
+    #[error("io failure `{path:?}`: `{message}`")]
+    Io { path: PathBuf, message: String },
 }

@@ -19,6 +19,10 @@ impl Addr {
     pub fn short(&self) -> &str {
         self.0.split_at(ADDR_SHORT_LEN).0
     }
+    /// Convert the underlying String into a str.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
     /// Convert the underlying String into a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
