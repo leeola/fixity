@@ -6,7 +6,7 @@ use {
         head::{Guard, Head},
         storage::{self, fs::Config as FsConfig, Fs, Storage},
         value::{Addr, Key, Path},
-        Error, StorageWrite,
+        Error, StorageRead, StorageWrite,
     },
     multibase::Base,
     std::path::PathBuf,
@@ -62,7 +62,7 @@ impl<S> Fixity<S> {
 }
 impl<S> Fixity<S>
 where
-    S: StorageWrite,
+    S: StorageWrite + StorageRead,
 {
     pub async fn map<'f>(&'f self, path: Path) -> Result<Guard<Map<'f, S>>, Error> {
         // TODO: recursively load Map's until the Path is met.

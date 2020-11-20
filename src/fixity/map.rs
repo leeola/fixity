@@ -2,7 +2,7 @@ use {
     crate::storage::{StorageRead, StorageWrite},
     crate::{
         fixity::Flush,
-        prolly::{CursorCreate, LruRead},
+        prolly::{refimpl, CursorCreate, LruRead},
         value::{Key, Value},
         Addr, Error,
     },
@@ -44,18 +44,25 @@ impl<'s, S> Map<'s, S> {
         });
     }
 }
+
 #[async_trait::async_trait]
 impl<'s, S> Flush for Map<'s, S>
 where
-    S: StorageWrite,
+    S: StorageWrite + StorageRead,
 {
     async fn flush(&mut self) -> Result<Addr, Error> {
-        let kvs = mem::replace(&mut self.stage, HashMap::new())
-            .into_iter()
-            .collect::<Vec<_>>();
-        if let Some(_) = self.addr.as_ref() {
-            unimplemented!("map commit mutate")
+        let kvs = mem::replace(&mut self.stage, HashMap::new()).into_iter();
+        if let Some(addr) = self.addr.as_ref() {
+            // TODO: these should probably be converted to changes in
+            // the `Map` itself. Quick and dirty for the moment though.
+            let kvs = kvs
+                .map(|(k, v)| (k, refimpl::Change::Insert(v)))
+                .collect::<Vec<_>>();
+            refimpl::Update::new(self.storage, addr.clone())
+                .from_vec(kvs)
+                .await
         } else {
+            let kvs = kvs.collect::<Vec<_>>();
             CursorCreate::new(self.storage).with_kvs(kvs).await
         }
     }
