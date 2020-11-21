@@ -15,7 +15,6 @@ use {
         io::{self, AsyncRead},
     },
 };
-
 pub struct Fixity<S> {
     storage: S,
     fixity_dir: PathBuf,

@@ -21,8 +21,12 @@ struct Opt {
 /// which may or may not be managed by StructOpt.
 #[derive(Debug, StructOpt)]
 struct FixiOpt {
-    #[structopt(long, env = "FIXI_DIR")]
-    pub fixi_dir: PathBuf,
+    // #[structopt(long, env = "GLOBAL_FIXI_DIR")]
+    // pub global_fixi_dir: Option<PathBuf>,
+    #[structopt(long, env = "FIXI_DIR_NAME", default_value = ".fixi")]
+    pub fixi_dir_name: PathBuf,
+    #[structopt(long, env = "FIXI_PATH")]
+    pub fixi_path: Option<PathBuf>,
     #[structopt(long, env = "FIXI_WORKSPACE", default_value = "default")]
     pub workspace: String,
     #[structopt(long, env = "FIXI_STORAGE_DIR")]
@@ -54,28 +58,6 @@ enum Command {
     #[cfg(feature = "web")]
     Web(WebConfig),
 }
-#[derive(Debug, StructOpt)]
-enum RawCommand {
-    Get {
-        /// The fixity address to get.
-        address: String,
-    },
-    Put {
-        /// Write stdin to the given [`Path`].
-        #[structopt(long, short = "i")]
-        stdin: bool,
-        /// The destination to write a `Value` or Bytes to.
-        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
-        path: Path,
-        /// Write the [`Value`] to the given [`Path`].
-        #[structopt(
-            name = "VALUE", parse(try_from_str = Value::from_cli_str),
-            required_unless("stdin"),
-        )]
-        value: Option<Value>,
-    },
-    // Fetch {},
-}
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("error: {0}")]
@@ -91,14 +73,19 @@ async fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
 
     let FixiOpt {
-        fixi_dir,
+        fixi_dir_name,
+        fixi_path,
         workspace,
         storage_dir,
     } = opt.fixi_opt;
+    let fixi_dir = match (fixi_dir_name, fixi_path) {
+        (_, Some(fixi_path)) => fixi_path,
+        (fixi_dir_name, None) => fixi_dir_name,
+    };
     let storage_dir = storage_dir.unwrap_or_else(|| fixi_dir.join("storage"));
 
     match opt.cmd {
-        Command::Init => cmd_init(fixi_dir, workspace, storage_dir).await,
+        Command::Init => return cmd_init(fixi_dir, workspace, storage_dir).await,
         _ => {}
     }
 
