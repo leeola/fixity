@@ -23,10 +23,10 @@ struct Opt {
 struct FixiOpt {
     // #[structopt(long, env = "GLOBAL_FIXI_DIR")]
     // pub global_fixi_dir: Option<PathBuf>,
-    #[structopt(long, env = "FIXI_DIR_NAME", default_value = ".fixi")]
-    pub fixi_dir_name: PathBuf,
-    #[structopt(long, env = "FIXI_PATH")]
-    pub fixi_path: Option<PathBuf>,
+    #[structopt(long, env = "FIXI_DIR_NAME")]
+    pub fixi_dir_name: Option<PathBuf>,
+    #[structopt(long, env = "FIXI_DIR")]
+    pub fixi_dir: Option<PathBuf>,
     #[structopt(long, env = "FIXI_WORKSPACE", default_value = "default")]
     pub workspace: String,
     #[structopt(long, env = "FIXI_STORAGE_DIR")]
@@ -74,19 +74,15 @@ async fn main() -> Result<(), Error> {
 
     let FixiOpt {
         fixi_dir_name,
-        fixi_path,
+        fixi_dir,
         workspace,
         storage_dir,
     } = opt.fixi_opt;
-    let fixi_dir = match (fixi_dir_name, fixi_path) {
-        (_, Some(fixi_path)) => fixi_path,
-        (fixi_dir_name, None) => fixi_dir_name,
-    };
 
     let builder = fixity::Fixity::<Fs>::new()
         .fixi_dir_name(fixi_dir_name)
-        .fixi_path(fixi_path)
-        .workspace(workspace)
+        .fixi_dir(fixi_dir)
+        .with_workspace(workspace)
         .fs_storage_dir(storage_dir);
 
     let fixi = match opt.cmd {
@@ -107,7 +103,7 @@ async fn main() -> Result<(), Error> {
         // Command::Web(c) => fixi_web::serve(c).await,
     }
 }
-async fn cmd_init<S>(b: Builder<S>) -> Result<(), Error> {
+async fn cmd_init(b: Builder<Fs>) -> Result<(), Error> {
     b.init().await?;
     Ok(())
 }

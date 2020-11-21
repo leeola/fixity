@@ -15,48 +15,23 @@ use {
         io::{self, AsyncRead},
     },
 };
+const FIXI_DIR_NAME: &str = ".fixi";
 pub struct Fixity<S> {
     storage: S,
     fixity_dir: PathBuf,
     workspace: String,
 }
-impl Fixity<Fs> {
-    /// Initialize a new Fixity repository.
-    pub async fn init(
-        fixity_dir: PathBuf,
-        workspace: String,
-        fs_config: FsConfig,
-    ) -> Result<Self, Error> {
-        fs::create_dir(&fixity_dir)
-            .await
-            .map_err(|source| InitError::CreateDir { source })?;
-        let storage = Fs::init(fs_config)
-            .await
-            .map_err(|source| InitError::Storage { source })?;
-        // init the HEAD
-        Head::init(fixity_dir.as_path(), workspace.as_str()).await?;
+impl<S> Fixity<S> {
+    pub fn new() -> Builder<S> {
+        Builder::default()
+    }
+    /// Open an existing Fixity repository.
+    pub async fn open(fixity_dir: PathBuf, workspace: String, storage: S) -> Result<Self, Error> {
         Ok(Self {
             fixity_dir,
             workspace,
             storage,
         })
-    }
-    /// Open an existing Fixity repository.
-    pub async fn open(
-        fixity_dir: PathBuf,
-        workspace: String,
-        fs_config: FsConfig,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            fixity_dir,
-            workspace,
-            storage: Fs::open(fs_config)?,
-        })
-    }
-}
-impl<S> Fixity<S> {
-    pub fn new() -> Builder<S> {
-        Builder::default()
     }
 }
 impl<S> Fixity<S>
@@ -89,18 +64,18 @@ where
 }
 pub struct Builder<S> {
     fixi_dir_name: Option<PathBuf>,
-    fixi_path: Option<PathBuf>,
     fixi_dir: Option<PathBuf>,
     storage: Option<S>,
+    fs_storage_dir: Option<PathBuf>,
     workspace: Option<String>,
 }
 impl<S> Default for Builder<S> {
     fn default() -> Self {
         Self {
             fixi_dir_name: None,
-            fixi_path: None,
             fixi_dir: None,
             storage: None,
+            fs_storage_dir: None,
             workspace: None,
         }
     }
@@ -110,8 +85,8 @@ impl<S> Builder<S> {
         self.fixi_dir_name = fixi_dir_name;
         self
     }
-    pub fn fixi_path(mut self, fixi_path: Option<PathBuf>) -> Self {
-        self.fixi_path = fixi_path;
+    pub fn fixi_dir(mut self, fixi_dir: Option<PathBuf>) -> Self {
+        self.fixi_dir = fixi_dir;
         self
     }
     pub fn workspace(mut self, workspace: Option<String>) -> Self {
@@ -122,10 +97,6 @@ impl<S> Builder<S> {
         self.fixi_dir_name.replace(fixi_dir_name);
         self
     }
-    pub fn with_fixi_path(mut self, fixi_path: PathBuf) -> Self {
-        self.fixi_path.replace(fixi_path);
-        self
-    }
     pub fn with_workspace(mut self, workspace: String) -> Self {
         self.workspace.replace(workspace);
         self
@@ -134,21 +105,51 @@ impl<S> Builder<S> {
         self.storage.replace(storage);
         self
     }
-    pub fn init(self) -> Result<Fixity<S>, Error> {
-        let fixity_dir = self.fixity_dir.ok_or_else(|| Error::Builder {
-            message: "missing fixity_dir".into(),
-        })?;
-        let storage = self.storage.ok_or_else(|| Error::Builder {
-            message: "missing storage".into(),
-        })?;
+    pub fn fs_storage_dir(mut self, fs_storage_dir: Option<PathBuf>) -> Self {
+        self.fs_storage_dir = fs_storage_dir;
+        self
+    }
+}
+impl Builder<Fs> {
+    /// Initialize a new Fixity repository.
+    pub async fn init(self) -> Result<Fixity<Fs>, Error> {
         let workspace = self.workspace.ok_or_else(|| Error::Builder {
             message: "missing workspace".into(),
         })?;
-        Ok(Fixity {
-            storage,
-            fixity_dir,
-            workspace,
-        })
+        let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
+            (_, Some(fixi_dir)) => fixi_dir,
+            (fixi_dir_name, None) => fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME)),
+        };
+        fs::create_dir(&fixi_dir)
+            .await
+            .map_err(|source| InitError::CreateDir { source })?;
+        let storage = match (self.storage, self.fs_storage_dir) {
+            (Some(storage), _) => storage,
+            (None, fs_storage_dir) => Fs::init(FsConfig {
+                path: fs_storage_dir.unwrap_or_else(|| fixi_dir.join("storage")),
+            })
+            .await
+            .map_err(|source| InitError::Storage { source })?,
+        };
+        // init the HEAD
+        let _ = Head::init(fixi_dir.as_path(), workspace.as_str()).await?;
+        Fixity::open(fixi_dir, workspace, storage).await
+    }
+    pub async fn open(self) -> Result<Fixity<Fs>, Error> {
+        let workspace = self.workspace.ok_or_else(|| Error::Builder {
+            message: "missing workspace".into(),
+        })?;
+        let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
+            (_, Some(fixi_dir)) => fixi_dir,
+            (fixi_dir_name, None) => fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME)),
+        };
+        let storage = match (self.storage, self.fs_storage_dir) {
+            (Some(storage), _) => storage,
+            (None, fs_storage_dir) => Fs::open(FsConfig {
+                path: fs_storage_dir.unwrap_or_else(|| fixi_dir.join("storage")),
+            })?,
+        };
+        Fixity::open(fixi_dir, workspace, storage).await
     }
 }
 #[async_trait::async_trait]
