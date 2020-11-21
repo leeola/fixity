@@ -1,6 +1,6 @@
 use {
     crate::{deser, fixity, head, storage, value::Addr},
-    std::{io, path::PathBuf},
+    std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
@@ -13,9 +13,9 @@ pub enum Error {
         #[from]
         source: InternalError,
     },
-    /// The repository was not found a `path`, possibly needs to be initialized.
-    #[error("fixity repository was not found at `{path:?}`")]
-    RepositoryNotFound { path: PathBuf },
+    /// A fixi repository was not found.
+    #[error("fixity repository was not found")]
+    RepositoryNotFound,
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]

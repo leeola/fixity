@@ -7,7 +7,7 @@ use {
         combinator::{all_consuming, map, map_res, value},
         multi::separated_list1,
         sequence::preceded,
-        IResult, Parser,
+        IResult,
     },
 };
 

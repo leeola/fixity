@@ -79,7 +79,7 @@ async fn main() -> Result<(), Error> {
         storage_dir,
     } = opt.fixi_opt;
 
-    let builder = fixity::Fixity::<Fs>::new()
+    let builder = fixity::Fixity::<Fs>::build()
         .fixi_dir_name(fixi_dir_name)
         .fixi_dir(fixi_dir)
         .with_workspace(workspace)

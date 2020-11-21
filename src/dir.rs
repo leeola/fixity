@@ -1,10 +1,7 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 /// Resolve an existing fixity dir above the current directory.
-fn resolve<P>(fixi_dir_name: P, mut root: PathBuf) -> Option<PathBuf>
+pub(crate) fn resolve<P>(fixi_dir_name: P, mut root: PathBuf) -> Option<PathBuf>
 where
     P: AsRef<Path>,
 {

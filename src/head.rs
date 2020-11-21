@@ -1,9 +1,6 @@
 use {
     crate::{fixity::Flush, Addr},
-    std::{
-        path::{Path, PathBuf},
-        str::FromStr,
-    },
+    std::path::{Path, PathBuf},
     tokio::{
         fs::{self, File, OpenOptions},
         io::{AsyncReadExt, AsyncWriteExt},
@@ -12,8 +9,6 @@ use {
 /// A separator between the lhs and optional rhs of a [`Ref`].
 const REF_SEP: &str = ": ";
 const STAGE_SEP: &str = "\n";
-/// The internal folder where branch HEADs are stored.
-const BRANCHES_DIR: &str = "branches";
 const REF_TYPE_ADDR: &str = "addr";
 const REF_TYPE_REF: &str = "ref";
 const HEAD_FILE_NAME: &str = "HEAD";
@@ -38,13 +33,13 @@ impl Head {
             .await
             .map_err(|source| Error::Init {
                 path: workspace_path.clone(),
-                message: format!("create workspace"),
+                message: format!("create workspace: {}", source),
             })?;
         fs::create_dir_all(workspace_path.join("refs").join("heads"))
             .await
             .map_err(|source| Error::Init {
                 path: workspace_path.clone(),
-                message: format!("create refs/heads"),
+                message: format!("create refs/heads: {}", source),
             })?;
         let state = State::Ref {
             ref_: INIT_HEAD_REF.to_owned(),
@@ -188,7 +183,7 @@ impl State {
                 .await
                 .map_err(|err| Error::OpenRef {
                     path: head_path.to_owned(),
-                    message: "failed to open HEAD".to_owned(),
+                    message: format!("failed to open HEAD: {}", err),
                 })? {
                 Some(s) => s,
                 None => {
@@ -221,7 +216,7 @@ impl State {
                     .await
                     .map_err(|err| Error::OpenRef {
                         path: path.to_owned(),
-                        message: "failed to open branch".to_owned(),
+                        message: format!("failed to open branch: {}", err),
                     })?
                     .map(Addr::from);
                 Self::Ref {
@@ -322,19 +317,6 @@ async fn read_to_string(path: &Path) -> Result<Option<String>, std::io::Error> {
     };
     f.read_to_string(&mut s).await?;
     Ok(Some(s))
-}
-async fn write_string_to_path<P>(path: P, s: String) -> Result<(), std::io::Error>
-where
-    P: AsRef<Path>,
-{
-    let mut f = OpenOptions::new()
-        .truncate(true)
-        .write(true)
-        .open(path.as_ref())
-        .await?;
-    f.write_all(s.as_bytes()).await?;
-    f.sync_all().await?;
-    Ok(())
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

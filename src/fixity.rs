@@ -5,8 +5,8 @@ use {
     crate::{
         head::{Guard, Head},
         storage::{self, fs::Config as FsConfig, Fs},
-        value::{Addr, Key, Path},
-        Error, Storage, StorageRead, StorageWrite,
+        value::{Addr, Path},
+        Error, Storage,
     },
     multibase::Base,
     std::path::PathBuf,
@@ -22,7 +22,7 @@ pub struct Fixity<S> {
     workspace: String,
 }
 impl<S> Fixity<S> {
-    pub fn new() -> Builder<S> {
+    pub fn build() -> Builder<S> {
         Builder::default()
     }
     /// Open an existing Fixity repository.
@@ -38,7 +38,7 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    pub async fn map<'f>(&'f self, path: Path) -> Result<Guard<Map<'f, S>>, Error> {
+    pub async fn map(&self, path: Path) -> Result<Guard<Map<'_, S>>, Error> {
         // TODO: recursively load Map's until the Path is met.
         if !path.is_empty() {
             unimplemented!("opening a map with a path");
@@ -141,7 +141,11 @@ impl Builder<Fs> {
         })?;
         let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
             (_, Some(fixi_dir)) => fixi_dir,
-            (fixi_dir_name, None) => fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME)),
+            (fixi_dir_name, None) => {
+                let fixi_dir_name = fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME));
+                crate::dir::resolve(fixi_dir_name, PathBuf::from("."))
+                    .ok_or_else(|| Error::RepositoryNotFound)?
+            }
         };
         let storage = match (self.storage, self.fs_storage_dir) {
             (Some(storage), _) => storage,
