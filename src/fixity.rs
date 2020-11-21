@@ -88,6 +88,8 @@ where
     }
 }
 pub struct Builder<S> {
+    fixi_dir_name: Option<PathBuf>,
+    fixi_path: Option<PathBuf>,
     fixity_dir: Option<PathBuf>,
     storage: Option<S>,
     workspace: Option<String>,
@@ -95,23 +97,29 @@ pub struct Builder<S> {
 impl<S> Default for Builder<S> {
     fn default() -> Self {
         Self {
-            storage: None,
+            fixi_dir_name: None,
+            fixi_path: None,
             fixity_dir: None,
+            storage: None,
             workspace: None,
         }
     }
 }
 impl<S> Builder<S> {
+    pub fn fixi_dir_name(mut self, fixi_dir_name: Option<PathBuf>) -> Self {
+        self.fixi_dir_name = fixi_dir_name;
+        self
+    }
+    pub fn fixi_path(mut self, fixi_path: Option<PathBuf>) -> Self {
+        self.fixi_path = fixi_path;
+        self
+    }
+    pub fn workspace(mut self, workspace: Option<String>) -> Self {
+        self.workspace = workspace;
+        self
+    }
     pub fn with_storage(mut self, storage: S) -> Self {
         self.storage.replace(storage);
-        self
-    }
-    pub fn with_fixity_dir(mut self, fixity_dir: PathBuf) -> Self {
-        self.fixity_dir.replace(fixity_dir);
-        self
-    }
-    pub fn with_workspace(mut self, workspace: String) -> Self {
-        self.workspace.replace(workspace);
         self
     }
     pub fn build(self) -> Result<Fixity<S>, Error> {
