@@ -1,7 +1,7 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{storage::Fs, value::Value, Fixity, Path, StorageWrite},
+    fixity::{storage::Fs, value::Value, Fixity, Path, Storage},
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -31,7 +31,26 @@ struct FixiOpt {
 #[derive(Debug, StructOpt)]
 enum Command {
     Init,
-    Raw(RawCommand),
+    Get {
+        /// The Path to get a `Value` from.
+        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
+        path: Path,
+    },
+    Put {
+        /// Write stdin to the given [`Path`].
+        #[structopt(long, short = "i")]
+        stdin: bool,
+        /// The destination to write a `Value` or Bytes to.
+        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
+        path: Path,
+        /// Write the [`Value`] to the given [`Path`].
+        #[structopt(
+            name = "VALUE", parse(try_from_str = Value::from_cli_str),
+            required_unless("stdin"),
+        )]
+        value: Option<Value>,
+    },
+    // Raw(RawCommand),
     #[cfg(feature = "web")]
     Web(WebConfig),
 }
@@ -80,24 +99,26 @@ async fn main() -> Result<(), Error> {
 
     match opt.cmd {
         Command::Init => cmd_init(fixi_dir, workspace, storage_dir).await,
-        Command::Raw(cmd) => {
-            let fixi = {
-                fixity::Fixity::<Fs>::open(
-                    fixi_dir,
-                    workspace,
-                    fixity::storage::fs::Config { path: storage_dir },
-                )
-                .await?
-            };
-            match cmd {
-                RawCommand::Get { address } => cmd_raw_get(address).await,
-                RawCommand::Put { stdin, path, value } => match (stdin, value) {
-                    (false, Some(value)) => cmd_raw_put_value(fixi, path, value).await,
-                    (true, None) => cmd_raw_put_stdin(fixi, path).await,
-                    _ => unreachable!("Structopt should be configured to make this unreachable"),
-                },
-            }
-        }
+        _ => {}
+    }
+
+    let fixi = {
+        fixity::Fixity::<Fs>::open(
+            fixi_dir,
+            workspace,
+            fixity::storage::fs::Config { path: storage_dir },
+        )
+        .await?
+    };
+
+    match opt.cmd {
+        Command::Init => unreachable!("matched above"),
+        Command::Get { path } => cmd_get(fixi, path).await,
+        Command::Put { stdin, path, value } => match (stdin, value) {
+            (false, Some(value)) => cmd_put_value(fixi, path, value).await,
+            (true, None) => cmd_put_stdin(fixi, path).await,
+            _ => unreachable!("Structopt should be configured to make this unreachable"),
+        },
         #[cfg(feature = "web")]
         Command::Web(c) => unimplemented!("web serve"),
         // Command::Web(c) => fixi_web::serve(c).await,
@@ -112,20 +133,27 @@ async fn cmd_init(fixi_dir: PathBuf, workspace: String, storage_dir: PathBuf) ->
     .await?;
     Ok(())
 }
-async fn cmd_raw_get(_address: String) -> Result<(), Error> {
-    unimplemented!("cmd_raw_get")
-}
-async fn cmd_raw_put_stdin<S>(fixi: Fixity<S>, _path: Path) -> Result<(), Error>
+async fn cmd_get<S>(fixi: Fixity<S>, mut path: Path) -> Result<(), Error>
 where
-    S: StorageWrite,
+    S: Storage,
+{
+    let key = path.pop().expect("CLI interface enforces at least one key");
+    let mut map = fixi.map(path).await?;
+    let v = map.get(key).await?;
+    dbg!(v);
+    Ok(())
+}
+async fn cmd_put_stdin<S>(fixi: Fixity<S>, _path: Path) -> Result<(), Error>
+where
+    S: Storage,
 {
     let addr = fixi.put_reader(tokio::io::stdin()).await?;
     println!("{}", addr);
     Ok(())
 }
-async fn cmd_raw_put_value<S>(fixi: Fixity<S>, mut path: Path, value: Value) -> Result<(), Error>
+async fn cmd_put_value<S>(fixi: Fixity<S>, mut path: Path, value: Value) -> Result<(), Error>
 where
-    S: StorageWrite,
+    S: Storage,
 {
     let key = path.pop().expect("CLI interface enforces at least one key");
     let mut map = fixi.map(path).await?;

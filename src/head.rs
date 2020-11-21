@@ -205,7 +205,7 @@ impl State {
         let (staged, head) = {
             let mut maybe_staged = head_contents.splitn(2, STAGE_SEP);
             match (maybe_staged.next(), maybe_staged.next()) {
-                (Some(stage_addr), Some(head)) => (Some(Addr::from(stage_addr.clone())), head),
+                (Some(stage_addr), Some(head)) => (Some(Addr::from(stage_addr.to_owned())), head),
                 (Some(head), None) => (None, head),
                 (None, None) | (None, Some(_)) => unreachable!(
                     "split has to return at least one item, and cannot return None then Some"
