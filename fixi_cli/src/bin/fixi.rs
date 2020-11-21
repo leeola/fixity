@@ -1,7 +1,7 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{storage::Fs, value::Value, Fixity, Path, Storage},
+    fixity::{fixity::Builder, storage::Fs, value::Value, Fixity, Path, Storage},
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -82,20 +82,16 @@ async fn main() -> Result<(), Error> {
         (_, Some(fixi_path)) => fixi_path,
         (fixi_dir_name, None) => fixi_dir_name,
     };
-    let storage_dir = storage_dir.unwrap_or_else(|| fixi_dir.join("storage"));
 
-    match opt.cmd {
-        Command::Init => return cmd_init(fixi_dir, workspace, storage_dir).await,
-        _ => {}
-    }
+    let builder = fixity::Fixity::<Fs>::new()
+        .fixi_dir_name(fixi_dir_name)
+        .fixi_path(fixi_path)
+        .workspace(workspace)
+        .fs_storage_dir(storage_dir);
 
-    let fixi = {
-        fixity::Fixity::<Fs>::open(
-            fixi_dir,
-            workspace,
-            fixity::storage::fs::Config { path: storage_dir },
-        )
-        .await?
+    let fixi = match opt.cmd {
+        Command::Init => return cmd_init(builder).await,
+        _ => builder.open().await?,
     };
 
     match opt.cmd {
@@ -111,13 +107,8 @@ async fn main() -> Result<(), Error> {
         // Command::Web(c) => fixi_web::serve(c).await,
     }
 }
-async fn cmd_init(fixi_dir: PathBuf, workspace: String, storage_dir: PathBuf) -> Result<(), Error> {
-    let _ = fixity::Fixity::<Fs>::init(
-        fixi_dir,
-        workspace,
-        fixity::storage::fs::Config { path: storage_dir },
-    )
-    .await?;
+async fn cmd_init<S>(b: Builder<S>) -> Result<(), Error> {
+    b.init().await?;
     Ok(())
 }
 async fn cmd_get<S>(fixi: Fixity<S>, mut path: Path) -> Result<(), Error>

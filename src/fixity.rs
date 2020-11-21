@@ -134,7 +134,7 @@ impl<S> Builder<S> {
         self.storage.replace(storage);
         self
     }
-    pub fn build(self) -> Result<Fixity<S>, Error> {
+    pub fn init(self) -> Result<Fixity<S>, Error> {
         let fixity_dir = self.fixity_dir.ok_or_else(|| Error::Builder {
             message: "missing fixity_dir".into(),
         })?;
