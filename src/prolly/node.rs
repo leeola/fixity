@@ -7,6 +7,14 @@ use serde::{Deserialize, Serialize};
 
 /// An alias to a [`Node`] with owned parameters.
 pub type NodeOwned = Node<Key, Value, Addr>;
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
+pub enum NodeType {
+    Map,
+}
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
@@ -14,6 +22,16 @@ pub type NodeOwned = Node<Key, Value, Addr>;
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub enum Node<Key, Value, Addr> {
+    RootBranch {
+        node_type: NodeType,
+        len: u64,
+        kvs: Vec<(Key, Addr)>,
+    },
+    RootLeaf {
+        node_type: NodeType,
+        len: u64,
+        kvs: Vec<(Key, Value)>,
+    },
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
 }
