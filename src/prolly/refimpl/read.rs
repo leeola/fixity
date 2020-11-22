@@ -37,6 +37,13 @@ where
             }
         }
     }
+    pub async fn get(&self, k: &Key) -> Result<Option<Value>, Error> {
+        // TODO: This is perhaps ignoring performance too excessively - even for a refimpl -
+        // might want to tweak this. It could be the same LOC as `to_vec` and `recursive_to_vec`,
+        // me thinks.
+        let v = self.to_vec().await?;
+        Ok(v.into_iter().find(|(rhs, _)| k == rhs).map(|(_, v)| v))
+    }
 }
 #[cfg(test)]
 pub mod test {

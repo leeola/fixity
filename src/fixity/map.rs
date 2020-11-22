@@ -2,7 +2,7 @@ use {
     crate::storage::{StorageRead, StorageWrite},
     crate::{
         fixity::Flush,
-        prolly::{refimpl, CursorCreate, LruRead},
+        prolly::refimpl,
         value::{Key, Value},
         Addr, Error,
     },
@@ -11,14 +11,14 @@ use {
 pub struct Map<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
+    reader: Option<refimpl::Read<'s, S>>,
     stage: HashMap<Key, Value>,
-    reader: Option<LruRead<'s, S>>,
 }
 impl<'s, S> Map<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
         let reader = addr
             .as_ref()
-            .map(|addr| LruRead::new(storage, addr.clone()));
+            .map(|addr| refimpl::Read::new(storage, addr.clone()));
         Self {
             storage,
             addr,
@@ -63,7 +63,7 @@ where
                 .await
         } else {
             let kvs = kvs.collect::<Vec<_>>();
-            CursorCreate::new(self.storage).with_kvs(kvs).await
+            refimpl::Create::new(self.storage).from_vec(kvs).await
         }
     }
 }
@@ -76,13 +76,13 @@ where
         K: Into<Key>,
     {
         let k = k.into();
-        let r = match &mut self.reader {
+        let r = match &self.reader {
             Some(r) => r,
             None => return Ok(None),
         };
         match self.stage.get(&k) {
             Some(v) => Ok(Some(v.clone())),
-            None => r.get_owned(k).await,
+            None => r.get(&k).await,
         }
     }
 }
