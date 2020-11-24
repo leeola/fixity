@@ -22,16 +22,6 @@ pub enum NodeType {
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub enum Node<Key, Value, Addr> {
-    RootBranch {
-        node_type: NodeType,
-        len: u64,
-        kvs: Vec<(Key, Addr)>,
-    },
-    RootLeaf {
-        node_type: NodeType,
-        len: u64,
-        kvs: Vec<(Key, Value)>,
-    },
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
 }
