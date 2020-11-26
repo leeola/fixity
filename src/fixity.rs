@@ -1,9 +1,7 @@
-pub mod map;
-pub use map::Map;
-
 use {
     crate::{
         head::{Guard, Head},
+        primitive::Map,
         storage::{self, fs::Config as FsConfig, Fs},
         value::{Addr, Path},
         Error, Storage,
