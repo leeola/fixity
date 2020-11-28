@@ -1,14 +1,21 @@
 use {
-    crate::{fixity::Flush, value::Key, Addr, Error},
+    crate::{fixity::Flush, primitive::Map, value::Key, Addr, Error, StorageRead, StorageWrite},
     std::ops::{Deref, DerefMut},
 };
 
+#[async_trait::async_trait]
 pub trait DeferTo: Insert + Flush {}
+#[async_trait::async_trait]
 pub trait Init: Sized {
-    fn defer_init(addr: Option<Addr>) -> Result<Self, Error>;
+    async fn defer_init(addr: Option<Addr>) -> Result<Self, Error>;
 }
+#[async_trait::async_trait]
 pub trait Insert {
-    fn defer_insert(&self, key: Key, addr: Addr) -> Result<Addr, Error>;
+    async fn defer_insert(&mut self, key: Key, addr: Addr) -> Result<(), Error>;
+}
+#[async_trait::async_trait]
+pub trait Get {
+    async fn defer_get(&self, key: Key) -> Result<Addr, Error>;
 }
 
 pub struct Defer<T> {
@@ -54,12 +61,65 @@ impl Builder {
             parents: Vec::new(),
         }
     }
-    pub fn push<Parent>(&mut self, key: Key)
+    pub async fn push<Parent>(&mut self, key: Key) -> Result<(), Error>
     where
-        Parent: DeferTo + 'static,
+        Parent: DeferTo + Init + Get + 'static,
     {
-        // self.parents.push(Box::new(to));
-        todo!("push")
+        match self.addr.as_ref() {
+            Some(addr) => {
+                // NIT: I could take the Addr, and then set it for the next one? Not sure which
+                // would be more cheap.
+                let addr = Some(addr.clone());
+                let parent = Parent::defer_init(addr).await?;
+                self.addr.replace(parent.defer_get(key.clone()).await?);
+                self.parents.push((key, Box::new(parent)));
+            }
+            None => {
+                let parent = Parent::defer_init(None).await?;
+                self.parents.push((key, Box::new(parent)));
+            }
+        }
+        Ok(())
+    }
+    pub async fn build<T>(self, key: Key) -> Result<Defer<T>, Error>
+    where
+        T: Init + 'static,
+    {
+        // NIT: I could take the Addr, and then set it for the next one? Not sure which
+        // would be more cheap.
+        let addr = self.addr.clone();
+        let inner = T::defer_init(addr).await?;
+        Ok(Defer {
+            parents: self.parents,
+            inner,
+        })
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> Init for Map<'s, S>
+where
+    S: StorageRead,
+{
+    async fn defer_init(addr: Option<Addr>) -> Result<Self, Error> {
+        todo!("defer init")
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> Insert for Map<'s, S>
+where
+    S: StorageWrite,
+{
+    async fn defer_insert(&mut self, key: Key, addr: Addr) -> Result<(), Error> {
+        todo!("defer insert")
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> Get for Map<'s, S>
+where
+    S: StorageRead,
+{
+    async fn defer_get(&self, key: Key) -> Result<(), Error> {
+        todo!("defer get")
     }
 }
 #[cfg(test)]
@@ -69,20 +129,6 @@ pub mod test {
         crate::{primitive::Map, storage::Memory},
     };
     #[test]
-    fn dyn_defer() {
-        let mut env_builder = env_logger::builder();
-        env_builder.is_test(true);
-        if std::env::var("RUST_LOG").is_err() {
-            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
-        }
-        let _ = env_builder.try_init();
-        let storage = Memory::new();
-        let _d = DynDefer::<Map<'_, Memory>, Map<'_, Memory>>::new();
-        // let mut m = Map::new(&storage, None);
-        // m.append((0..20).map(|i| (i, i * 10)));
-        // dbg!(&storage);
-    }
-    #[test]
     fn defer() {
         let mut env_builder = env_logger::builder();
         env_builder.is_test(true);
@@ -91,7 +137,8 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        // let _d = Defer::<Map>::new(None);
+        let b = Defer::build(None);
+        b.push::<Map<'_, _>>("foo".into());
         // let mut m = Map::new(&storage, None);
         // m.append((0..20).map(|i| (i, i * 10)));
         // dbg!(&storage);
