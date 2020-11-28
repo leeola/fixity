@@ -1,23 +1,30 @@
 use {
-    crate::{fixity::Flush, value::Key, Addr},
+    crate::{fixity::Flush, value::Key, Addr, Error},
     std::ops::{Deref, DerefMut},
 };
 
-pub trait DeferTo: DeferredInsert + Flush {}
-pub trait Init {}
-pub trait DeferredInsert {}
+pub trait DeferTo: Insert + Flush {}
+pub trait Init: Sized {
+    fn defer_init(addr: Option<Addr>) -> Result<Self, Error>;
+}
+pub trait Insert {
+    fn defer_insert(&self, key: Key, addr: Addr) -> Result<Addr, Error>;
+}
 
 pub struct Defer<T> {
     parents: Vec<(Key, Box<dyn DeferTo>)>,
     inner: T,
 }
 impl<T> Defer<T> {
-    pub fn new(inner: T) -> Self {
-        Self {
-            parents: Vec::new(),
-            inner,
-        }
+    pub fn build(addr: Option<Addr>) -> Builder {
+        Builder::new(addr)
     }
+    // pub fn new(inner: T) -> Self {
+    //     Self {
+    //         parents: Vec::new(),
+    //         inner,
+    //     }
+    // }
     // pub fn push<To>(&mut self, key: Key, to: To)
     // where
     //     To: DeferTo + 'static,
@@ -37,8 +44,23 @@ impl<T> std::ops::DerefMut for Defer<T> {
     }
 }
 pub struct Builder {
-    root_addr: Addr,
+    addr: Option<Addr>,
     parents: Vec<(Key, Box<dyn DeferTo>)>,
+}
+impl Builder {
+    pub fn new(addr: Option<Addr>) -> Self {
+        Self {
+            addr,
+            parents: Vec::new(),
+        }
+    }
+    pub fn push<Parent>(&mut self, key: Key)
+    where
+        Parent: DeferTo + 'static,
+    {
+        // self.parents.push(Box::new(to));
+        todo!("push")
+    }
 }
 #[cfg(test)]
 pub mod test {
