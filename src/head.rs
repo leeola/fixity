@@ -1,5 +1,5 @@
 use {
-    crate::{fixity::Flush, Addr},
+    crate::{primitive::Flush, Addr},
     std::path::{Path, PathBuf},
     tokio::{
         fs::{self, File, OpenOptions},

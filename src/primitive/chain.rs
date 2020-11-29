@@ -55,7 +55,7 @@ impl<'s> Builder<'s> {
                 // would be more cheap.
                 let addr = Some(addr.clone());
                 let parent = parent_builder.build(addr).await?;
-                self.addr.replace(parent.get_addr(key.clone()).await?);
+                self.addr = parent.get_addr(key.clone()).await?;
                 self.parents.push((key, Box::new(parent)));
             }
             None => {
@@ -65,7 +65,7 @@ impl<'s> Builder<'s> {
         }
         Ok(())
     }
-    pub async fn build<B>(self, key: Key, builder: B) -> Result<Chain<'s, B::Primitive>, Error>
+    pub async fn build<B>(self, builder: B) -> Result<Chain<'s, B::Primitive>, Error>
     where
         B: Build + 's,
         B::Primitive: Flush,
@@ -87,7 +87,7 @@ pub mod test {
     use {
         super::*,
         crate::{
-            primitive::{map::MapBuilder, Map},
+            primitive::{Map, MapBuilder},
             storage::Memory,
         },
     };
@@ -104,10 +104,7 @@ pub mod test {
         b.push("foo".into(), MapBuilder::new(&storage))
             .await
             .unwrap();
-        let _d = b
-            .build("bar".into(), MapBuilder::new(&storage))
-            .await
-            .unwrap();
+        let _d = b.build(MapBuilder::new(&storage)).await.unwrap();
         // let mut m = Map::new(&storage, None);
         // m.append((0..20).map(|i| (i, i * 10)));
         // dbg!(&storage);

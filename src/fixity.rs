@@ -1,7 +1,7 @@
 use {
     crate::{
         head::{Guard, Head},
-        primitive::Map,
+        primitive::{Chain, Map},
         storage::{self, fs::Config as FsConfig, Fs},
         value::{Addr, Path},
         Error, Storage,
@@ -36,14 +36,18 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    pub async fn map(&self, path: Path) -> Result<Guard<Map<'_, S>>, Error> {
-        // TODO: recursively load Map's until the Path is met.
-        if !path.is_empty() {
-            unimplemented!("opening a map with a path");
-        }
-
+    pub async fn map(&self, mut path: Path) -> Result<Guard<Chain<'_, Map<'_, S>>>, Error> {
         let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
-        let inner = Map::new(&self.storage, head.addr());
+        let addr = head.addr();
+        let inner = if path.is_empty() {
+            Chain::new(Map::new(&self.storage, addr))
+        } else {
+            let mut b = Chain::<Map<'_, S>>::build(addr);
+            for key in path {
+                b.push(key, Map::build(&self.storage)).await?;
+            }
+            b.build(Map::build(&self.storage)).await?
+        };
         Ok(Guard::new(head, inner))
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
@@ -153,10 +157,6 @@ impl Builder<Fs> {
         };
         Fixity::open(fixi_dir, workspace, storage).await
     }
-}
-#[async_trait::async_trait]
-pub trait Flush {
-    async fn flush(&mut self) -> Result<Addr, Error>;
 }
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {

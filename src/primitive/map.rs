@@ -1,6 +1,6 @@
 use {
     crate::{
-        fixity::Flush as FixiFlush,
+        error::TypeError,
         primitive::{Build, Flush, GetAddr, InsertAddr},
         prolly::refimpl,
         storage::{StorageRead, StorageWrite},
@@ -27,6 +27,9 @@ impl<'s, S> Map<'s, S> {
             stage: HashMap::new(),
         }
     }
+    pub fn build(storage: &'s S) -> Builder<'s, S> {
+        Builder::new(storage)
+    }
     pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<Value>
     where
         K: Into<Key>,
@@ -45,13 +48,33 @@ impl<'s, S> Map<'s, S> {
         });
     }
 }
+impl<'s, S> Map<'s, S>
+where
+    S: StorageRead,
+{
+    pub async fn get<K>(&self, k: K) -> Result<Option<Value>, Error>
+    where
+        K: Into<Key>,
+    {
+        let k = k.into();
+        if let Some(v) = self.stage.get(&k) {
+            return Ok(Some(v.clone()));
+        }
+        let reader = match &self.reader {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+        reader.get(&k).await
+    }
+}
 #[async_trait::async_trait]
 impl<'s, S> InsertAddr for Map<'s, S>
 where
-    S: StorageWrite,
+    S: Sync,
 {
     async fn insert_addr(&mut self, key: Key, addr: Addr) -> Result<(), Error> {
-        todo!("insert_addr")
+        self.insert(key, Value::from(addr));
+        Ok(())
     }
 }
 #[async_trait::async_trait]
@@ -59,23 +82,22 @@ impl<'s, S> GetAddr for Map<'s, S>
 where
     S: StorageRead,
 {
-    async fn get_addr(&self, key: Key) -> Result<Addr, Error> {
-        todo!("get_addr")
+    async fn get_addr(&self, key: Key) -> Result<Option<Addr>, Error> {
+        match self.get(key).await? {
+            Some(Value::Addr(addr)) => Ok(Some(addr)),
+            None => Ok(None),
+            Some(_) => Err(TypeError::UnexpectedValueVariant {
+                at_key: None,
+                at_addr: self.addr.clone(),
+            }
+            .into()),
+        }
     }
 }
 #[async_trait::async_trait]
 impl<'s, S> Flush for Map<'s, S>
 where
-    S: StorageWrite,
-{
-    async fn flush(&mut self) -> Result<Addr, Error> {
-        todo!("flush")
-    }
-}
-#[async_trait::async_trait]
-impl<'s, S> FixiFlush for Map<'s, S>
-where
-    S: StorageWrite + StorageRead,
+    S: StorageRead + StorageWrite,
 {
     async fn flush(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.stage, HashMap::new()).into_iter();
@@ -94,35 +116,16 @@ where
         }
     }
 }
-impl<'s, S> Map<'s, S>
-where
-    S: StorageRead,
-{
-    pub async fn get<K>(&mut self, k: K) -> Result<Option<Value>, Error>
-    where
-        K: Into<Key>,
-    {
-        let k = k.into();
-        let r = match &self.reader {
-            Some(r) => r,
-            None => return Ok(None),
-        };
-        match self.stage.get(&k) {
-            Some(v) => Ok(Some(v.clone())),
-            None => r.get(&k).await,
-        }
-    }
-}
-pub struct MapBuilder<'s, S> {
+pub struct Builder<'s, S> {
     storage: &'s S,
 }
-impl<'s, S> MapBuilder<'s, S> {
+impl<'s, S> Builder<'s, S> {
     pub fn new(storage: &'s S) -> Self {
         Self { storage }
     }
 }
 #[async_trait::async_trait]
-impl<'s, S> Build for MapBuilder<'s, S>
+impl<'s, S> Build for Builder<'s, S>
 where
     S: StorageRead + StorageWrite,
 {

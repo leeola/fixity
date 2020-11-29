@@ -1,6 +1,10 @@
 pub mod from_cli_str;
 
-use {crate::Error, multibase::Base, std::fmt};
+use {
+    crate::Error,
+    multibase::Base,
+    std::{fmt, iter::IntoIterator},
+};
 
 const ADDR_SHORT_LEN: usize = 8;
 
@@ -88,6 +92,11 @@ impl From<u32> for Scalar {
 impl From<&str> for Scalar {
     fn from(t: &str) -> Self {
         Self::String(t.to_owned())
+    }
+}
+impl From<Addr> for Scalar {
+    fn from(t: Addr) -> Self {
+        Self::Addr(t)
     }
 }
 impl fmt::Display for Scalar {
@@ -267,6 +276,10 @@ impl Path {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+    /// Reverses the order of Keys in the Path, in place.
+    pub fn reverse(&mut self) {
+        self.0.reverse()
+    }
 }
 impl<T> From<T> for Path
 where
@@ -282,5 +295,12 @@ where
 {
     fn from(t: &[T]) -> Self {
         Self::new(t.iter().map(|t| t.clone().into()).collect())
+    }
+}
+impl IntoIterator for Path {
+    type Item = Key;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }

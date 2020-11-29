@@ -1,5 +1,8 @@
 use {
-    crate::{deser, fixity, head, storage, value::Addr},
+    crate::{
+        deser, fixity, head, storage,
+        value::{Addr, Key},
+    },
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -16,6 +19,8 @@ pub enum Error {
     /// A fixi repository was not found.
     #[error("fixity repository was not found")]
     RepositoryNotFound,
+    #[error("data type error: {0}")]
+    Type(#[from] TypeError),
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]
@@ -82,4 +87,16 @@ impl From<fixity::InitError> for Error {
     fn from(err: fixity::InitError) -> Self {
         Self::Internal { source: err.into() }
     }
+}
+#[derive(Debug, thiserror::Error)]
+pub enum TypeError {
+    #[error("expected a Value of a specific type, got another")]
+    UnexpectedValueVariant {
+        /// The key of the error, if available.
+        ///
+        /// This may be a key within a path.
+        at_key: Option<Key>,
+        /// The address of the error, if available.
+        at_addr: Option<Addr>,
+    },
 }

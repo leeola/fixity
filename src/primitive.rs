@@ -2,10 +2,7 @@
 
 pub mod chain;
 pub mod map;
-pub use {
-    chain::Chain,
-    map::{Map, MapBuilder},
-};
+pub use {chain::Chain, map::Map};
 
 use crate::{
     value::{Addr, Key},
@@ -27,5 +24,5 @@ pub trait InsertAddr {
 }
 #[async_trait::async_trait]
 pub trait GetAddr {
-    async fn get_addr(&self, key: Key) -> Result<Addr, Error>;
+    async fn get_addr(&self, key: Key) -> Result<Option<Addr>, Error>;
 }
