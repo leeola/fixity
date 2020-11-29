@@ -1,8 +1,9 @@
 use {
-    crate::storage::{StorageRead, StorageWrite},
     crate::{
-        fixity::Flush,
+        fixity::Flush as FixiFlush,
+        primitive::{Build, Flush, GetAddr, InsertAddr},
         prolly::refimpl,
+        storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         Addr, Error,
     },
@@ -44,9 +45,35 @@ impl<'s, S> Map<'s, S> {
         });
     }
 }
-
+#[async_trait::async_trait]
+impl<'s, S> InsertAddr for Map<'s, S>
+where
+    S: StorageWrite,
+{
+    async fn insert_addr(&mut self, key: Key, addr: Addr) -> Result<(), Error> {
+        todo!("insert_addr")
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> GetAddr for Map<'s, S>
+where
+    S: StorageRead,
+{
+    async fn get_addr(&self, key: Key) -> Result<Addr, Error> {
+        todo!("get_addr")
+    }
+}
 #[async_trait::async_trait]
 impl<'s, S> Flush for Map<'s, S>
+where
+    S: StorageWrite,
+{
+    async fn flush(&mut self) -> Result<Addr, Error> {
+        todo!("flush")
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> FixiFlush for Map<'s, S>
 where
     S: StorageWrite + StorageRead,
 {
@@ -84,6 +111,24 @@ where
             Some(v) => Ok(Some(v.clone())),
             None => r.get(&k).await,
         }
+    }
+}
+pub struct MapBuilder<'s, S> {
+    storage: &'s S,
+}
+impl<'s, S> MapBuilder<'s, S> {
+    pub fn new(storage: &'s S) -> Self {
+        Self { storage }
+    }
+}
+#[async_trait::async_trait]
+impl<'s, S> Build for MapBuilder<'s, S>
+where
+    S: StorageRead + StorageWrite,
+{
+    type Primitive = Map<'s, S>;
+    async fn build(self, addr: Option<Addr>) -> Result<Self::Primitive, Error> {
+        Ok(Map::new(self.storage, addr))
     }
 }
 #[cfg(test)]

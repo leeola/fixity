@@ -1,5 +1,3 @@
-pub mod defer;
-
 use {
     crate::{
         head::{Guard, Head},
