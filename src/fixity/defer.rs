@@ -10,6 +10,11 @@ pub trait Init: Sized {
     async fn defer_init(addr: Option<Addr>) -> Result<Self, Error>;
 }
 #[async_trait::async_trait]
+pub trait BuildPrimitive {
+    type Primitive: DeferTo + Get;
+    async fn build(self, addr: Option<Addr>) -> Result<Self::Primitive, Error>;
+}
+#[async_trait::async_trait]
 pub trait Insert {
     async fn defer_insert(&mut self, key: Key, addr: Addr) -> Result<(), Error>;
 }
@@ -18,12 +23,12 @@ pub trait Get {
     async fn defer_get(&self, key: Key) -> Result<Addr, Error>;
 }
 
-pub struct Defer<T> {
-    parents: Vec<(Key, Box<dyn DeferTo>)>,
+pub struct Defer<'s, T> {
+    parents: Vec<(Key, Box<dyn DeferTo + 's>)>,
     inner: T,
 }
-impl<T> Defer<T> {
-    pub fn build(addr: Option<Addr>) -> Builder {
+impl<'s, T> Defer<'s, T> {
+    pub fn build(addr: Option<Addr>) -> Builder<'s> {
         Builder::new(addr)
     }
     // pub fn new(inner: T) -> Self {
@@ -39,71 +44,94 @@ impl<T> Defer<T> {
     //     self.parents.push(Box::new(to));
     // }
 }
-impl<T> std::ops::Deref for Defer<T> {
+impl<'s, T> std::ops::Deref for Defer<'s, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
-impl<T> std::ops::DerefMut for Defer<T> {
+impl<'s, T> std::ops::DerefMut for Defer<'s, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
-pub struct Builder {
+pub struct Builder<'s> {
     addr: Option<Addr>,
-    parents: Vec<(Key, Box<dyn DeferTo>)>,
+    parents: Vec<(Key, Box<dyn DeferTo + 's>)>,
 }
-impl Builder {
+impl<'s> Builder<'s> {
     pub fn new(addr: Option<Addr>) -> Self {
         Self {
             addr,
             parents: Vec::new(),
         }
     }
-    pub async fn push<Parent>(&mut self, key: Key) -> Result<(), Error>
+    pub async fn push<ParentBuilder>(
+        &mut self,
+        key: Key,
+        parent_builder: ParentBuilder,
+    ) -> Result<(), Error>
     where
-        Parent: DeferTo + Init + Get + 'static,
+        ParentBuilder: BuildPrimitive + 's,
     {
         match self.addr.as_ref() {
             Some(addr) => {
                 // NIT: I could take the Addr, and then set it for the next one? Not sure which
                 // would be more cheap.
                 let addr = Some(addr.clone());
-                let parent = Parent::defer_init(addr).await?;
+                let parent = parent_builder.build(addr).await?;
                 self.addr.replace(parent.defer_get(key.clone()).await?);
                 self.parents.push((key, Box::new(parent)));
             }
             None => {
-                let parent = Parent::defer_init(None).await?;
+                let parent = parent_builder.build(None).await?;
                 self.parents.push((key, Box::new(parent)));
             }
         }
         Ok(())
     }
-    pub async fn build<T>(self, key: Key) -> Result<Defer<T>, Error>
+    pub async fn build<B>(
+        self,
+        key: Key,
+        primitive_builder: B,
+    ) -> Result<Defer<'s, B::Primitive>, Error>
     where
-        T: Init + 'static,
+        B: BuildPrimitive + 's,
     {
         // NIT: I could take the Addr, and then set it for the next one? Not sure which
         // would be more cheap.
         let addr = self.addr.clone();
-        let inner = T::defer_init(addr).await?;
+        let inner = primitive_builder.build(addr).await?;
         Ok(Defer {
             parents: self.parents,
             inner,
         })
     }
 }
+// #[async_trait::async_trait]
+// impl<'s, S> Init for Map<'s, S>
+// where
+//     S: StorageRead,
+// {
+//     async fn defer_init(addr: Option<Addr>) -> Result<Self, Error> {
+//         todo!("defer init")
+//     }
+// }
+pub struct MapBuilder<'s, S> {
+    storage: &'s S,
+}
 #[async_trait::async_trait]
-impl<'s, S> Init for Map<'s, S>
+impl<'s, S> BuildPrimitive for MapBuilder<'s, S>
 where
-    S: StorageRead,
+    S: StorageRead + StorageWrite,
 {
-    async fn defer_init(addr: Option<Addr>) -> Result<Self, Error> {
-        todo!("defer init")
+    type Primitive = Map<'s, S>;
+    async fn build(self, addr: Option<Addr>) -> Result<Self::Primitive, Error> {
+        Ok(Map::new(self.storage, addr))
     }
 }
+#[async_trait::async_trait]
+impl<'s, S> DeferTo for Map<'s, S> where S: StorageRead + StorageWrite {}
 #[async_trait::async_trait]
 impl<'s, S> Insert for Map<'s, S>
 where
@@ -118,7 +146,7 @@ impl<'s, S> Get for Map<'s, S>
 where
     S: StorageRead,
 {
-    async fn defer_get(&self, key: Key) -> Result<(), Error> {
+    async fn defer_get(&self, key: Key) -> Result<Addr, Error> {
         todo!("defer get")
     }
 }
@@ -137,8 +165,9 @@ pub mod test {
         }
         let _ = env_builder.try_init();
         let storage = Memory::new();
-        let b = Defer::build(None);
-        b.push::<Map<'_, _>>("foo".into());
+        let mut b = Defer::<Map<'_, Memory>>::build(None);
+        b.push("foo".into(), MapBuilder { storage: &storage });
+        let _d = b.build("foo".into(), MapBuilder { storage: &storage });
         // let mut m = Map::new(&storage, None);
         // m.append((0..20).map(|i| (i, i * 10)));
         // dbg!(&storage);
