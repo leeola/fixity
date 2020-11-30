@@ -36,12 +36,11 @@ impl<'s, T> std::ops::DerefMut for Chain<'s, T> {
 #[async_trait::async_trait]
 impl<'s, T> Flush for Chain<'s, T>
 where
-    T: Flush,
+    T: Flush + Sync + Send,
 {
     async fn flush(&mut self) -> Result<Addr, Error> {
         let mut addr = self.inner.flush().await?;
-        let links = &self.links;
-        for (key, link) in links.iter().rev() {
+        for (key, link) in self.links.iter_mut().rev() {
             link.insert_addr(key.clone(), addr.clone()).await?;
             addr = link.flush().await?;
         }
@@ -50,13 +49,13 @@ where
 }
 pub struct Builder<'s> {
     addr: Option<Addr>,
-    parents: Vec<(Key, Box<dyn Link + 's>)>,
+    links: Vec<(Key, Box<dyn Link + 's>)>,
 }
 impl<'s> Builder<'s> {
     pub fn new(addr: Option<Addr>) -> Self {
         Self {
             addr,
-            parents: Vec::new(),
+            links: Vec::new(),
         }
     }
     pub async fn push<B>(&mut self, key: Key, parent_builder: B) -> Result<(), Error>
@@ -71,11 +70,11 @@ impl<'s> Builder<'s> {
                 let addr = Some(addr.clone());
                 let parent = parent_builder.build(addr).await?;
                 self.addr = parent.get_addr(key.clone()).await?;
-                self.parents.push((key, Box::new(parent)));
+                self.links.push((key, Box::new(parent)));
             }
             None => {
                 let parent = parent_builder.build(None).await?;
-                self.parents.push((key, Box::new(parent)));
+                self.links.push((key, Box::new(parent)));
             }
         }
         Ok(())
@@ -90,7 +89,7 @@ impl<'s> Builder<'s> {
         let addr = self.addr.clone();
         let inner = builder.build(addr).await?;
         Ok(Chain {
-            parents: self.parents,
+            links: self.links,
             inner,
         })
     }
@@ -102,7 +101,7 @@ pub mod test {
     use {
         super::*,
         crate::{
-            primitive::{Map, MapBuilder},
+            primitive::{map::Builder as MapBuilder, Map},
             storage::Memory,
         },
     };
