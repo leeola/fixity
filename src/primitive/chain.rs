@@ -8,7 +8,7 @@ use {
 };
 
 pub struct Chain<'s, T> {
-    parents: Vec<(Key, Box<dyn Link + 's>)>,
+    links: Vec<(Key, Box<dyn Link + 's>)>,
     inner: T,
 }
 impl<'s, T> Chain<'s, T> {
@@ -17,7 +17,7 @@ impl<'s, T> Chain<'s, T> {
     }
     pub fn new(inner: T) -> Self {
         Self {
-            parents: Vec::new(),
+            links: Vec::new(),
             inner,
         }
     }
@@ -31,6 +31,21 @@ impl<'s, T> std::ops::Deref for Chain<'s, T> {
 impl<'s, T> std::ops::DerefMut for Chain<'s, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
+    }
+}
+#[async_trait::async_trait]
+impl<'s, T> Flush for Chain<'s, T>
+where
+    T: Flush,
+{
+    async fn flush(&mut self) -> Result<Addr, Error> {
+        let mut addr = self.inner.flush().await?;
+        let links = &self.links;
+        for (key, link) in links.iter().rev() {
+            link.insert_addr(key.clone(), addr.clone()).await?;
+            addr = link.flush().await?;
+        }
+        Ok(addr)
     }
 }
 pub struct Builder<'s> {
@@ -80,8 +95,8 @@ impl<'s> Builder<'s> {
         })
     }
 }
-pub trait Link: Flush + InsertAddr {}
-impl<T> Link for T where T: Flush + InsertAddr {}
+pub trait Link: Flush + InsertAddr + Sync + Send {}
+impl<T> Link for T where T: Flush + InsertAddr + Sync + Send {}
 #[cfg(test)]
 pub mod test {
     use {
