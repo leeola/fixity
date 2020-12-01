@@ -112,7 +112,7 @@ where
     S: Storage,
 {
     let key = path.pop().expect("CLI interface enforces at least one key");
-    let mut map = fixi.map(path).await?;
+    let map = fixi.map(path).await?;
     let v = map.get(key).await?;
     dbg!(v);
     Ok(())

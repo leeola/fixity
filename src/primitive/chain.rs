@@ -1,8 +1,8 @@
 use {
     crate::{
-        primitive::{Build, Flush, GetAddr, InsertAddr, Map},
+        primitive::{Build, Flush, GetAddr, InsertAddr},
         value::Key,
-        Addr, Error, StorageRead, StorageWrite,
+        Addr, Error,
     },
     std::ops::{Deref, DerefMut},
 };
@@ -22,13 +22,13 @@ impl<'s, T> Chain<'s, T> {
         }
     }
 }
-impl<'s, T> std::ops::Deref for Chain<'s, T> {
+impl<'s, T> Deref for Chain<'s, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
-impl<'s, T> std::ops::DerefMut for Chain<'s, T> {
+impl<'s, T> DerefMut for Chain<'s, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

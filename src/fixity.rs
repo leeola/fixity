@@ -3,7 +3,7 @@ use {
         head::{Guard, Head},
         primitive::{Chain, Map},
         storage::{self, fs::Config as FsConfig, Fs},
-        value::{Addr, Path},
+        value::Path,
         Error, Storage,
     },
     multibase::Base,
@@ -36,7 +36,7 @@ impl<S> Fixity<S>
 where
     S: Storage,
 {
-    pub async fn map(&self, mut path: Path) -> Result<Guard<Chain<'_, Map<'_, S>>>, Error> {
+    pub async fn map(&self, path: Path) -> Result<Guard<Chain<'_, Map<'_, S>>>, Error> {
         let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
         let addr = head.addr();
         let inner = if path.is_empty() {
