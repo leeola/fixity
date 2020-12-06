@@ -1,8 +1,10 @@
 //! A series of primitive data types for interacting with the Fixity store.
 
+pub mod appendlog;
 pub mod chain;
+pub mod commitlog;
 pub mod map;
-pub use {chain::Chain, map::Map};
+pub use {appendlog::AppendLog, chain::Chain, commitlog::CommitLog, map::Map};
 
 use crate::{
     value::{Addr, Key},
