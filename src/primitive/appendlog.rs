@@ -16,7 +16,7 @@ pub struct AppendLog<'s, S, T> {
     /// A single item "queue" for `T` waiting on being flushed to storage.
     flush_queue: Option<T>,
 }
-impl<'s, S> AppendLog<'s, S> {
+impl<'s, S, T> AppendLog<'s, S, T> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
         Self {
             storage,
@@ -32,7 +32,7 @@ impl<'s, S> AppendLog<'s, S> {
         self.flush_queue.replace(v.into())
     }
 }
-impl<'s, S> Map<'s, S>
+impl<'s, S, T> AppendLog<'s, S, T>
 where
     S: StorageRead,
 {
