@@ -48,6 +48,7 @@ where
             }
             b.build(Map::build(&self.storage)).await?
         };
+        // let inner = CommitLog::new(
         Ok(Guard::new(head, inner))
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>

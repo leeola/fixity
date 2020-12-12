@@ -99,7 +99,6 @@ impl Head {
                 }
                 let staged_addr = staged.take().expect("staged impossibly missing");
                 addr.replace(staged_addr.clone());
-                log::warn!("content hash being returned instead of commit hash");
                 Ok(staged_addr)
             }
         }
