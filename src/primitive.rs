@@ -4,7 +4,12 @@ pub mod appendlog;
 pub mod chain;
 pub mod commitlog;
 pub mod map;
-pub use {appendlog::AppendLog, chain::Chain, commitlog::CommitLog, map::Map};
+pub use {
+    appendlog::AppendLog,
+    chain::Chain,
+    commitlog::{Commit, CommitLog},
+    map::Map,
+};
 
 use crate::{
     value::{Addr, Key},
