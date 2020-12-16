@@ -16,15 +16,10 @@ pub struct Log<T> {
 pub struct AppendLog<'s, S> {
     storage: &'s S,
     addr: Option<Addr>,
-    // reader: Option<refimpl::Read<'s, S>>,
 }
 impl<'s, S> AppendLog<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
-        Self {
-            storage,
-            addr,
-            // reader,
-        }
+        Self { storage, addr }
     }
 }
 impl<'s, S> AppendLog<'s, S>
@@ -35,15 +30,14 @@ where
         todo!("appendlog .. append")
     }
 }
-// A potential API to read from the AppendLog.
-// impl<'s, S, T> AppendLog<'s, S, T>
-// where
-//     S: StorageRead,
-// {
-//     pub async fn get_rel(&self, _i: usize) -> Result<Option<T>, Error> {
-//         todo!("get rel")
-//     }
-//     pub async fn get_to_rel(&self, _i: usize) -> Result<Vec<T>, Error> {
-//         todo!("get to rel")
-//     }
-// }
+impl<'s, S> AppendLog<'s, S>
+where
+    S: StorageRead,
+{
+    pub async fn first<T>(&self) -> Result<Option<Log<T>>, Error> {
+        todo!("get rel")
+    }
+    pub async fn get_to_rel(&self, _i: usize) -> Result<Vec<T>, Error> {
+        todo!("get to rel")
+    }
+}
