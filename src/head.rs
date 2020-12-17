@@ -122,6 +122,9 @@ impl Head {
 }
 pub struct Guard<T> {
     head: Head,
+    // TODO: This should likely be wrapped by `Commit<T>`, such that we can change
+    // behavior and interact directly with the Commit object.
+    // This does mean that Guard becomes bound to `S`, but that's reasonable.
     inner: T,
 }
 impl<T> Guard<T> {

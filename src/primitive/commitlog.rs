@@ -1,6 +1,6 @@
 use {
     crate::{
-        primitive::{AppendLog, Flush},
+        primitive::{appendlog::LogContainer, AppendLog, Flush},
         storage::{StorageRead, StorageWrite},
         Addr, Error,
     },
@@ -25,21 +25,54 @@ impl<'s, S> CommitLog<'s, S> {
         Self { log }
     }
     pub fn wrap_inner<Inner>(self, inner: Inner) -> Commit<'s, S, Inner> {
-        let Self { log } = self;
-        Commit { log, inner }
+        Commit { log: self, inner }
     }
 }
 impl<'s, S> CommitLog<'s, S>
 where
     S: StorageRead,
 {
+    pub async fn first_container(&self) -> Result<Option<LogContainer<'_, CommitNode>>, Error> {
+        let container = self.log.first_container::<CommitNode>().await?;
+        Ok(container.map(|LogContainer { node, addr }| LogContainer {
+            addr,
+            node: node.inner,
+        }))
+    }
     pub async fn first(&self) -> Result<Option<CommitNode>, Error> {
-        let log_node = self.log.first::<CommitNode>().await?;
-        Ok(log_node.map(|log_node| log_node.inner))
+        let container = self.first_container().await?;
+        Ok(container.map(|LogContainer { node, .. }| node))
+    }
+}
+impl<'s, S> CommitLog<'s, S>
+where
+    S: StorageRead + StorageWrite,
+{
+    pub async fn append(&mut self, content: Addr) -> Result<Addr, Error> {
+        let container = self.first_container().await?;
+        if let Some(LogContainer {
+            addr: old_addr,
+            node:
+                CommitNode {
+                    content: old_content,
+                    ..
+                },
+        }) = container
+        {
+            if content == old_content {
+                return Ok(old_addr.clone());
+            }
+        }
+        self.log
+            .append(CommitNode {
+                timestamp: Utc::now().timestamp(),
+                content,
+            })
+            .await
     }
 }
 pub struct Commit<'s, S, Inner> {
-    log: AppendLog<'s, S>,
+    log: CommitLog<'s, S>,
     inner: Inner,
 }
 #[async_trait::async_trait]
@@ -50,12 +83,7 @@ where
 {
     async fn flush(&mut self) -> Result<Addr, Error> {
         let content = self.inner.flush().await?;
-        self.log
-            .append(CommitNode {
-                timestamp: Utc::now().timestamp(),
-                content,
-            })
-            .await
+        self.log.append(content).await
     }
 }
 impl<'s, S, Inner> std::ops::Deref for Commit<'s, S, Inner> {

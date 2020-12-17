@@ -3,6 +3,10 @@ use crate::{
     storage::{StorageRead, StorageWrite},
     Addr, Error,
 };
+pub struct LogContainer<'a, T> {
+    pub addr: &'a Addr,
+    pub node: T,
+}
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
@@ -46,7 +50,7 @@ impl<'s, S> AppendLog<'s, S>
 where
     S: StorageRead,
 {
-    pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>
+    pub async fn first_container<T>(&self) -> Result<Option<LogContainer<'_, LogNode<T>>>, Error>
     where
         T: Deserialize,
     {
@@ -57,6 +61,13 @@ where
         let mut buf = Vec::new();
         self.storage.read(addr.clone(), &mut buf).await?;
         let node = Deser::default().from_slice(&buf)?;
-        Ok(Some(node))
+        Ok(Some(LogContainer { addr, node }))
+    }
+    pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>
+    where
+        T: Deserialize,
+    {
+        let container = self.first_container().await?;
+        Ok(container.map(|LogContainer { node, .. }| node))
     }
 }
