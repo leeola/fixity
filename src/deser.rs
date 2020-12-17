@@ -1,23 +1,21 @@
 #[cfg(all(feature = "deser_borsh", feature = "deser_json"))]
 pub trait Serialize: borsh::BorshSerialize + serde::Serialize {}
 #[cfg(all(feature = "deser_borsh", feature = "deser_json"))]
+impl<T> Serialize for T where T: borsh::BorshSerialize + serde::Serialize {}
+#[cfg(all(feature = "deser_borsh", feature = "deser_json"))]
 pub trait Deserialize: borsh::BorshDeserialize + serde::de::DeserializeOwned {}
+#[cfg(all(feature = "deser_borsh", feature = "deser_json"))]
+impl<T> Deserialize for T where T: borsh::BorshDeserialize + serde::de::DeserializeOwned {}
+
 #[cfg(all(feature = "deser_borsh", not(feature = "deser_json")))]
 pub trait Serialize: borsh::BorshSerialize {}
 #[cfg(all(feature = "deser_borsh", not(feature = "deser_json")))]
+impl<T> Serialize for T where T: borsh::BorshSerialize {}
+#[cfg(all(feature = "deser_borsh", not(feature = "deser_json")))]
 pub trait Deserialize: borsh::BorshDeserialize {}
-impl<T0, T1> Serialize for (T0, T1)
-where
-    T0: Serialize,
-    T1: Serialize,
-{
-}
-impl<T0, T1> Deserialize for (T0, T1)
-where
-    T0: Deserialize,
-    T1: Deserialize,
-{
-}
+#[cfg(all(feature = "deser_borsh", not(feature = "deser_json")))]
+impl<T> Deserialize for T where T: borsh::BorshDeserialize {}
+
 #[derive(Debug, Copy, Clone)]
 pub enum Deser {
     #[cfg(feature = "deser_borsh")]

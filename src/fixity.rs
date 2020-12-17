@@ -154,7 +154,7 @@ impl Builder<Fs> {
             (fixi_dir_name, None) => {
                 let fixi_dir_name = fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME));
                 crate::dir::resolve(fixi_dir_name, PathBuf::from("."))
-                    .ok_or_else(|| Error::RepositoryNotFound)?
+                    .ok_or(Error::RepositoryNotFound)?
             }
         };
         let storage = match (self.storage, self.fs_storage_dir) {

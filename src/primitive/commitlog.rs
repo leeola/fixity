@@ -1,14 +1,19 @@
 use {
     crate::{
-        primitive::{AppendLog, Build, Flush, GetAddr, InsertAddr},
+        primitive::{AppendLog, Flush},
         storage::{StorageRead, StorageWrite},
         Addr, Error,
     },
-    chrono::{DateTime, Utc},
+    chrono::Utc,
 };
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 #[derive(Debug)]
 pub struct CommitNode {
-    pub date: DateTime<Utc>,
+    pub timestamp: i64,
     pub content: Addr,
 }
 pub struct CommitLog<'s, S> {
@@ -29,7 +34,8 @@ where
     S: StorageRead,
 {
     pub async fn first(&self) -> Result<Option<CommitNode>, Error> {
-        todo!("first")
+        let log_node = self.log.first::<CommitNode>().await?;
+        Ok(log_node.map(|log_node| log_node.inner))
     }
 }
 pub struct Commit<'s, S, Inner> {
@@ -46,7 +52,7 @@ where
         let content = self.inner.flush().await?;
         self.log
             .append(CommitNode {
-                date: Utc::now(),
+                timestamp: Utc::now().timestamp(),
                 content,
             })
             .await

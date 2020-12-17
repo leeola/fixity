@@ -16,6 +16,11 @@ const ADDR_SHORT_LEN: usize = 8;
 )]
 pub struct Addr(String);
 impl Addr {
+    /// Hash the provided bytes and create an `Addr` of the bytes.
+    pub fn from_unhashed_bytes(bytes: &Vec<u8>) -> Self {
+        let h = <[u8; 32]>::from(blake3::hash(bytes));
+        Self(multibase::encode(Base::Base58Btc, &h))
+    }
     /// Return a partial address which is *usually* unique enough to reference
     /// a content address.
     ///
@@ -32,8 +37,6 @@ impl Addr {
         self.0.as_bytes()
     }
 }
-impl crate::deser::Serialize for Addr {}
-impl crate::deser::Deserialize for Addr {}
 impl std::borrow::Borrow<str> for Addr {
     fn borrow(&self) -> &str {
         self.0.as_str()
@@ -61,8 +64,8 @@ impl From<&str> for Addr {
 }
 impl From<&Vec<u8>> for Addr {
     fn from(bytes: &Vec<u8>) -> Self {
-        let h = <[u8; 32]>::from(blake3::hash(bytes));
-        Self(multibase::encode(Base::Base58Btc, &h))
+        log::warn!("Deprecated From<Bytes> usage");
+        Self::from_unhashed_bytes(bytes)
     }
 }
 impl fmt::Display for Addr {
@@ -82,8 +85,6 @@ pub enum Scalar {
     Uint32(u32),
     String(String),
 }
-impl crate::deser::Serialize for Scalar {}
-impl crate::deser::Deserialize for Scalar {}
 impl From<u32> for Scalar {
     fn from(t: u32) -> Self {
         Self::Uint32(t)
@@ -118,8 +119,6 @@ impl fmt::Display for Scalar {
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Key(pub Value);
-impl crate::deser::Serialize for Key {}
-impl crate::deser::Deserialize for Key {}
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -145,8 +144,6 @@ pub enum Value {
     String(String),
     Vec(Vec<Scalar>),
 }
-impl crate::deser::Serialize for Value {}
-impl crate::deser::Deserialize for Value {}
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
