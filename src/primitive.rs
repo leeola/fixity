@@ -1,11 +1,13 @@
 //! A series of primitive data types for interacting with the Fixity store.
 
 pub mod appendlog;
+pub mod bytelog;
 pub mod chain;
 pub mod commitlog;
 pub mod map;
 pub use {
     appendlog::AppendLog,
+    bytelog::ByteLog,
     chain::Chain,
     commitlog::{Commit, CommitLog},
     map::Map,
