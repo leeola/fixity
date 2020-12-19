@@ -1,7 +1,7 @@
 //! A series of primitive data types for interacting with the Fixity store.
 
 pub mod appendlog;
-pub mod bytelog;
+// pub mod bytelog;
 pub mod chain;
 pub mod commitlog;
 pub mod map;
@@ -13,7 +13,7 @@ use crate::{
 pub use {
     crate::prolly,
     appendlog::AppendLog,
-    bytelog::ByteLog,
+    // bytelog::ByteLog,
     chain::Chain,
     commitlog::{Commit, CommitLog},
     map::Map,

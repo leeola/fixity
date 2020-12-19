@@ -1,6 +1,6 @@
 use {
     crate::{
-        deser::{Deser, Error as DeserError},
+        deser::Deser,
         primitive::{
             prolly::{
                 roller::{Config as RollerConfig, Roller},
@@ -9,10 +9,10 @@ use {
             prollylist::{Node, NodeOwned},
         },
         storage::StorageWrite,
-        value::{Key, Value},
+        value::Value,
         Addr, Error,
     },
-    std::{collections::HashMap, mem},
+    std::mem,
 };
 pub struct Create<'s, S> {
     storage: &'s S,
@@ -39,7 +39,7 @@ where
     ///
     /// Storage writes. No enforcement of sort order or uniqueness is enforced
     /// in Prolly Lists.
-    pub async fn from_vec(mut self, items: Vec<Value>) -> Result<Addr, Error> {
+    pub async fn with_vec(mut self, items: Vec<Value>) -> Result<Addr, Error> {
         self.recursive_from_items(Node::Leaf(items)).await
     }
     #[async_recursion::async_recursion]
@@ -115,7 +115,7 @@ pub mod test {
             let content = content.map(|i| Value::from(i)).collect::<Vec<_>>();
             let storage = Memory::new();
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            let addr = tree.from_vec(content).await.unwrap();
+            let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }
     }

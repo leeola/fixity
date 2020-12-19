@@ -1,8 +1,7 @@
 pub mod refimpl;
 use crate::{
     deser::{Deser, Error as DeserError, Serialize},
-    value::{Addr, Key, Value},
-    Error,
+    value::{Addr, Value},
 };
 /// An alias to a [`Node`] with owned parameters.
 pub type NodeOwned = Node<Value, Addr>;
@@ -45,8 +44,8 @@ impl<V, A> Node<V, A> {
 }
 impl<V, A> Node<V, A>
 where
-    V: Serialize + Send + 'static,
-    A: Serialize + Send + 'static,
+    V: Send + 'static,
+    A: Send + 'static,
 {
     pub fn into_iter(self) -> Box<dyn Iterator<Item = NodeItem<V, A>> + Send> {
         match self {
@@ -61,8 +60,8 @@ pub enum NodeItem<Value, Addr> {
 }
 impl<V, A> NodeItem<V, A>
 where
-    V: Serialize + Send + 'static,
-    A: Serialize + Send + 'static,
+    V: Serialize,
+    A: Serialize,
 {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
         match self {
