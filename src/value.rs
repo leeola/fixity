@@ -17,7 +17,7 @@ const ADDR_SHORT_LEN: usize = 8;
 pub struct Addr(String);
 impl Addr {
     /// Hash the provided bytes and create an `Addr` of the bytes.
-    pub fn from_unhashed_bytes(bytes: &Vec<u8>) -> Self {
+    pub fn from_unhashed_bytes(bytes: &[u8]) -> Self {
         let h = <[u8; 32]>::from(blake3::hash(bytes));
         Self(multibase::encode(Base::Base58Btc, &h))
     }
@@ -181,7 +181,7 @@ where
     Ok(t.try_to_vec()
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
-        .map_err(|err| Error::Borsh(err))?)
+        .map_err(Error::Borsh)?)
 }
 /// A helper to centralize deserialization logic for a potential future
 /// where we change/tweak/configure deserialization.
@@ -203,7 +203,7 @@ where
     Ok(T::try_from_slice(bytes)
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
-        .map_err(|err| Error::Borsh(err))?)
+        .map_err(Error::Borsh)?)
 }
 /// A helper to centralize deserialization logic for a potential future
 /// where we change/tweak/configure deserialization.

@@ -69,6 +69,13 @@ impl<K, V, A> Node<K, V, A> {
             Self::Leaf(v) => v.len(),
         }
     }
+    /// Whether or not the underlying vec is empty.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Branch(v) => v.is_empty(),
+            Self::Leaf(v) => v.is_empty(),
+        }
+    }
 }
 #[cfg(feature = "borsh")]
 impl<K, V, A> Node<K, V, A>

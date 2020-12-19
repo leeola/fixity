@@ -72,7 +72,7 @@ pub mod test {
                 .collect::<Vec<_>>();
             let storage = Memory::new();
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            let addr = tree.from_vec(written_kvs.clone()).await.unwrap();
+            let addr = tree.with_vec(written_kvs.clone()).await.unwrap();
             let read_kvs = Read::new(&storage, addr).to_vec().await.unwrap();
             assert_eq!(
                 written_kvs, read_kvs,

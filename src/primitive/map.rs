@@ -108,11 +108,11 @@ where
                 .map(|(k, v)| (k, refimpl::Change::Insert(v)))
                 .collect::<Vec<_>>();
             refimpl::Update::new(self.storage, addr.clone())
-                .from_vec(kvs)
+                .with_vec(kvs)
                 .await
         } else {
             let kvs = kvs.collect::<Vec<_>>();
-            refimpl::Create::new(self.storage).from_vec(kvs).await
+            refimpl::Create::new(self.storage).with_vec(kvs).await
         }
     }
 }

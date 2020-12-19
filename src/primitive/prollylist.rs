@@ -42,12 +42,14 @@ impl<V, A> Node<V, A> {
         }
     }
 }
-impl<V, A> Node<V, A>
+impl<V, A> IntoIterator for Node<V, A>
 where
     V: Send + 'static,
     A: Send + 'static,
 {
-    pub fn into_iter(self) -> Box<dyn Iterator<Item = NodeItem<V, A>> + Send> {
+    type Item = NodeItem<V, A>;
+    type IntoIter = Box<dyn Iterator<Item = NodeItem<V, A>> + Send>;
+    fn into_iter(self) -> Self::IntoIter {
         match self {
             Self::Branch(v) => Box::new(v.into_iter().map(NodeItem::Branch)),
             Self::Leaf(v) => Box::new(v.into_iter().map(NodeItem::Leaf)),

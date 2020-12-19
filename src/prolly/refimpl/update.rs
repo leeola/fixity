@@ -45,7 +45,7 @@ where
     ///
     /// If the provided vec contains non-unique keys or any writes to storage fail
     /// an error is returned.
-    pub async fn from_vec(self, mut changes: Vec<(Key, Change)>) -> Result<Addr, Error> {
+    pub async fn with_vec(self, mut changes: Vec<(Key, Change)>) -> Result<Addr, Error> {
         {
             changes.sort_unstable_by(|a, b| a.0.cmp(&b.0));
             // Ensure the changes are unique.
@@ -67,10 +67,7 @@ where
                     .iter()
                     .find(|(changed_key, _)| source_key == changed_key)
                     .map(|(_, change)| change);
-                match change {
-                    Some(Change::Remove) => false,
-                    _ => true,
-                }
+                matches!(change, Some(Change::Remove))
             })
             // Collecting into a hashmap allows us to uniquely apply insertions.
             .collect::<HashMap<_, _>>();
@@ -89,7 +86,7 @@ where
         // new tree. Since each block is deterministic, this effectively mutates the source
         // tree with the least lines of code.
         Create::with_roller(self.storage, self.roller_config)
-            .from_hashmap(kvs)
+            .with_hashmap(kvs)
             .await
     }
 }
@@ -130,7 +127,7 @@ pub mod test {
                     .map(|i| (i, i))
                     .map(|(k, v)| (Key::from(k), Value::from(v)))
                     .collect::<Vec<_>>();
-                tree.from_vec(source_kvs).await.unwrap()
+                tree.with_vec(source_kvs).await.unwrap()
             };
             let got_addr = {
                 Update::with_roller(
@@ -138,7 +135,7 @@ pub mod test {
                     source_addr,
                     RollerConfig::with_pattern(TEST_PATTERN),
                 )
-                .from_vec(
+                .with_vec(
                     changes
                         .into_iter()
                         .map(|(i, change)| match change {
@@ -157,7 +154,7 @@ pub mod test {
             assert_eq!(expected_kvs, got_kvs);
             let expected_addr = {
                 Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN))
-                    .from_vec(expected_kvs)
+                    .with_vec(expected_kvs)
                     .await
                     .unwrap()
             };

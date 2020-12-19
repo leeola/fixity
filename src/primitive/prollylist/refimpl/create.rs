@@ -112,7 +112,7 @@ pub mod test {
         let _ = env_builder.try_init();
         let contents = vec![(0u32..20), (0..200), (0..2_000)];
         for content in contents {
-            let content = content.map(|i| Value::from(i)).collect::<Vec<_>>();
+            let content = content.map(Value::from).collect::<Vec<_>>();
             let storage = Memory::new();
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();

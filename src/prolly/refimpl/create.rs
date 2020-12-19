@@ -36,7 +36,7 @@ where
     ///
     /// If the provided vec contains non-unique keys or any writes to storage fail
     /// an error is returned.
-    pub async fn from_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
+    pub async fn with_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
         // Ensure the kvs are sorted - as the trees require sorting.
         // unstable should be fine, since the keys will (soon) be unique.
         kvs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -56,7 +56,7 @@ where
     ///
     /// If the provided vec contains non-unique keys or any writes to storage fail
     /// an error is returned.
-    pub async fn from_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
+    pub async fn with_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
         let mut kvs = kvs.into_iter().collect::<Vec<_>>();
         // Ensure the kvs are sorted - as the trees require sorting.
         // unstable should be fine, since the keys will (soon) be unique.
@@ -228,7 +228,7 @@ pub mod test {
                 .collect::<Vec<_>>();
             let storage = Memory::new();
             let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
-            let addr = tree.from_vec(content).await.unwrap();
+            let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }
     }

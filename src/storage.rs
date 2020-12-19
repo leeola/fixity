@@ -63,9 +63,6 @@ pub enum Error {
 impl Error {
     /// Whether or not the error is the `Error::NotFound` variant.
     pub fn is_not_found(&self) -> bool {
-        match self {
-            Self::NotFound { .. } => true,
-            _ => false,
-        }
+        matches!(self, Self::NotFound { .. })
     }
 }

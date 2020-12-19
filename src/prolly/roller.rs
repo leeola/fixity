@@ -55,3 +55,8 @@ impl Roller {
         false
     }
 }
+impl Default for Roller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
