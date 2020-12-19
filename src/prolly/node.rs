@@ -80,7 +80,7 @@ where
     /// Serialize and hash the Node, returning the `Addr` and bytes.
     pub fn as_bytes(&self) -> Result<(Addr, Vec<u8>), Error> {
         let bytes = crate::value::serialize(self)?;
-        let addr = Addr::from(&bytes);
+        let addr = Addr::from_unhashed_bytes(&bytes);
         Ok((addr, bytes))
     }
 }

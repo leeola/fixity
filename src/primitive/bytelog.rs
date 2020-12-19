@@ -17,14 +17,14 @@ pub struct ByteNode {
 }
 pub struct ByteLog<'s, S> {
     log: AppendLog<'s, S>,
-    chunks: Vec<Addr>,
+    _chunks: Vec<Addr>,
 }
 impl<'s, S> ByteLog<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
         let log = AppendLog::new(storage, addr);
         Self {
             log,
-            chunks: Vec::new(),
+            _chunks: Vec::new(),
         }
     }
 }

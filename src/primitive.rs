@@ -5,17 +5,18 @@ pub mod bytelog;
 pub mod chain;
 pub mod commitlog;
 pub mod map;
+pub mod prollylist;
+use crate::{
+    value::{Addr, Key},
+    Error,
+};
 pub use {
+    crate::prolly,
     appendlog::AppendLog,
     bytelog::ByteLog,
     chain::Chain,
     commitlog::{Commit, CommitLog},
     map::Map,
-};
-
-use crate::{
-    value::{Addr, Key},
-    Error,
 };
 
 #[async_trait::async_trait]
