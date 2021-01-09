@@ -3,19 +3,20 @@ mod dir;
 pub mod error;
 pub mod fixity;
 pub mod head;
+pub mod map;
 pub mod path;
 pub mod primitive;
 pub mod prolly;
 pub mod storage;
 pub mod value;
+pub mod workspace;
 
-pub use {
-    self::{
-        error::{Error, Result},
-        fixity::Fixity,
-        value::{Addr, Path},
-    },
+pub use self::{
+    error::{Error, Result},
+    fixity::Fixity,
+    map::Map,
     storage::{Storage, StorageRead, StorageWrite},
+    value::{Addr, Path},
 };
 
 /*

@@ -6,7 +6,6 @@ pub struct Path {
 pub trait Segment {
     fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error>;
 }
-
 use crate::value::Key;
 pub struct MapSegment {
     key: Key,

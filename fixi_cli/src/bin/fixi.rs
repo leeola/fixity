@@ -129,11 +129,12 @@ async fn cmd_get<S>(fixi: Fixity<S>, mut path: Path) -> Result<(), Error>
 where
     S: Storage,
 {
-    let key = path.pop().expect("CLI interface enforces at least one key");
-    let map = fixi.map(path).await?;
-    let v = map.get(key).await?;
-    dbg!(v);
-    Ok(())
+    todo!("get map")
+    // let key = path.pop().expect("CLI interface enforces at least one key");
+    // let map = fixi.map(path).await?;
+    // let v = map.get(key).await?;
+    // dbg!(v);
+    // Ok(())
 }
 async fn cmd_put_stdin<S>(fixi: Fixity<S>, _path: Path) -> Result<(), Error>
 where
@@ -147,10 +148,11 @@ async fn cmd_put_value<S>(fixi: Fixity<S>, mut path: Path, value: Value) -> Resu
 where
     S: Storage,
 {
-    let key = path.pop().expect("CLI interface enforces at least one key");
-    let mut map = fixi.map(path).await?;
-    map.insert(key, value);
-    let addr = map.commit().await?;
-    dbg!(addr);
-    Ok(())
+    todo!("put map")
+    // let key = path.pop().expect("CLI interface enforces at least one key");
+    // let mut map = fixi.map(path).await?;
+    // map.insert(key, value);
+    // let addr = map.commit().await?;
+    // dbg!(addr);
+    // Ok(())
 }
