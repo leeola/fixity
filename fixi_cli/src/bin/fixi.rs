@@ -12,7 +12,7 @@ struct Opt {
     #[structopt(flatten)]
     fixi_opt: FixiOpt,
     #[structopt(subcommand)]
-    cmd: Command,
+    subcmd: Command,
 }
 /// An temporary config setting up Fixi with the limited in-dev options
 /// it has at the moment.
@@ -35,26 +35,14 @@ struct FixiOpt {
 #[derive(Debug, StructOpt)]
 enum Command {
     Init,
-    Get {
-        /// The Path to get a `Value` from.
-        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
-        path: Path,
+    /// A Map interface to Fixity data.
+    ///
+    /// Map is a primarily low level interface, enabling insight and mutation on the raw
+    /// Key-Value format of Fixity.
+    Map {
+        #[structopt(subcommand)]
+        subcmd: MapSubcmd,
     },
-    Put {
-        /// Write stdin to the given [`Path`].
-        #[structopt(long, short = "i")]
-        stdin: bool,
-        /// The destination to write a `Value` or Bytes to.
-        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
-        path: Path,
-        /// Write the [`Value`] to the given [`Path`].
-        #[structopt(
-            name = "VALUE", parse(try_from_str = Value::from_cli_str),
-            required_unless("stdin"),
-        )]
-        value: Option<Value>,
-    },
-    // Raw(RawCommand),
     #[cfg(feature = "web")]
     Web(WebConfig),
 }
@@ -85,19 +73,14 @@ async fn main() -> Result<(), Error> {
         .with_workspace(workspace)
         .fs_storage_dir(storage_dir);
 
-    let fixi = match opt.cmd {
+    let fixi = match opt.subcmd {
         Command::Init => return cmd_init(builder).await,
         _ => builder.open().await?,
     };
 
-    match opt.cmd {
+    match opt.subcmd {
         Command::Init => unreachable!("matched above"),
-        Command::Get { path } => cmd_get(fixi, path).await,
-        Command::Put { stdin, path, value } => match (stdin, value) {
-            (false, Some(value)) => cmd_put_value(fixi, path, value).await,
-            (true, None) => cmd_put_stdin(fixi, path).await,
-            _ => unreachable!("Structopt should be configured to make this unreachable"),
-        },
+        Command::Map { subcmd } => cmd_map(fixi, subcmd).await,
         #[cfg(feature = "web")]
         Command::Web(c) => unimplemented!("web serve"),
         // Command::Web(c) => fixi_web::serve(c).await,
@@ -106,6 +89,41 @@ async fn main() -> Result<(), Error> {
 async fn cmd_init(b: Builder<Fs>) -> Result<(), Error> {
     b.init().await?;
     Ok(())
+}
+#[derive(Debug, StructOpt)]
+enum MapSubcmd {
+    Get {
+        /// The Path to get a `Value` from.
+        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
+        path: Path,
+    },
+    Put {
+        /// Write stdin to the given [`Path`].
+        #[structopt(long, short = "i")]
+        stdin: bool,
+        /// The destination to write a `Value` or Bytes to.
+        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
+        path: Path,
+        /// Write the [`Value`] to the given [`Path`].
+        #[structopt(
+             name = "VALUE", parse(try_from_str = Value::from_cli_str),
+             required_unless("stdin"),
+         )]
+        value: Option<Value>,
+    },
+}
+async fn cmd_map<S>(fixi: Fixity<S>, subcmd: MapSubcmd) -> Result<(), Error>
+where
+    S: Storage,
+{
+    match subcmd {
+        MapSubcmd::Get { path } => cmd_get(fixi, path).await,
+        MapSubcmd::Put { stdin, path, value } => match (stdin, value) {
+            (false, Some(value)) => cmd_put_value(fixi, path, value).await,
+            (true, None) => cmd_put_stdin(fixi, path).await,
+            _ => unreachable!("Structopt should be configured to make this unreachable"),
+        },
+    }
 }
 async fn cmd_get<S>(fixi: Fixity<S>, mut path: Path) -> Result<(), Error>
 where
