@@ -15,11 +15,15 @@ pub struct Map<'f, S> {
     path: Path,
 }
 impl<'f, S> Map<'f, S> {
-    pub fn new(storage: &'f S, workspace: &'f Workspace, path: Path) -> Self {
+    pub fn new<K>(storage: &'f S, workspace: &'f Workspace, path: K) -> Self
+    // TODO: Make Key some form of Vec<Key> or KeyPath
+    where
+        K: Into<Key>,
+    {
         Self {
             storage,
             workspace,
-            path,
+            path: todo!("map path"),
         }
     }
     pub fn map<K>(&self, key_path: K) -> Self
@@ -27,7 +31,8 @@ impl<'f, S> Map<'f, S> {
     where
         K: Into<Key>,
     {
-        todo!("map map")
+        // Self::new(&self.storage, &self.workspace, self.path.with(key_path))
+        Self::new(&self.storage, &self.workspace, todo!("path with"))
     }
 }
 impl<'f, S> Map<'f, S>
