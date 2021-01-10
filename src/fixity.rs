@@ -4,7 +4,7 @@ use {
         primitive::{commitlog::CommitNode, Chain, Commit, CommitLog, Map},
         storage::{self, fs::Config as FsConfig, Fs},
         value::{Key, Path},
-        workspace::Workspace,
+        workspace::{self, Workspace},
         Error, Storage,
     },
     multibase::Base,
@@ -15,26 +15,35 @@ use {
     },
 };
 const FIXI_DIR_NAME: &str = ".fixi";
-pub struct Fixity<S> {
+pub struct Fixity<S, W> {
     storage: S,
-    workspace: Workspace,
+    workspace: W,
 }
-impl<S> Fixity<S> {
+impl<S, W> Fixity<S, W> {
     pub fn builder() -> Builder<S> {
         Builder::default()
     }
     /// Create a fixity instance from the provided workspace and storage.
     ///
     /// Most users will want to use [`Fixity::builder`].
-    pub fn new(storage: S, workspace: Workspace) -> Self {
+    pub fn new(storage: S, workspace: W) -> Self {
         Self { storage, workspace }
     }
 }
-impl<S> Fixity<S>
+impl Fixity<storage::Memory, workspace::Memory> {
+    #[cfg(test)]
+    pub fn test() -> Fixity<storage::Memory, workspace::Memory> {
+        Self {
+            storage: storage::Memory::new(),
+            workspace: workspace::Memory::new("default".to_owned()),
+        }
+    }
+}
+impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
-    pub async fn map<K>(&self, key_path: K) -> crate::Map<'_, S>
+    pub async fn map<K>(&self, key_path: Option<K>) -> crate::Map<'_, S, W>
     // TODO: Make Key some form of Vec<Key> or KeyPath
     where
         K: Into<Key>,
@@ -127,7 +136,7 @@ impl<S> Builder<S> {
 }
 impl Builder<Fs> {
     /// Initialize a new Fixity repository.
-    pub async fn init(self) -> Result<Fixity<Fs>, Error> {
+    pub async fn init(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
         let workspace = self.workspace.ok_or_else(|| Error::Builder {
             message: "missing workspace".into(),
         })?;
@@ -147,10 +156,10 @@ impl Builder<Fs> {
             .map_err(|source| InitError::Storage { source })?,
         };
         // init the Workspace
-        let workspace = Workspace::init(fixi_dir, workspace).await?;
+        let workspace = workspace::Fs::init(fixi_dir, workspace).await?;
         Ok(Fixity::new(storage, workspace))
     }
-    pub async fn open(self) -> Result<Fixity<Fs>, Error> {
+    pub async fn open(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
         let workspace = self.workspace.ok_or_else(|| Error::Builder {
             message: "missing workspace".into(),
         })?;
@@ -168,7 +177,7 @@ impl Builder<Fs> {
                 path: fs_storage_dir.unwrap_or_else(|| fixi_dir.join("storage")),
             })?,
         };
-        let workspace = Workspace::open(fixi_dir, workspace).await?;
+        let workspace = workspace::Fs::open(fixi_dir, workspace).await?;
         Ok(Fixity::new(storage, workspace))
     }
 }

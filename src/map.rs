@@ -1,7 +1,7 @@
 use {
     crate::{
         error::TypeError,
-        path::Path,
+        path::{Path, Segment},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         workspace::Workspace,
@@ -9,13 +9,13 @@ use {
     },
     std::{collections::HashMap, mem},
 };
-pub struct Map<'f, S> {
+pub struct Map<'f, S, W> {
     storage: &'f S,
-    workspace: &'f Workspace,
+    workspace: &'f W,
     path: Path,
 }
-impl<'f, S> Map<'f, S> {
-    pub fn new<K>(storage: &'f S, workspace: &'f Workspace, path: K) -> Self
+impl<'f, S, W> Map<'f, S, W> {
+    pub fn new<K>(storage: &'f S, workspace: &'f W, path: K) -> Self
     // TODO: Make Key some form of Vec<Key> or KeyPath
     where
         K: Into<Key>,
@@ -32,10 +32,11 @@ impl<'f, S> Map<'f, S> {
         K: Into<Key>,
     {
         // Self::new(&self.storage, &self.workspace, self.path.with(key_path))
-        Self::new(&self.storage, &self.workspace, todo!("path with"))
+        // TODO: merge key_paths.
+        Self::new(&self.storage, &self.workspace, key_path)
     }
 }
-impl<'f, S> Map<'f, S>
+impl<'f, S, W> Map<'f, S, W>
 where
     S: StorageRead,
 {
@@ -46,7 +47,7 @@ where
         todo!("get")
     }
 }
-impl<'f, S> Map<'f, S>
+impl<'f, S, W> Map<'f, S, W>
 where
     S: StorageRead + StorageWrite,
 {
@@ -56,5 +57,26 @@ where
         V: Into<Value>,
     {
         todo!("put")
+    }
+}
+#[derive(Debug, Clone)]
+pub struct MapSegment {
+    key: Key,
+}
+impl Segment for MapSegment {
+    fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error> {
+        todo!("map resolve")
+    }
+}
+#[cfg(test)]
+pub mod test {
+    use {super::*, crate::Fixity};
+    #[tokio::test]
+    async fn poc() {
+        let f = Fixity::test();
+        let m = f.map(None);
+        let expected = "bar".into();
+        dbg!(m.put("foo", expected).await.unwrap());
+        dbg!(m.get("foo").await.unwrap());
     }
 }
