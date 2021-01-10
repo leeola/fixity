@@ -43,7 +43,7 @@ impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
-    pub async fn map<K>(&self, key_path: Option<K>) -> crate::Map<'_, S, W>
+    pub fn map<K>(&self, key_path: Option<K>) -> crate::Map<'_, S, W>
     // TODO: Make Key some form of Vec<Key> or KeyPath
     where
         K: Into<Key>,

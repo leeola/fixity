@@ -75,7 +75,7 @@ pub mod test {
     async fn poc() {
         let f = Fixity::test();
         let m = f.map(None);
-        let expected = "bar".into();
+        let expected = Value::from("bar");
         dbg!(m.put("foo", expected).await.unwrap());
         dbg!(m.get("foo").await.unwrap());
     }
