@@ -15,15 +15,12 @@ pub struct Map<'f, S, W> {
     path: Path,
 }
 impl<'f, S, W> Map<'f, S, W> {
-    pub fn new<K>(storage: &'f S, workspace: &'f W, path: K) -> Self
-    // TODO: Make Key some form of Vec<Key> or KeyPath
-    where
-        K: Into<Key>,
+    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self
     {
         Self {
             storage,
             workspace,
-            path: todo!("map path"),
+            path,
         }
     }
     pub fn map<K>(&self, key_path: K) -> Self
@@ -74,7 +71,7 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let f = Fixity::test();
-        let m = f.map(None);
+        let m = f.map::<&str>(None);
         let expected = Value::from("bar");
         dbg!(m.put("foo", expected).await.unwrap());
         dbg!(m.get("foo").await.unwrap());

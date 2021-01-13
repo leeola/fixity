@@ -48,6 +48,13 @@ where
     where
         K: Into<Key>,
     {
+        use crate::{map::MapSegment, path::Path};
+        let mut path = Path::new();
+        if let Some(key_path) = key_path {
+            path.push(MapSegment {
+                key: key_path.into(),
+            });
+        }
         crate::Map::new(&self.storage, todo!("fixi self.workspace"), key_path)
     }
     // pub async fn map(
