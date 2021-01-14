@@ -2,6 +2,7 @@ use {
     crate::{
         error::TypeError,
         path::{Path, Segment},
+        primitive::prolly::refimpl,
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         workspace::Workspace,
@@ -13,6 +14,7 @@ pub struct Map<'f, S, W> {
     storage: &'f S,
     workspace: &'f W,
     path: Path,
+    cache: HashMap<Key, refimpl::Change>,
 }
 impl<'f, S, W> Map<'f, S, W> {
     pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
@@ -20,6 +22,7 @@ impl<'f, S, W> Map<'f, S, W> {
             storage,
             workspace,
             path,
+            cache: HashMap::new(),
         }
     }
     pub fn map<K>(&self, key: K) -> Self
@@ -39,6 +42,14 @@ impl<'f, S, W> Map<'f, S, W> {
         self.path.push_map(MapSegment { key: key.into() });
         self
     }
+    pub fn insert<K, V>(&mut self, key: K, value: V)
+    where
+        K: Into<Key>,
+        V: Into<Value>,
+    {
+        self.cache
+            .insert(key.into(), refimpl::Change::Insert(value.into()));
+    }
 }
 impl<'f, S, W> Map<'f, S, W>
 where
@@ -54,13 +65,33 @@ where
 impl<'f, S, W> Map<'f, S, W>
 where
     S: StorageRead + StorageWrite,
+    W: Workspace,
 {
-    pub async fn put<K, V>(&self, key: K, value: V) -> Result<Addr, Error>
-    where
-        K: Into<Key>,
-        V: Into<Value>,
-    {
-        todo!("put")
+    pub async fn stage(&mut self) -> Result<Addr, Error> {
+        todo!("map stage")
+    }
+    pub async fn commit(&mut self) -> Result<Addr, Error> {
+        //     let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
+        let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
+        let head_addr = self.workspace.head().await?;
+        dbg!(&head_addr);
+        let addr = if let Some(addr) = head_addr {
+            let kvs = kvs.collect::<Vec<_>>();
+            refimpl::Update::new(self.storage, addr)
+                .with_vec(kvs)
+                .await?
+        } else {
+            let kvs = kvs
+                .filter_map(|(k, change)| match change {
+                    refimpl::Change::Insert(v) => Some((k, v)),
+                    refimpl::Change::Remove => None,
+                })
+                .collect::<Vec<_>>();
+            refimpl::Create::new(self.storage).with_vec(kvs).await?
+        };
+        dbg!(&addr);
+        //     let commit_log = CommitLog::new(&self.storage, head.addr());
+        todo!("map commit")
     }
 }
 #[derive(Debug, Clone)]
@@ -78,9 +109,10 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let f = Fixity::test();
-        let m = f.map();
+        let mut m = f.map();
         let expected = Value::from("bar");
-        dbg!(m.put("foo", expected).await.unwrap());
-        dbg!(m.get("foo").await.unwrap());
+        dbg!(m.insert("foo", expected));
+        dbg!(m.commit().await.unwrap());
+        // dbg!(m.get("foo").await.unwrap());
     }
 }

@@ -1,6 +1,6 @@
 use {
     super::Workspace,
-    crate::{head::Head, Error},
+    crate::{head::Head, Addr, Error},
     std::path::PathBuf,
 };
 pub struct Fs {
@@ -22,4 +22,9 @@ impl Fs {
         })
     }
 }
-impl Workspace for Fs {}
+#[async_trait::async_trait]
+impl Workspace for Fs {
+    async fn head(&self) -> Result<Option<Addr>, Error> {
+        todo!("workspace fs head")
+    }
+}

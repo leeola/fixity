@@ -31,6 +31,7 @@ impl<S, W> Fixity<S, W> {
     }
 }
 impl Fixity<storage::Memory, workspace::Memory> {
+    /// Create an testing focused instance of Fixity, with in-memory storage and workspace.
     #[cfg(test)]
     pub fn test() -> Fixity<storage::Memory, workspace::Memory> {
         Self {
@@ -44,11 +45,7 @@ where
     S: Storage,
 {
     pub fn map(&self) -> crate::Map<'_, S, W> {
-        crate::Map::new(
-            &self.storage,
-            todo!("fixi self.workspace"),
-            crate::path::Path::new(),
-        )
+        crate::Map::new(&self.storage, &self.workspace, crate::path::Path::new())
     }
     // pub async fn map(
     //     &self,
