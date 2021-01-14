@@ -43,19 +43,12 @@ impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
-    pub fn map<K>(&self, key_path: Option<K>) -> crate::Map<'_, S, W>
-    // TODO: Make Key some form of Vec<Key> or KeyPath
-    where
-        K: Into<Key>,
-    {
-        use crate::{map::MapSegment, path::Path};
-        let mut path = Path::new();
-        if let Some(key_path) = key_path {
-            path.push(MapSegment {
-                key: key_path.into(),
-            });
-        }
-        crate::Map::new(&self.storage, todo!("fixi self.workspace"), key_path)
+    pub fn map(&self) -> crate::Map<'_, S, W> {
+        crate::Map::new(
+            &self.storage,
+            todo!("fixi self.workspace"),
+            crate::path::Path::new(),
+        )
     }
     // pub async fn map(
     //     &self,

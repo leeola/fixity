@@ -15,22 +15,29 @@ pub struct Map<'f, S, W> {
     path: Path,
 }
 impl<'f, S, W> Map<'f, S, W> {
-    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self
-    {
+    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
         Self {
             storage,
             workspace,
             path,
         }
     }
-    pub fn map<K>(&self, key_path: K) -> Self
-    // TODO: Make Key some form of Vec<Key> or KeyPath
+    pub fn map<K>(&self, key: K) -> Self
     where
         K: Into<Key>,
     {
-        // Self::new(&self.storage, &self.workspace, self.path.with(key_path))
-        // TODO: merge key_paths.
-        Self::new(&self.storage, &self.workspace, key_path)
+        Self::new(
+            &self.storage,
+            &self.workspace,
+            self.path.clone().into_map(MapSegment { key: key.into() }),
+        )
+    }
+    pub fn into_map<K>(mut self, key: K) -> Self
+    where
+        K: Into<Key>,
+    {
+        self.path.push_map(MapSegment { key: key.into() });
+        self
     }
 }
 impl<'f, S, W> Map<'f, S, W>
@@ -71,7 +78,7 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let f = Fixity::test();
-        let m = f.map::<&str>(None);
+        let m = f.map();
         let expected = Value::from("bar");
         dbg!(m.put("foo", expected).await.unwrap());
         dbg!(m.get("foo").await.unwrap());

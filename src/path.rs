@@ -1,5 +1,5 @@
 use {
-    crate::{Addr, Error},
+    crate::{map::MapSegment, Addr, Error},
     dyn_clone::DynClone,
     std::fmt::Debug,
 };
@@ -13,9 +13,22 @@ impl Path {
     }
     pub fn push<T>(&mut self, segment: T)
     where
-        T: Segment,
+        T: Segment + 'static,
     {
         self.segments.push(Box::new(segment));
+    }
+    pub fn push_map<T>(&mut self, map_segment: T)
+    where
+        T: Into<MapSegment>,
+    {
+        self.segments.push(Box::new(map_segment.into()));
+    }
+    pub fn into_map<T>(mut self, map_segment: T) -> Self
+    where
+        T: Into<MapSegment>,
+    {
+        self.push(map_segment.into());
+        self
     }
 }
 pub trait Segment: Debug + DynClone {
