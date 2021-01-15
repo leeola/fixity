@@ -2,6 +2,7 @@ use {
     crate::{
         deser, fixity, head, storage,
         value::{Addr, Key},
+        workspace,
     },
     std::io,
 };
@@ -71,6 +72,11 @@ pub enum InternalError {
         #[from]
         source: head::Error,
     },
+    #[error("head: `{source}`")]
+    Workspace {
+        #[from]
+        source: workspace::Error,
+    },
 }
 #[cfg(feature = "cjson")]
 impl From<cjson::Error> for Error {
@@ -80,6 +86,11 @@ impl From<cjson::Error> for Error {
 }
 impl From<head::Error> for Error {
     fn from(err: head::Error) -> Self {
+        Self::Internal { source: err.into() }
+    }
+}
+impl From<workspace::Error> for Error {
+    fn from(err: workspace::Error) -> Self {
         Self::Internal { source: err.into() }
     }
 }

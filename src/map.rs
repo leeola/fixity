@@ -2,7 +2,7 @@ use {
     crate::{
         error::TypeError,
         path::{Path, Segment},
-        primitive::prolly::refimpl,
+        primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         workspace::Workspace,
@@ -55,7 +55,7 @@ impl<'f, S, W> Map<'f, S, W>
 where
     S: StorageRead,
 {
-    pub async fn get<K>(&self, key: K) -> Result<Value, Error>
+    pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
     where
         K: Into<Key>,
     {
@@ -71,11 +71,12 @@ where
         todo!("map stage")
     }
     pub async fn commit(&mut self) -> Result<Addr, Error> {
-        //     let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let head_addr = self.workspace.head().await?;
         dbg!(&head_addr);
-        let addr = if let Some(addr) = head_addr {
+        let mut commit_log = CommitLog::new(self.storage, head_addr);
+        let content_addr = if let Some(commit) = commit_log.first().await? {
+            let addr = commit.content;
             let kvs = kvs.collect::<Vec<_>>();
             refimpl::Update::new(self.storage, addr)
                 .with_vec(kvs)
@@ -89,9 +90,9 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
-        dbg!(&addr);
-        //     let commit_log = CommitLog::new(&self.storage, head.addr());
-        todo!("map commit")
+        let commit_addr = commit_log.append(content_addr).await?;
+        self.workspace.append(commit_addr.clone()).await?;
+        Ok(commit_addr)
     }
 }
 #[derive(Debug, Clone)]
@@ -99,7 +100,7 @@ pub struct MapSegment {
     key: Key,
 }
 impl Segment for MapSegment {
-    fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error> {
+    fn resolve(&self, _addr: Addr) -> Result<Option<Addr>, Error> {
         todo!("map resolve")
     }
 }
@@ -111,8 +112,9 @@ pub mod test {
         let f = Fixity::test();
         let mut m = f.map();
         let expected = Value::from("bar");
-        dbg!(m.insert("foo", expected));
+        m.insert("foo", expected.clone());
         dbg!(m.commit().await.unwrap());
-        // dbg!(m.get("foo").await.unwrap());
+        dbg!(m.get("foo").await.unwrap());
+        assert_eq!(m.get("foo").await.unwrap(), Some(expected));
     }
 }
