@@ -73,6 +73,7 @@ where
     pub async fn commit(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let head_addr = self.workspace.head().await?;
+        let self_addr = todo!("resolve self_addr from path");
         dbg!(&head_addr);
         let mut commit_log = CommitLog::new(self.storage, head_addr);
         let content_addr = if let Some(commit) = commit_log.first().await? {
@@ -99,9 +100,11 @@ where
 pub struct MapSegment {
     key: Key,
 }
+#[async_trait::async_trait]
 impl Segment for MapSegment {
-    fn resolve(&self, _addr: Addr) -> Result<Option<Addr>, Error> {
-        todo!("map resolve")
+    async fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error> {
+        // self.
+        todo!("map resolve");
     }
 }
 #[cfg(test)]

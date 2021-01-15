@@ -30,9 +30,21 @@ impl Path {
         self.push(map_segment.into());
         self
     }
+    pub async fn resolve(&self, mut addr: Addr) -> Result<Option<Addr>, Error> {
+        for seg in self.segments.iter() {
+            addr = match seg.resolve(addr).await? {
+                Some(addr) => addr,
+                None => return Ok(None),
+            };
+        }
+        Ok(Some(addr))
+    }
 }
+#[async_trait::async_trait]
 pub trait Segment: Debug + DynClone {
-    fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error>;
+    async fn resolve<S>(&self, storage: &S, addr: Addr) -> Result<Option<Addr>, Error>
+    where
+        S: StorageRead;
     // fn update(&self, addr: Addr) -> Result<Addr, Error>;
 }
 dyn_clone::clone_trait_object!(Segment);
