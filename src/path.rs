@@ -1,22 +1,29 @@
 use {
-    crate::{map::MapSegment, Addr, Error},
+    crate::{map::MapSegment, storage::StorageRead, Addr, Error},
     dyn_clone::DynClone,
     std::fmt::Debug,
 };
-#[derive(Debug, Clone, Default)]
-pub struct Path {
-    segments: Vec<Box<dyn Segment>>,
+#[derive(Debug, Default)]
+pub struct Path<S> {
+    segments: Vec<Box<dyn Segment<S>>>,
 }
-impl Path {
+impl<S> Path<S> {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            segments: Vec::new(),
+        }
     }
     pub fn push<T>(&mut self, segment: T)
     where
-        T: Segment + 'static,
+        T: Segment<S> + 'static,
     {
         self.segments.push(Box::new(segment));
     }
+}
+impl<S> Path<S>
+where
+    S: StorageRead,
+{
     pub fn push_map<T>(&mut self, map_segment: T)
     where
         T: Into<MapSegment>,
@@ -30,9 +37,9 @@ impl Path {
         self.push(map_segment.into());
         self
     }
-    pub async fn resolve(&self, mut addr: Addr) -> Result<Option<Addr>, Error> {
+    pub async fn resolve(&self, storage: &S, mut addr: Addr) -> Result<Option<Addr>, Error> {
         for seg in self.segments.iter() {
-            addr = match seg.resolve(addr).await? {
+            addr = match seg.resolve(storage, addr).await? {
                 Some(addr) => addr,
                 None => return Ok(None),
             };
@@ -40,11 +47,18 @@ impl Path {
         Ok(Some(addr))
     }
 }
+// Implementing clone manually because the Path<S> constraint assumes `S: Clone`, but that's
+// not needed.
+impl<S> Clone for Path<S> {
+    fn clone(&self) -> Self {
+        Self {
+            segments: self.segments.clone(),
+        }
+    }
+}
 #[async_trait::async_trait]
-pub trait Segment: Debug + DynClone {
-    async fn resolve<S>(&self, storage: &S, addr: Addr) -> Result<Option<Addr>, Error>
-    where
-        S: StorageRead;
+pub trait Segment<S>: Debug + DynClone {
+    async fn resolve(&self, storage: &S, addr: Addr) -> Result<Option<Addr>, Error>;
     // fn update(&self, addr: Addr) -> Result<Addr, Error>;
 }
-dyn_clone::clone_trait_object!(Segment);
+dyn_clone::clone_trait_object!(<S> Segment<S>);

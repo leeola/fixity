@@ -13,11 +13,11 @@ use {
 pub struct Map<'f, S, W> {
     storage: &'f S,
     workspace: &'f W,
-    path: Path,
+    path: Path<S>,
     cache: HashMap<Key, refimpl::Change>,
 }
 impl<'f, S, W> Map<'f, S, W> {
-    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
+    pub fn new(storage: &'f S, workspace: &'f W, path: Path<S>) -> Self {
         Self {
             storage,
             workspace,
@@ -25,6 +25,19 @@ impl<'f, S, W> Map<'f, S, W> {
             cache: HashMap::new(),
         }
     }
+    pub fn insert<K, V>(&mut self, key: K, value: V)
+    where
+        K: Into<Key>,
+        V: Into<Value>,
+    {
+        self.cache
+            .insert(key.into(), refimpl::Change::Insert(value.into()));
+    }
+}
+impl<'f, S, W> Map<'f, S, W>
+where
+    S: StorageRead,
+{
     pub fn map<K>(&self, key: K) -> Self
     where
         K: Into<Key>,
@@ -42,19 +55,6 @@ impl<'f, S, W> Map<'f, S, W> {
         self.path.push_map(MapSegment { key: key.into() });
         self
     }
-    pub fn insert<K, V>(&mut self, key: K, value: V)
-    where
-        K: Into<Key>,
-        V: Into<Value>,
-    {
-        self.cache
-            .insert(key.into(), refimpl::Change::Insert(value.into()));
-    }
-}
-impl<'f, S, W> Map<'f, S, W>
-where
-    S: StorageRead,
-{
     pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
     where
         K: Into<Key>,
@@ -73,13 +73,17 @@ where
     pub async fn commit(&mut self) -> Result<Addr, Error> {
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let head_addr = self.workspace.head().await?;
-        let self_addr = todo!("resolve self_addr from path");
         dbg!(&head_addr);
-        let mut commit_log = CommitLog::new(self.storage, head_addr);
-        let content_addr = if let Some(commit) = commit_log.first().await? {
-            let addr = commit.content;
+        let commit_log = CommitLog::new(self.storage, head_addr);
+        let self_addr = if let Some(commit) = commit_log.first().await? {
+            let root_addr = commit.content;
+            self.path.resolve(&self.storage, root_addr).await?
+        } else {
+            None
+        };
+        let self_addr = if let Some(self_addr) = self_addr {
             let kvs = kvs.collect::<Vec<_>>();
-            refimpl::Update::new(self.storage, addr)
+            refimpl::Update::new(self.storage, self_addr)
                 .with_vec(kvs)
                 .await?
         } else {
@@ -91,7 +95,8 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
-        let commit_addr = commit_log.append(content_addr).await?;
+        let root_addr = todo!("update to path location");
+        let commit_addr = commit_log.append(root_addr).await?;
         self.workspace.append(commit_addr.clone()).await?;
         Ok(commit_addr)
     }
@@ -101,9 +106,13 @@ pub struct MapSegment {
     key: Key,
 }
 #[async_trait::async_trait]
-impl Segment for MapSegment {
-    async fn resolve(&self, addr: Addr) -> Result<Option<Addr>, Error> {
-        // self.
+impl<'f, S> Segment<S> for MapSegment
+where
+    S: StorageRead,
+{
+    async fn resolve(&self, storage: &S, addr: Addr) -> Result<Option<Addr>, Error> {
+        let reader = refimpl::Read::new(storage, addr);
+        let value = reader.get(&self.key).await?;
         todo!("map resolve");
     }
 }
