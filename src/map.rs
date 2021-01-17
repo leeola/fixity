@@ -36,7 +36,7 @@ impl<'f, S, W> Map<'f, S, W> {
 }
 impl<'f, S, W> Map<'f, S, W>
 where
-    S: StorageRead,
+    S: StorageRead + StorageWrite,
 {
     pub fn map<K>(&self, key: K) -> Self
     where
@@ -74,14 +74,16 @@ where
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let head_addr = self.workspace.head().await?;
         dbg!(&head_addr);
-        let commit_log = CommitLog::new(self.storage, head_addr);
-        let self_addr = if let Some(commit) = commit_log.first().await? {
+        let mut commit_log = CommitLog::new(self.storage, head_addr);
+        let (resolved_path, old_self_addr) = if let Some(commit) = commit_log.first().await? {
             let root_addr = commit.content;
-            self.path.resolve(&self.storage, root_addr).await?
+            let resolved_path = self.path.resolve(&self.storage, root_addr).await?;
+            let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
+            (resolved_path, old_self_addr)
         } else {
-            None
+            (vec![None; self.path.len()], None)
         };
-        let self_addr = if let Some(self_addr) = self_addr {
+        let new_self_addr = if let Some(self_addr) = old_self_addr {
             let kvs = kvs.collect::<Vec<_>>();
             refimpl::Update::new(self.storage, self_addr)
                 .with_vec(kvs)
@@ -95,7 +97,10 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
-        let root_addr = todo!("update to path location");
+        let root_addr = self
+            .path
+            .update(&self.storage, resolved_path, new_self_addr)
+            .await?;
         let commit_addr = commit_log.append(root_addr).await?;
         self.workspace.append(commit_addr.clone()).await?;
         Ok(commit_addr)
@@ -108,12 +113,42 @@ pub struct MapSegment {
 #[async_trait::async_trait]
 impl<'f, S> Segment<S> for MapSegment
 where
-    S: StorageRead,
+    S: StorageRead + StorageWrite,
 {
-    async fn resolve(&self, storage: &S, addr: Addr) -> Result<Option<Addr>, Error> {
-        let reader = refimpl::Read::new(storage, addr);
-        let value = reader.get(&self.key).await?;
-        todo!("map resolve");
+    async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
+        let reader = refimpl::Read::new(storage, self_addr);
+        let value = match reader.get(&self.key).await? {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        let addr = match value {
+            Value::Addr(addr) => addr,
+            _ => {
+                return Err(Error::Type(TypeError::UnexpectedValueVariant {
+                    at_segment: Some(self.key.to_string()),
+                    // addr moved, not sure it's worth prematurely cloning for the failure state.
+                    at_addr: None,
+                }));
+            }
+        };
+        Ok(Some(addr))
+    }
+    async fn update(
+        &self,
+        storage: &S,
+        self_addr: Option<Addr>,
+        child_addr: Addr,
+    ) -> Result<Addr, Error> {
+        if let Some(self_addr) = self_addr {
+            let kvs = vec![(
+                self.key.clone(),
+                refimpl::Change::Insert(Value::Addr(child_addr)),
+            )];
+            refimpl::Update::new(storage, self_addr).with_vec(kvs).await
+        } else {
+            let kvs = vec![(self.key.clone(), Value::Addr(child_addr))];
+            refimpl::Create::new(storage).with_vec(kvs).await
+        }
     }
 }
 #[cfg(test)]

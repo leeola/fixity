@@ -87,7 +87,7 @@ where
             Some(Value::Addr(addr)) => Ok(Some(addr)),
             None => Ok(None),
             Some(_) => Err(TypeError::UnexpectedValueVariant {
-                at_key: None,
+                at_segment: None,
                 at_addr: self.addr.clone(),
             }
             .into()),

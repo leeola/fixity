@@ -77,6 +77,8 @@ pub enum InternalError {
         #[from]
         source: workspace::Error,
     },
+    #[error("path: `{0}`")]
+    Path(String),
 }
 #[cfg(feature = "cjson")]
 impl From<cjson::Error> for Error {
@@ -103,10 +105,8 @@ impl From<fixity::InitError> for Error {
 pub enum TypeError {
     #[error("expected a Value of a specific type, got another")]
     UnexpectedValueVariant {
-        /// The key of the error, if available.
-        ///
-        /// This may be a key within a path.
-        at_key: Option<Key>,
+        /// The segment of the error within a [`crate::Path`], if available.
+        at_segment: Option<String>,
         /// The address of the error, if available.
         at_addr: Option<Addr>,
     },
