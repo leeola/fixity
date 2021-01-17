@@ -20,6 +20,9 @@ pub enum Error {
     /// A fixi repository was not found.
     #[error("fixity repository was not found")]
     RepositoryNotFound,
+    /// A commit was attempted without any changes to commit.
+    #[error("a commit was attempted without any changes to commit")]
+    NoChangesCommit,
     #[error("data type error: {0}")]
     Type(#[from] TypeError),
     #[error("builder error: `{message}`")]
@@ -77,6 +80,8 @@ pub enum InternalError {
         #[from]
         source: workspace::Error,
     },
+    #[error("primitive: `{0}`")]
+    Primitive(String),
     #[error("path: `{0}`")]
     Path(String),
 }

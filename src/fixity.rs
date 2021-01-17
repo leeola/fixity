@@ -31,9 +31,13 @@ impl<S, W> Fixity<S, W> {
     }
 }
 impl Fixity<storage::Memory, workspace::Memory> {
-    /// Create an testing focused instance of Fixity, with in-memory storage and workspace.
-    #[cfg(test)]
-    pub fn test() -> Fixity<storage::Memory, workspace::Memory> {
+    /// Create a **testing focused** instance of Fixity, with in-memory storage and workspace.
+    ///
+    /// # IMPORTANT
+    ///
+    /// This instance does not save data. Both the storage and the workspace are in-memory
+    /// only, and **will be lost** when this instance is dropped.
+    pub fn memory() -> Fixity<storage::Memory, workspace::Memory> {
         Self {
             storage: storage::Memory::new(),
             workspace: workspace::Memory::new("default".to_owned()),

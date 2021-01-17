@@ -25,6 +25,46 @@ impl<'f, S, W> Map<'f, S, W> {
             cache: HashMap::new(),
         }
     }
+    /// Drop the internal change cache that has not yet been staged or committed to storage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map};
+    /// let f = Fixity::memory();
+    /// let mut m = f.map();
+    /// m.insert("foo", "bar");
+    /// m.clear();
+    /// assert!(m.get("foo").await.unwrap().is_none());
+    /// # }
+    /// ```
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    /// Insert a value into the map to later be staged or committed.
+    ///
+    /// This value is not written to the store until [`Self::stage`] or [`Self::commit`]
+    /// is called.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map};
+    /// let f = Fixity::memory();
+    /// let mut m_1 = f.map();
+    /// let m_2 = f.map();
+    /// m_1.insert("foo", "bar");
+    /// // not yet written to storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
+    /// m_1.commit().await.unwrap();
+    /// // now in storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
+    /// # }
+    /// ```
     pub fn insert<K, V>(&mut self, key: K, value: V)
     where
         K: Into<Key>,
@@ -55,11 +95,29 @@ where
         self.path.push_map(MapSegment { key: key.into() });
         self
     }
+}
+impl<'f, S, W> Map<'f, S, W>
+where
+    S: StorageRead,
+    W: Workspace,
+{
     pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
     where
         K: Into<Key>,
     {
-        todo!("get")
+        let key = key.into();
+        if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
+            return Ok(Some(value.clone()));
+        }
+        let head_addr = self.workspace.head().await?;
+        let commit_log = CommitLog::new(self.storage, head_addr);
+        let content_addr = commit_log.first().await?.map(|commit| commit.content);
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
+        } else {
+            return Ok(None);
+        };
+        reader.get(&key).await
     }
 }
 impl<'f, S, W> Map<'f, S, W>
@@ -67,13 +125,54 @@ where
     S: StorageRead + StorageWrite,
     W: Workspace,
 {
+    /// Write any changes to storage, staging them for a later commit.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map};
+    /// let f = Fixity::memory();
+    /// let mut m_1 = f.map();
+    /// let m_2 = f.map();
+    /// m_1.insert("foo", "bar");
+    /// // not yet written to storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
+    /// m_1.stage().await.unwrap();
+    /// // now in storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
+    /// # }
     pub async fn stage(&mut self) -> Result<Addr, Error> {
         todo!("map stage")
     }
+    /// Write any [staged](Self::stage) changes at the current [`Path`] into the workspace.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map};
+    /// let f = Fixity::memory();
+    /// let mut m_1 = f.map();
+    /// let m_2 = f.map();
+    /// m_1.insert("foo", "bar");
+    /// // not yet written to storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
+    /// m_1.commit().await.unwrap();
+    /// // now in storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
+    /// # }
     pub async fn commit(&mut self) -> Result<Addr, Error> {
+        // TODO: this function is currently a mixed-bag of stage and commit, so.. de-mix them.
+
+        if self.cache.is_empty() {
+            return Err(Error::NoChangesCommit);
+        }
+        // This drops the data on a failure - something we may want to tweak in the future.
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let head_addr = self.workspace.head().await?;
-        dbg!(&head_addr);
         let mut commit_log = CommitLog::new(self.storage, head_addr);
         let (resolved_path, old_self_addr) = if let Some(commit) = commit_log.first().await? {
             let root_addr = commit.content;
@@ -153,15 +252,17 @@ where
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::Fixity};
+    use crate::Fixity;
     #[tokio::test]
-    async fn poc() {
-        let f = Fixity::test();
-        let mut m = f.map();
-        let expected = Value::from("bar");
-        m.insert("foo", expected.clone());
-        dbg!(m.commit().await.unwrap());
-        dbg!(m.get("foo").await.unwrap());
-        assert_eq!(m.get("foo").await.unwrap(), Some(expected));
+    async fn write_to_storage() {
+        let f = Fixity::memory();
+        let mut m_1 = f.map();
+        let m_2 = f.map();
+        m_1.insert("foo", "bar");
+        // not yet written to storage.
+        assert_eq!(m_2.get("foo").await.unwrap(), None);
+        m_1.commit().await.unwrap();
+        // now in storage.
+        assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
     }
 }
