@@ -10,10 +10,14 @@ pub trait Workspace: Sized {
     // async fn log(&self) -> Result<Log, Error>;
     // async fn metalog(&self) -> Result<MetaLog, Error>;
 }
+#[derive(Debug)]
 pub enum Status {
     Init,
-    Clean,
     Detached(Addr),
+    Clean {
+        branch: String,
+        commit: Addr,
+    },
     Staged {
         staged: Addr,
         branch: String,

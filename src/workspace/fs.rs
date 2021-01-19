@@ -1,5 +1,5 @@
 use {
-    super::{Error, Workspace},
+    super::{Error, Status, Workspace},
     crate::{head::Head, Addr},
     std::path::PathBuf,
 };
@@ -29,10 +29,13 @@ impl Fs {
 }
 #[async_trait::async_trait]
 impl Workspace for Fs {
-    async fn head(&self) -> Result<Option<Addr>, Error> {
-        todo!("workspace fs head")
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
+        todo!("workspace fs stage")
     }
-    async fn append(&self, _addr: Addr) -> Result<(), Error> {
-        todo!("workspace fs append")
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
+        todo!("workspace fs commit")
+    }
+    async fn status(&self) -> Result<Status, Error> {
+        todo!("workspace fs status")
     }
 }

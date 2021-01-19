@@ -1,5 +1,5 @@
 use {
-    super::{Error, Workspace},
+    super::{Error, Status, Workspace},
     crate::Addr,
     std::{collections::HashMap, sync::Mutex},
 };
@@ -22,6 +22,7 @@ impl Memory {
 }
 #[async_trait::async_trait]
 impl Workspace for Memory {
+    /*
     async fn head(&self) -> Result<Option<Addr>, Error> {
         let inner = self
             .0
@@ -55,5 +56,15 @@ impl Workspace for Memory {
             branches.insert(branch.clone(), addr);
         }
         Ok(())
+    }
+    */
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
+        todo!("workspace mem stage")
+    }
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
+        todo!("workspace mem commit")
+    }
+    async fn status(&self) -> Result<Status, Error> {
+        todo!("workspace mem status")
     }
 }
