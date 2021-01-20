@@ -3,19 +3,25 @@ use {
     crate::Addr,
     std::{collections::HashMap, sync::Mutex},
 };
+#[derive(Debug, Clone)]
+pub(super) enum HeadState {
+    Init,
+    InitStaged { staged: Addr },
+    Detached(Addr),
+    Clean,
+    Staged { staged: Addr },
+}
 pub struct Memory(Mutex<InnerMemory>);
 struct InnerMemory {
     head: HeadState,
+    branch: String,
     branches: HashMap<String, Addr>,
-}
-enum HeadState {
-    Detached(Addr),
-    Branch(String),
 }
 impl Memory {
     pub fn new(_workspace: String) -> Self {
         Self(Mutex::new(InnerMemory {
-            head: HeadState::Branch("default".to_owned()),
+            head: HeadState::Init,
+            branch: "default".to_owned(),
             branches: HashMap::new(),
         }))
     }
@@ -59,10 +65,36 @@ impl Workspace for Memory {
     }
     */
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
-        todo!("workspace mem stage")
+        let mut inner = self
+            .0
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        if matches!(inner.head, HeadState::Detached(_)) {
+            return Err(Error::DetatchedHead);
+        }
+        inner.head = match inner.head {
+            HeadState::Init | HeadState::InitStaged { .. } => {
+                HeadState::InitStaged { staged: stage_addr }
+            }
+            HeadState::Clean | HeadState::Staged { .. } => HeadState::Staged { staged: stage_addr },
+            HeadState::Detached(_) => unreachable!("detached state checked above"),
+        };
+        Ok(())
     }
     async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
-        todo!("workspace mem commit")
+        let mut inner = self
+            .0
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        if matches!(inner.head, HeadState::Detached(_)) {
+            return Err(Error::DetatchedHead);
+        }
+        if matches!(inner.head, HeadState::Init | HeadState::Clean) {
+            return Err(Error::CommitEmptyStage);
+        }
+        let branch = inner.branch.clone();
+        inner.branches.insert(branch, commit_addr);
+        Ok(())
     }
     async fn status(&self) -> Result<Status, Error> {
         todo!("workspace mem status")
