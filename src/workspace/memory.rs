@@ -1,7 +1,10 @@
 use {
-    super::{Error, Status, Workspace},
+    super::{Error, Guard, Status, Workspace, Workspace2},
     crate::Addr,
-    std::{collections::HashMap, sync::Mutex},
+    std::{
+        collections::HashMap,
+        sync::{Mutex, MutexGuard},
+    },
 };
 #[derive(Debug, Clone)]
 pub(super) enum HeadState {
@@ -26,6 +29,13 @@ impl Memory {
         }))
     }
 }
+pub struct MemoryGuard<'a>(MutexGuard<'a, InnerMemory>);
+#[async_trait::async_trait]
+impl Workspace2 for Memory {
+    type Guard = MemoryGuard<'a>;
+}
+#[async_trait::async_trait]
+impl Guard for MemoryGuard {}
 #[async_trait::async_trait]
 impl Workspace for Memory {
     /*
@@ -64,6 +74,7 @@ impl Workspace for Memory {
         Ok(())
     }
     */
+    /*
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
         let mut inner = self
             .0
@@ -99,4 +110,5 @@ impl Workspace for Memory {
     async fn status(&self) -> Result<Status, Error> {
         todo!("workspace mem status")
     }
+    */
 }

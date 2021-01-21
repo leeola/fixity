@@ -109,7 +109,8 @@ where
         if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
-        let head_addr = self.workspace.head().await?;
+        // let head_addr = self.workspace.head().await?;
+        let head_addr = todo!();
         let commit_log = CommitLog::new(self.storage, head_addr);
         let content_addr = commit_log.first().await?.map(|commit| commit.content);
         let reader = if let Some(content_addr) = content_addr {
@@ -172,7 +173,8 @@ where
         }
         // This drops the data on a failure - something we may want to tweak in the future.
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
-        let head_addr = self.workspace.head().await?;
+        // let head_addr = self.workspace.head().await?;
+        let head_addr = todo!();
         let mut commit_log = CommitLog::new(self.storage, head_addr);
         let (resolved_path, old_self_addr) = if let Some(commit) = commit_log.first().await? {
             let root_addr = commit.content;
@@ -201,7 +203,8 @@ where
             .update(&self.storage, resolved_path, new_self_addr)
             .await?;
         let commit_addr = commit_log.append(root_addr).await?;
-        self.workspace.append(commit_addr.clone()).await?;
+        todo!();
+        // self.workspace.append(commit_addr.clone()).await?;
         Ok(commit_addr)
     }
 }

@@ -29,6 +29,7 @@ impl Fs {
 }
 #[async_trait::async_trait]
 impl Workspace for Fs {
+    /*
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
         todo!("workspace fs stage")
     }
@@ -38,4 +39,5 @@ impl Workspace for Fs {
     async fn status(&self) -> Result<Status, Error> {
         todo!("workspace fs status")
     }
+    */
 }
