@@ -4,17 +4,13 @@ pub use self::{fs::Fs, memory::Memory};
 use crate::Addr;
 #[async_trait::async_trait]
 pub trait Workspace: Sized {
-    async fn mutate(&self) -> Result<(), Error> {
-        todo!("tmp auto impl")
-    }
-    // async fn status(&self) -> Result<Status, Error>;
-    // async fn log(&self) -> Result<Log, Error>;
-    // async fn metalog(&self) -> Result<MetaLog, Error>;
-}
-#[async_trait::async_trait]
-pub trait Workspace2: Sized {
-    type Guard: Guard;
-    async fn lock(&self) -> Result<Box<dyn Guard>, Error> {
+    // WARN: Dragons ahead.. using GATs.. :shock:
+    // Might move away from using GATs here, though i'm unsure the solution offhand.
+    // I really hate not being non-stable in this repo, but .. it may be worth it for this.
+    // For now it makes the code clean, and this repo is about experimenting.
+    // So.. lets find out. :sus:
+    type Guard<'a>: Guard;
+    async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
         todo!("tmp auto impl")
     }
     // async fn status(&self) -> Result<Status, Error>;
@@ -26,10 +22,10 @@ pub trait Guard {
     async fn status(&self) -> Result<Status, Error> {
         todo!("tmp auto impl")
     }
-    async fn stage(&mut self, stage_addr: Addr) -> Result<(), Error> {
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
         todo!("tmp auto impl")
     }
-    async fn commit(&mut self, commit_addr: Addr) -> Result<(), Error> {
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
         todo!("tmp auto impl")
     }
 }
@@ -61,4 +57,6 @@ pub enum Error {
     CommitEmptyStage,
     #[error("cannot commit or stage on a detatched HEAD")]
     DetatchedHead,
+    #[error("workspace in use")]
+    InUse,
 }

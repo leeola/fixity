@@ -1,3 +1,5 @@
+#![feature(generic_associated_types)]
+
 pub mod deser;
 mod dir;
 pub mod error;

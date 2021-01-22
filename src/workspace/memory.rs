@@ -1,44 +1,90 @@
 use {
-    super::{Error, Guard, Status, Workspace, Workspace2},
+    super::{Error, Guard, Status, Workspace},
     crate::Addr,
     std::{
         collections::HashMap,
-        sync::{Mutex, MutexGuard},
+        mem,
+        sync::{Arc, Mutex, MutexGuard},
     },
 };
 #[derive(Debug, Clone)]
 pub(super) enum HeadState {
-    Init,
-    InitStaged { staged: Addr },
+    Init { branch: String },
+    InitStaged { branch: String, staged: Addr },
     Detached(Addr),
-    Clean,
-    Staged { staged: Addr },
+    Clean { branch: String },
+    Staged { branch: String, staged: Addr },
+    Aborted,
 }
-pub struct Memory(Mutex<InnerMemory>);
+pub struct Memory {
+    guard: Mutex<()>,
+    state: Arc<Mutex<InnerMemory>>,
+}
 struct InnerMemory {
     head: HeadState,
-    branch: String,
     branches: HashMap<String, Addr>,
 }
 impl Memory {
     pub fn new(_workspace: String) -> Self {
-        Self(Mutex::new(InnerMemory {
-            head: HeadState::Init,
-            branch: "default".to_owned(),
-            branches: HashMap::new(),
-        }))
+        Self {
+            guard: Mutex::new(()),
+            state: Arc::new(Mutex::new(InnerMemory {
+                head: HeadState::Init {
+                    branch: "default".to_owned(),
+                },
+                branches: HashMap::new(),
+            })),
+        }
     }
 }
-pub struct MemoryGuard<'a>(MutexGuard<'a, InnerMemory>);
-#[async_trait::async_trait]
-impl Workspace2 for Memory {
-    type Guard = MemoryGuard<'a>;
-}
-#[async_trait::async_trait]
-impl Guard for MemoryGuard {}
 #[async_trait::async_trait]
 impl Workspace for Memory {
-    /*
+    type Guard<'a> = MemoryGuard<'a>;
+    async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
+        let _guard = self
+            .guard
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        Ok(MemoryGuard {
+            _guard,
+            state: self.state.clone(),
+        })
+    }
+}
+pub struct MemoryGuard<'a> {
+    _guard: MutexGuard<'a, ()>,
+    state: Arc<Mutex<InnerMemory>>,
+}
+#[async_trait::async_trait]
+impl<'a> Guard for MemoryGuard<'a> {
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
+        let mut inner = self
+            .state
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        if matches!(inner.head, HeadState::Detached(_)) {
+            return Err(Error::DetatchedHead);
+        }
+        inner.head = match mem::replace(&mut inner.head, HeadState::Aborted) {
+            HeadState::Init { branch } | HeadState::InitStaged { branch, .. } => {
+                HeadState::InitStaged {
+                    branch,
+                    staged: stage_addr,
+                }
+            }
+            HeadState::Clean { branch } | HeadState::Staged { branch, .. } => HeadState::Staged {
+                branch,
+                staged: stage_addr,
+            },
+            HeadState::Detached(_) => unreachable!("detached state checked above"),
+            HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
+        };
+        Ok(())
+    }
+}
+/*
+#[async_trait::async_trait]
+impl Workspace for Memory {
     async fn head(&self) -> Result<Option<Addr>, Error> {
         let inner = self
             .0
@@ -74,7 +120,7 @@ impl Workspace for Memory {
         Ok(())
     }
     */
-    /*
+/*
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
         let mut inner = self
             .0
@@ -110,5 +156,5 @@ impl Workspace for Memory {
     async fn status(&self) -> Result<Status, Error> {
         todo!("workspace mem status")
     }
-    */
 }
+    */
