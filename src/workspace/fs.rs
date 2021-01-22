@@ -1,7 +1,7 @@
 use {
     super::{Error, Guard, Status, Workspace},
     crate::{head::Head, Addr},
-    std::path::PathBuf,
+    std::{ops::Drop, path::PathBuf},
 };
 const WORKSPACE_LOCK_FILE_NAME: &str = "WORKSPACE.lock";
 pub struct Fs {
@@ -32,12 +32,14 @@ impl Fs {
 impl Workspace for Fs {
     type Guard<'a> = FsGuard;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
+        let file_lock_path = self
+            .fixi_dir
+            .join(&self.workspace)
+            .join(WORKSPACE_LOCK_FILE_NAME);
         // using a non-async File since we're going to drop it in a blocking manner.
-        let file_lock_res = std::fs::OpenOptions::new().create_new(true).open(
-            self.fixi_dir
-                .join(&self.workspace)
-                .join(WORKSPACE_LOCK_FILE_NAME),
-        );
+        let file_lock_res = std::fs::OpenOptions::new()
+            .create_new(true)
+            .open(&file_lock_path);
         let workspace_guard_file = match file_lock_res {
             Ok(f) => f,
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -51,22 +53,38 @@ impl Workspace for Fs {
             }
         };
         Ok(FsGuard {
-            workspace_guard_file,
+            workspace_guard_file: Some(workspace_guard_file),
+            file_lock_path,
         })
     }
-    /*
-    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
-        todo!("workspace fs stage")
-    }
-    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
-        todo!("workspace fs commit")
-    }
     async fn status(&self) -> Result<Status, Error> {
-        todo!("workspace fs status")
+        todo!("MemoryGuard")
     }
-    */
 }
 pub struct FsGuard {
-    workspace_guard_file: std::fs::File,
+    workspace_guard_file: Option<std::fs::File>,
+    file_lock_path: PathBuf,
 }
-impl Guard for FsGuard {}
+#[async_trait::async_trait]
+impl Guard for FsGuard {
+    async fn status(&self) -> Result<Status, Error> {
+        todo!("FsGuard")
+    }
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
+        todo!("FsGuard")
+    }
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
+        todo!("FsGuard")
+    }
+}
+impl Drop for FsGuard {
+    fn drop(&mut self) {
+        let _ = self.workspace_guard_file.take();
+        if let Err(err) = std::fs::remove_file(&self.file_lock_path) {
+            log::info!(
+                "failed to release workspace lock. path:{:?}",
+                self.file_lock_path
+            )
+        }
+    }
+}

@@ -5,7 +5,7 @@ use {
         primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
-        workspace::Workspace,
+        workspace::{Guard, Workspace},
         Addr, Error,
     },
     std::{collections::HashMap, mem},
@@ -109,8 +109,7 @@ where
         if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
-        // let head_addr = self.workspace.head().await?;
-        let head_addr = todo!();
+        let head_addr = self.workspace.status().await?.commit_addr();
         let commit_log = CommitLog::new(self.storage, head_addr);
         let content_addr = commit_log.first().await?.map(|commit| commit.content);
         let reader = if let Some(content_addr) = content_addr {
@@ -173,8 +172,7 @@ where
         }
         // This drops the data on a failure - something we may want to tweak in the future.
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
-        // let head_addr = self.workspace.head().await?;
-        let head_addr = todo!();
+        let head_addr = self.workspace.status().await?.commit_addr();
         let mut commit_log = CommitLog::new(self.storage, head_addr);
         let (resolved_path, old_self_addr) = if let Some(commit) = commit_log.first().await? {
             let root_addr = commit.content;

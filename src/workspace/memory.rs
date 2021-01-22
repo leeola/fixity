@@ -10,7 +10,6 @@ use {
 #[derive(Debug, Clone)]
 pub(super) enum HeadState {
     Init { branch: String },
-    InitStaged { branch: String, staged: Addr },
     Detached(Addr),
     Clean { branch: String },
     Staged { branch: String, staged: Addr },
@@ -50,6 +49,39 @@ impl Workspace for Memory {
             state: self.state.clone(),
         })
     }
+    async fn status(&self) -> Result<Status, Error> {
+        let inner = self
+            .state
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let status = match &inner.head {
+            HeadState::Init { branch } => Status::Init {
+                branch: branch.clone(),
+            },
+            HeadState::Detached(addr) => Status::Detached(addr.clone()),
+            HeadState::Clean { branch } => {
+                let commit = inner.branches.get(branch).ok_or_else(|| {
+                    Error::Internal("HeadState::Clean but no internal address".to_owned())
+                })?;
+                Status::Clean {
+                    branch: branch.clone(),
+                    commit: commit.clone(),
+                }
+            }
+            HeadState::Staged { branch, staged } => {
+                let commit = inner.branches.get(branch).ok_or_else(|| {
+                    Error::Internal("HeadState::Clean but no internal address".to_owned())
+                })?;
+                Status::Staged {
+                    branch: branch.clone(),
+                    commit: commit.clone(),
+                    staged: staged.clone(),
+                }
+            }
+            HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
+        };
+        Ok(status)
+    }
 }
 pub struct MemoryGuard<'a> {
     _guard: MutexGuard<'a, ()>,
@@ -62,24 +94,74 @@ impl<'a> Guard for MemoryGuard<'a> {
             .state
             .lock()
             .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
-        if matches!(inner.head, HeadState::Detached(_)) {
-            return Err(Error::DetatchedHead);
-        }
         inner.head = match mem::replace(&mut inner.head, HeadState::Aborted) {
-            HeadState::Init { branch } | HeadState::InitStaged { branch, .. } => {
-                HeadState::InitStaged {
-                    branch,
-                    staged: stage_addr,
-                }
-            }
-            HeadState::Clean { branch } | HeadState::Staged { branch, .. } => HeadState::Staged {
+            HeadState::Init { branch }
+            | HeadState::Clean { branch }
+            | HeadState::Staged { branch, .. } => HeadState::Staged {
                 branch,
                 staged: stage_addr,
             },
-            HeadState::Detached(_) => unreachable!("detached state checked above"),
+            HeadState::Detached(_) => return Err(Error::DetatchedHead),
             HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
         };
         Ok(())
+    }
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
+        let mut inner = self
+            .state
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        if matches!(inner.head, HeadState::Detached(_)) {
+            return Err(Error::DetatchedHead);
+        }
+        if matches!(inner.head, HeadState::Init { .. } | HeadState::Clean { .. }) {
+            return Err(Error::CommitEmptyStage);
+        }
+        inner.head = match mem::replace(&mut inner.head, HeadState::Aborted) {
+            HeadState::Staged { branch, .. } => {
+                inner.branches.insert(branch.clone(), commit_addr);
+                HeadState::Clean { branch }
+            }
+            HeadState::Init { branch } | HeadState::Clean { branch, .. } => {
+                return Err(Error::CommitEmptyStage);
+            }
+            HeadState::Detached(_) => return Err(Error::DetatchedHead),
+            HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
+        };
+        Ok(())
+    }
+    async fn status(&self) -> Result<Status, Error> {
+        let inner = self
+            .state
+            .lock()
+            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let status = match &inner.head {
+            HeadState::Init { branch } => Status::Init {
+                branch: branch.clone(),
+            },
+            HeadState::Detached(addr) => Status::Detached(addr.clone()),
+            HeadState::Clean { branch } => {
+                let commit = inner.branches.get(branch).ok_or_else(|| {
+                    Error::Internal("HeadState::Clean but no internal address".to_owned())
+                })?;
+                Status::Clean {
+                    branch: branch.clone(),
+                    commit: commit.clone(),
+                }
+            }
+            HeadState::Staged { branch, staged } => {
+                let commit = inner.branches.get(branch).ok_or_else(|| {
+                    Error::Internal("HeadState::Clean but no internal address".to_owned())
+                })?;
+                Status::Staged {
+                    branch: branch.clone(),
+                    commit: commit.clone(),
+                    staged: staged.clone(),
+                }
+            }
+            HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
+        };
+        Ok(status)
     }
 }
 /*

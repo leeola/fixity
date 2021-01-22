@@ -10,32 +10,20 @@ pub trait Workspace: Sized {
     // For now it makes the code clean, and this repo is about experimenting.
     // So.. lets find out. :sus:
     type Guard<'a>: Guard;
-    async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
-        todo!("tmp auto impl")
-    }
-    // async fn status(&self) -> Result<Status, Error>;
+    async fn lock(&self) -> Result<Self::Guard<'_>, Error>;
     // async fn log(&self) -> Result<Log, Error>;
     // async fn metalog(&self) -> Result<MetaLog, Error>;
+    async fn status(&self) -> Result<Status, Error>;
 }
 #[async_trait::async_trait]
 pub trait Guard {
-    async fn status(&self) -> Result<Status, Error> {
-        todo!("tmp auto impl")
-    }
-    async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
-        todo!("tmp auto impl")
-    }
-    async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
-        todo!("tmp auto impl")
-    }
+    async fn status(&self) -> Result<Status, Error>;
+    async fn stage(&self, stage_addr: Addr) -> Result<(), Error>;
+    async fn commit(&self, commit_addr: Addr) -> Result<(), Error>;
 }
 #[derive(Debug, Clone)]
 pub enum Status {
     Init {
-        branch: String,
-    },
-    InitStaged {
-        staged: Addr,
         branch: String,
     },
     Detached(Addr),
@@ -48,6 +36,16 @@ pub enum Status {
         branch: String,
         commit: Addr,
     },
+}
+impl Status {
+    pub fn commit_addr(&self) -> Option<Addr> {
+        match self {
+            Self::Detached(commit) | Self::Clean { commit, .. } | Self::Staged { commit, .. } => {
+                Some(commit.clone())
+            }
+            _ => None,
+        }
+    }
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
