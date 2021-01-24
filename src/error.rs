@@ -20,9 +20,26 @@ pub enum Error {
     /// A fixi repository was not found.
     #[error("fixity repository was not found")]
     RepositoryNotFound,
-    /// A commit was attempted without any changes to commit.
+    /// An action was attempted that writes changes to the repository, but
+    /// no changes exist.
+    #[error("no changes to write to repository")]
+    NoChangesToWrite,
+    /// A commit was attempted without any changes staged.
     #[error("a commit was attempted without any changes to commit")]
-    NoChangesCommit,
+    NoStageToCommit,
+    /// An action is unsupported when the HEAD is detached.
+    #[error("an action is unsupported when the HEAD is detached")]
+    DetachedHead,
+    /// An addr exists but data was not found in storage.
+    #[error("an address if dangling: `{message}`")]
+    DanglingAddr {
+        message: String,
+        /// The address that is dangling, if available.
+        ///
+        /// The optional address in the error allows the caller to provide it if available,
+        /// but not allocate prematurely for the error condition.
+        addr: Option<Addr>,
+    },
     #[error("data type error: {0}")]
     Type(#[from] TypeError),
     #[error("builder error: `{message}`")]

@@ -5,7 +5,7 @@ use {
         primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
-        workspace::{Guard, Workspace},
+        workspace::{Guard, Status, Workspace},
         Addr, Error,
     },
     std::{collections::HashMap, mem},
@@ -46,7 +46,7 @@ impl<'f, S, W> Map<'f, S, W> {
     /// Insert a value into the map to later be staged or committed.
     ///
     /// This value is not written to the store until [`Self::stage`] or [`Self::commit`]
-    /// is called.
+    /// is called, but it can be retrived from the internal cache.
     ///
     /// # Examples
     ///
@@ -58,11 +58,10 @@ impl<'f, S, W> Map<'f, S, W> {
     /// let mut m_1 = f.map();
     /// let m_2 = f.map();
     /// m_1.insert("foo", "bar");
+    /// // get pulls from in-memory cache, awaiting stage/commit.
+    /// assert_eq!(m_1.get("foo").await.unwrap(), Some("bar".into()));
     /// // not yet written to storage.
     /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// m_1.commit().await.unwrap();
-    /// // now in storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
     /// # }
     /// ```
     pub fn insert<K, V>(&mut self, key: K, value: V)
@@ -109,9 +108,12 @@ where
         if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
-        let head_addr = self.workspace.status().await?.commit_addr();
-        let commit_log = CommitLog::new(self.storage, head_addr);
-        let content_addr = commit_log.first().await?.map(|commit| commit.content);
+        let content_addr = self
+            .workspace
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
         let reader = if let Some(content_addr) = content_addr {
             refimpl::Read::new(self.storage, content_addr)
         } else {
@@ -139,48 +141,29 @@ where
     /// m_1.insert("foo", "bar");
     /// // not yet written to storage.
     /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// m_1.stage().await.unwrap();
+    /// let _staged_addr = m_1.stage().await.unwrap();
     /// // now in storage.
     /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
     /// # }
     pub async fn stage(&mut self) -> Result<Addr, Error> {
-        todo!("map stage")
-    }
-    /// Write any [staged](Self::stage) changes at the current [`Path`] into the workspace.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # use fixity::{Fixity,Map};
-    /// let f = Fixity::memory();
-    /// let mut m_1 = f.map();
-    /// let m_2 = f.map();
-    /// m_1.insert("foo", "bar");
-    /// // not yet written to storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// m_1.commit().await.unwrap();
-    /// // now in storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
-    /// # }
-    pub async fn commit(&mut self) -> Result<Addr, Error> {
-        // TODO: this function is currently a mixed-bag of stage and commit, so.. de-mix them.
-
         if self.cache.is_empty() {
-            return Err(Error::NoChangesCommit);
+            return Err(Error::NoChangesToWrite);
         }
-        // This drops the data on a failure - something we may want to tweak in the future.
+        // NIT: This drops the data on a failure - something we may want to tweak in the future.
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
-        let head_addr = self.workspace.status().await?.commit_addr();
-        let mut commit_log = CommitLog::new(self.storage, head_addr);
-        let (resolved_path, old_self_addr) = if let Some(commit) = commit_log.first().await? {
-            let root_addr = commit.content;
-            let resolved_path = self.path.resolve(&self.storage, root_addr).await?;
-            let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
-            (resolved_path, old_self_addr)
-        } else {
-            (vec![None; self.path.len()], None)
+        let workspace_guard = self.workspace.lock().await?;
+        let staged_addr = workspace_guard
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let (resolved_path, old_self_addr) = match staged_addr {
+            Some(staged_content) => {
+                let resolved_path = self.path.resolve(&self.storage, staged_content).await?;
+                let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
+                (resolved_path, old_self_addr)
+            }
+            None => (vec![None; self.path.len()], None),
         };
         let new_self_addr = if let Some(self_addr) = old_self_addr {
             let kvs = kvs.collect::<Vec<_>>();
@@ -196,13 +179,49 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
-        let root_addr = self
+        let new_staged_content = self
             .path
             .update(&self.storage, resolved_path, new_self_addr)
             .await?;
-        let commit_addr = commit_log.append(root_addr).await?;
-        todo!();
-        // self.workspace.append(commit_addr.clone()).await?;
+        workspace_guard.stage(new_staged_content.clone()).await?;
+        Ok(new_staged_content)
+    }
+    /// Write any [staged](Self::stage) changes at the current [`Path`] into the workspace.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map};
+    /// let f = Fixity::memory();
+    /// let mut m_1 = f.map();
+    /// let m_2 = f.map();
+    /// m_1.insert("foo", "bar");
+    /// // not yet written to storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
+    /// m_1.stage().await.unwrap();
+    /// m_1.commit().await.unwrap();
+    /// // now in storage.
+    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
+    /// # }
+    pub async fn commit(&mut self) -> Result<Addr, Error> {
+        let workspace_guard = self.workspace.lock().await?;
+        let (commit_addr, staged_addr) = match workspace_guard.status().await? {
+            Status::InitStaged { staged_content, .. } => (None, staged_content),
+            Status::Staged {
+                commit,
+                staged_content,
+                ..
+            } => (Some(commit), staged_content),
+            Status::Detached(_) => return Err(Error::DetachedHead),
+            Status::Init { .. } | Status::Clean { .. } => {
+                return Err(Error::NoStageToCommit);
+            }
+        };
+        let mut commit_log = CommitLog::new(self.storage, commit_addr);
+        let commit_addr = commit_log.append(staged_addr).await?;
+        workspace_guard.commit(commit_addr.clone()).await?;
         Ok(commit_addr)
     }
 }
@@ -262,6 +281,7 @@ pub mod test {
         m_1.insert("foo", "bar");
         // not yet written to storage.
         assert_eq!(m_2.get("foo").await.unwrap(), None);
+        m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
         // now in storage.
         assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
