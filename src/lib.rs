@@ -1,3 +1,6 @@
+// NIT: I think this blanket allows incomplete features.. i'd like to just allow
+// this one.
+#![allow(incomplete_features)]
 #![feature(generic_associated_types)]
 
 pub mod deser;
@@ -18,7 +21,7 @@ pub use self::{
     fixity::Fixity,
     map::Map,
     storage::{Storage, StorageRead, StorageWrite},
-    value::{Addr, Path},
+    value::{Addr, Path, Value},
 };
 
 /*

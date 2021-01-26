@@ -5,9 +5,9 @@ use {
         Addr, Error,
     },
     dyn_clone::DynClone,
-    std::fmt::Debug,
+    std::fmt,
 };
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Path<S> {
     segments: Vec<Box<dyn Segment<S>>>,
 }
@@ -60,6 +60,19 @@ where
         }
         Ok(resolved_segs)
     }
+    pub async fn resolve_last(&self, storage: &S, mut addr: Addr) -> Result<Option<Addr>, Error> {
+        for seg in self.segments.iter() {
+            match seg.resolve(storage, addr).await? {
+                Some(resolved_addr) => {
+                    addr = resolved_addr;
+                }
+                None => {
+                    return Ok(None);
+                }
+            }
+        }
+        Ok(Some(addr))
+    }
     pub async fn update(
         &self,
         storage: &S,
@@ -72,6 +85,19 @@ where
         Ok(new_addr)
     }
 }
+impl<S> fmt::Debug for Path<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Path(\n")?;
+        let iter = self.segments.iter();
+        for seg in iter {
+            f.write_str("    ")?;
+            seg.fmt(f)?;
+            f.write_str(",\n")?;
+        }
+        f.write_str(")")?;
+        Ok(())
+    }
+}
 // Implementing clone manually because the Path<S> constraint assumes `S: Clone`, but that's
 // not needed.
 impl<S> Clone for Path<S> {
@@ -82,7 +108,7 @@ impl<S> Clone for Path<S> {
     }
 }
 #[async_trait::async_trait]
-pub trait Segment<S>: Debug + DynClone {
+pub trait Segment<S>: fmt::Debug + DynClone {
     async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error>;
     async fn update(
         &self,

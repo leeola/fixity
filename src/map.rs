@@ -8,7 +8,7 @@ use {
         workspace::{Guard, Status, Workspace},
         Addr, Error,
     },
-    std::{collections::HashMap, mem},
+    std::{collections::HashMap, fmt, mem},
 };
 pub struct Map<'f, S, W> {
     storage: &'f S,
@@ -97,7 +97,7 @@ where
 }
 impl<'f, S, W> Map<'f, S, W>
 where
-    S: StorageRead,
+    S: StorageRead + StorageWrite,
     W: Workspace,
 {
     pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
@@ -114,6 +114,11 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
+        let content_addr = if let Some(content_addr) = content_addr {
+            self.path.resolve_last(self.storage, content_addr).await?
+        } else {
+            None
+        };
         let reader = if let Some(content_addr) = content_addr {
             refimpl::Read::new(self.storage, content_addr)
         } else {
@@ -121,12 +126,6 @@ where
         };
         reader.get(&key).await
     }
-}
-impl<'f, S, W> Map<'f, S, W>
-where
-    S: StorageRead + StorageWrite,
-    W: Workspace,
-{
     /// Write any changes to storage, staging them for a later commit.
     ///
     /// # Examples
@@ -179,10 +178,12 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
+        dbg!(&self.path, &new_self_addr, &resolved_path);
         let new_staged_content = self
             .path
             .update(&self.storage, resolved_path, new_self_addr)
             .await?;
+        dbg!("was it update?");
         workspace_guard.stage(new_staged_content.clone()).await?;
         Ok(new_staged_content)
     }
@@ -225,9 +226,16 @@ where
         Ok(commit_addr)
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MapSegment {
     key: Key,
+}
+impl fmt::Debug for MapSegment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Map(")?;
+        self.key.fmt(f)?;
+        f.write_str(")")
+    }
 }
 #[async_trait::async_trait]
 impl<'f, S> Segment<S> for MapSegment
@@ -258,6 +266,7 @@ where
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error> {
+        dbg!(&self.key, &self_addr, &child_addr);
         if let Some(self_addr) = self_addr {
             let kvs = vec![(
                 self.key.clone(),
@@ -272,18 +281,50 @@ where
 }
 #[cfg(test)]
 pub mod test {
-    use crate::Fixity;
+    use crate::{Fixity, Value};
     #[tokio::test]
-    async fn write_to_storage() {
+    async fn write_to_root() {
         let f = Fixity::memory();
         let mut m_1 = f.map();
         let m_2 = f.map();
         m_1.insert("foo", "bar");
-        // not yet written to storage.
         assert_eq!(m_2.get("foo").await.unwrap(), None);
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
-        // now in storage.
         assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
+    }
+    #[tokio::test]
+    async fn write_to_path_single() {
+        let f = Fixity::memory();
+        let mut m_1 = f.map().into_map("foo");
+        m_1.insert("bang", "boom");
+        m_1.stage().await.unwrap();
+        m_1.commit().await.unwrap();
+        let m_2 = f.map();
+        let foo_value = m_2.get("foo").await.unwrap().unwrap();
+        assert!(matches!(foo_value, Value::Addr(_)));
+        assert_eq!(
+            m_2.map("foo").get("bang").await.unwrap(),
+            Some("boom".into())
+        );
+    }
+    #[tokio::test]
+    async fn write_to_path_double() {
+        let f = Fixity::memory();
+        let mut m_1 = f.map().into_map("foo").into_map("bar");
+        m_1.insert("bang", "boom");
+        m_1.stage().await.unwrap();
+        m_1.commit().await.unwrap();
+        let m_2 = f.map();
+        dbg!(m_2.get("foo").await.unwrap());
+        dbg!(m_2.get("bar").await.unwrap());
+        let foo_value = m_2.get("foo").await.unwrap().unwrap();
+        dbg!(&foo_value);
+        assert!(matches!(foo_value, Value::Addr(_)));
+        let m_2_foo = m_2.map("foo");
+        let bar_value = m_2.get("bar").await.unwrap().unwrap();
+        assert!(matches!(bar_value, Value::Addr(_)));
+        let m_2_bar = m_2_foo.map("bar");
+        assert_eq!(m_2_bar.get("bang").await.unwrap(), Some("boom".into()));
     }
 }

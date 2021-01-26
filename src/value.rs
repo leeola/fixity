@@ -8,7 +8,7 @@ use {
 
 const ADDR_SHORT_LEN: usize = 8;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
@@ -35,6 +35,13 @@ impl Addr {
     /// Convert the underlying String into a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+}
+impl fmt::Debug for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Addr(")?;
+        f.write_str(self.0.as_str())?;
+        f.write_str(")")
     }
 }
 impl std::borrow::Borrow<str> for Addr {
@@ -112,7 +119,7 @@ impl fmt::Display for Scalar {
 /// Key exists as a very thin layer over a [`Value`] for ease of use and reading.
 ///
 /// Ultimately there is no difference between a Key and a Value.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
@@ -124,6 +131,14 @@ impl fmt::Display for Key {
         write!(f, "{}", self.0)
     }
 }
+// NIT: maybe make this debug fmt to `Key::Addr`/etc?
+impl fmt::Debug for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Key::")?;
+        self.0.fmt_variant(f)?;
+        f.write_str(")")
+    }
+}
 impl<T> From<T> for Key
 where
     T: Into<Value>,
@@ -132,7 +147,7 @@ where
         Self(t.into())
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
@@ -143,6 +158,36 @@ pub enum Value {
     Uint32(u32),
     String(String),
     Vec(Vec<Scalar>),
+}
+impl Value {
+    fn fmt_variant(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use fmt::Debug;
+        match self {
+            Self::Addr(v) => {
+                f.write_str("Addr(")?;
+                f.write_str(v.as_str())?;
+            }
+            Self::Uint32(v) => {
+                f.write_str("Uint32(")?;
+                write!(f, "{}", v)?;
+            }
+            Self::String(v) => {
+                f.write_str("String(")?;
+                f.write_str(v.as_str())?;
+            }
+            Self::Vec(v) => {
+                f.write_str("Vec([\n")?;
+                let iter = v.iter();
+                for elm in iter {
+                    f.write_str("    ")?;
+                    elm.fmt(f)?;
+                    f.write_str(",\n")?;
+                }
+                f.write_str("]")?;
+            }
+        }
+        Ok(())
+    }
 }
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -159,6 +204,13 @@ impl fmt::Display for Value {
                     .join(",")
             ),
         }
+    }
+}
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Value::")?;
+        self.fmt_variant(f)?;
+        f.write_str(")")
     }
 }
 /// A helper to centralize serialization logic for a potential future
