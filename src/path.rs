@@ -79,7 +79,7 @@ where
         resolved_addrs: Vec<Option<Addr>>,
         mut new_addr: Addr,
     ) -> Result<Addr, Error> {
-        for (seg_addr, seg) in resolved_addrs.into_iter().zip(self.segments.iter()) {
+        for (seg_addr, seg) in resolved_addrs.into_iter().zip(self.segments.iter()).rev() {
             new_addr = seg.update(storage, seg_addr, new_addr).await?;
         }
         Ok(new_addr)

@@ -321,10 +321,10 @@ pub mod test {
         let foo_value = m_2.get("foo").await.unwrap().unwrap();
         dbg!(&foo_value);
         assert!(matches!(foo_value, Value::Addr(_)));
-        let m_2_foo = m_2.map("foo");
+        let m_2 = m_2.into_map("foo");
         let bar_value = m_2.get("bar").await.unwrap().unwrap();
         assert!(matches!(bar_value, Value::Addr(_)));
-        let m_2_bar = m_2_foo.map("bar");
-        assert_eq!(m_2_bar.get("bang").await.unwrap(), Some("boom".into()));
+        let m_2 = m_2.map("bar");
+        assert_eq!(m_2.get("bang").await.unwrap(), Some("boom".into()));
     }
 }
