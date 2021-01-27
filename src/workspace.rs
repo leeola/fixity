@@ -98,3 +98,40 @@ pub enum Error {
     #[error("workspace in use")]
     InUse,
 }
+#[cfg(test)]
+pub mod test {
+    use {super::*, proptest::prelude::*, tokio::runtime::Runtime};
+
+    proptest! {
+        #[test]
+        // fn test_add((addrs, change_types) in prop::collection::vec(0..3, 0..10)) {
+        fn test_add(
+            (first_stage_addr, addrs, change_types) in (1..10usize)
+            .prop_flat_map(|change_count| (
+                prop::collection::vec(0u8..u8::MAX, 0..1000)
+                    .prop_map(|bytes| Addr::from_unhashed_bytes(&bytes)),
+                prop::collection::vec(
+                    prop::collection::vec(0u8..u8::MAX, 0..1000)
+                        .prop_map(|bytes| Addr::from_unhashed_bytes(&bytes)),
+                    change_count
+                ),
+                prop::collection::vec(0..2usize, change_count),
+            ))
+            ) {
+            Runtime::new().unwrap().block_on(async {
+                let workspace = Memory::new("".to_string());
+                assert!(matches!(workspace.status().await, Ok(Status::Init{..})));
+                let guard = workspace.lock().await.unwrap();
+                guard.stage(first_stage_addr).await.unwrap();
+                for (addr, change_type) in addrs.into_iter().zip(change_types.into_iter()) {
+                    dbg!(&addr, change_type);
+                    match change_type {
+                        0 => guard.stage(addr).await.unwrap(),
+                        1 => guard.commit(addr).await.unwrap(),
+                        _ => unreachable!(),
+                    }
+                }
+            });
+        }
+    }
+}

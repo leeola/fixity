@@ -54,6 +54,7 @@ dyn-clone = "1.0.4"
 env_logger = "0.7"
 rand = "0.7.3"
 replace_with = "0.1.7"
+proptest = "0.10.1"
 
 [workspace]
 members = [
