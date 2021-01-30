@@ -4,11 +4,6 @@ pub use self::{fs::Fs, memory::Memory};
 use crate::{primitive::CommitLog, storage::StorageRead, Addr};
 #[async_trait::async_trait]
 pub trait Workspace: Sized {
-    // WARN: Dragons ahead.. using GATs.. :shock:
-    // Might move away from using GATs here, though i'm unsure the solution offhand.
-    // I really hate not being non-stable in this repo, but .. it may be worth it for this.
-    // For now it makes the code clean, and this repo is about experimenting.
-    // So.. lets find out. :sus:
     type Guard<'a>: Guard;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error>;
     // async fn log(&self) -> Result<Log, Error>;
@@ -100,38 +95,104 @@ pub enum Error {
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, proptest::prelude::*, tokio::runtime::Runtime};
-
+    use {super::*, proptest::prelude::*, std::convert::TryFrom, tokio::runtime::Runtime};
+    #[derive(Debug, Copy, Clone)]
+    enum TestWorkspace {
+        Memory,
+        // Fs,
+    }
+    #[derive(Debug, Copy, Clone)]
+    enum TestAction {
+        Stage,
+        Commit,
+    }
     proptest! {
         #[test]
-        // fn test_add((addrs, change_types) in prop::collection::vec(0..3, 0..10)) {
-        fn test_add(
-            (first_stage_addr, addrs, change_types) in (1..10usize)
+        fn proptest_general_behavior(
+            (workspace, addrs, test_actions) in (1..100usize)
             .prop_flat_map(|change_count| (
-                prop::collection::vec(0u8..u8::MAX, 0..1000)
-                    .prop_map(|bytes| Addr::from_unhashed_bytes(&bytes)),
+                (0..1usize)
+                    .prop_map(|i| match i {
+                        0 => TestWorkspace::Memory,
+                        _ => unreachable!(),
+                    }),
                 prop::collection::vec(
-                    prop::collection::vec(0u8..u8::MAX, 0..1000)
-                        .prop_map(|bytes| Addr::from_unhashed_bytes(&bytes)),
+                    prop::collection::vec(0u8..u8::MAX, Addr::LEN)
+                        .prop_map(|bytes| Addr::try_from(bytes).unwrap()),
                     change_count
                 ),
-                prop::collection::vec(0..2usize, change_count),
+                prop::collection::vec(
+                    (0..2usize)
+                        .prop_map(|i| match i {
+                            0 => TestAction::Stage,
+                            1 => TestAction::Commit,
+                            _ => unreachable!(),
+                        }),
+                    change_count,
+                ),
             ))
             ) {
             Runtime::new().unwrap().block_on(async {
-                let workspace = Memory::new("".to_string());
-                assert!(matches!(workspace.status().await, Ok(Status::Init{..})));
-                let guard = workspace.lock().await.unwrap();
-                guard.stage(first_stage_addr).await.unwrap();
-                for (addr, change_type) in addrs.into_iter().zip(change_types.into_iter()) {
-                    dbg!(&addr, change_type);
-                    match change_type {
-                        0 => guard.stage(addr).await.unwrap(),
-                        1 => guard.commit(addr).await.unwrap(),
-                        _ => unreachable!(),
+                match workspace {
+                    TestWorkspace::Memory => {
+                        let workspace = Memory::new("".to_string());
+                        test_general_behavior(workspace, &addrs, &test_actions).await;
                     }
+                    // TestWorkspace::Fs => {
+                    //     let workspace = Fs::new("".to_string());
+                    //     test_general_behavior(workspace, &addrs, &test_actions).await;
+                    // }
                 }
             });
+        }
+    }
+    async fn test_general_behavior<W: Workspace>(
+        workspace: W,
+        addrs: &[Addr],
+        test_actions: &[TestAction],
+    ) {
+        let mut prev_status = workspace.status().await.unwrap();
+        assert!(matches!(prev_status, Status::Init { .. }));
+        let guard = workspace.lock().await.unwrap();
+        for (addr, test_action) in addrs.iter().cloned().zip(test_actions.iter()) {
+            match test_action {
+                TestAction::Stage => match prev_status {
+                    Status::Init { .. } | Status::InitStaged { .. } => {
+                        assert!(guard.stage(addr).await.is_ok());
+                        let new_status = guard.status().await.unwrap();
+                        assert!(matches!(new_status, Status::InitStaged { .. }));
+                        prev_status = new_status
+                    }
+                    Status::Clean { .. } | Status::Staged { .. } => {
+                        assert!(guard.stage(addr).await.is_ok());
+                        let new_status = guard.status().await.unwrap();
+                        assert!(matches!(new_status, Status::Staged { .. }));
+                        prev_status = new_status
+                    }
+                    Status::Detached(_) => unreachable!("action not implemented in tests yet"),
+                },
+                TestAction::Commit => match prev_status {
+                    Status::Init { .. } => {
+                        assert!(matches!(
+                            guard.commit(addr).await,
+                            Err(Error::CommitEmptyStage)
+                        ));
+                    }
+                    Status::InitStaged { .. } | Status::Staged { .. } => {
+                        assert!(guard.commit(addr).await.is_ok());
+                        let new_status = guard.status().await.unwrap();
+                        assert!(matches!(new_status, Status::Clean { .. }));
+                        prev_status = new_status
+                    }
+                    Status::Clean { .. } => {
+                        assert!(matches!(
+                            guard.commit(addr).await,
+                            Err(Error::CommitEmptyStage)
+                        ));
+                    }
+                    Status::Detached(_) => unreachable!("action not implemented in tests yet"),
+                },
+            }
         }
     }
 }

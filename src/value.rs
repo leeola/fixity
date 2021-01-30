@@ -3,7 +3,7 @@ pub mod from_cli_str;
 use {
     crate::Error,
     multibase::Base,
-    std::{fmt, iter::IntoIterator},
+    std::{convert::TryFrom, fmt, iter::IntoIterator},
 };
 
 const ADDR_SHORT_LEN: usize = 8;
@@ -16,6 +16,8 @@ const ADDR_SHORT_LEN: usize = 8;
 )]
 pub struct Addr(String);
 impl Addr {
+    /// The length in bytes of an [`Addr`].
+    pub const LEN: usize = 32;
     /// Hash the provided bytes and create an `Addr` of the bytes.
     pub fn from_unhashed_bytes(bytes: &[u8]) -> Self {
         let h = <[u8; 32]>::from(blake3::hash(bytes));
@@ -35,6 +37,19 @@ impl Addr {
     /// Convert the underlying String into a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+}
+impl TryFrom<Vec<u8>> for Addr {
+    type Error = Addr;
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        // This will be better in the nearish future, when Addr is converted from
+        // an Addr(String) and into an Addr([u8; 32]).
+        //
+        // For now though, we have to hash it to ensure safe utf8 encoding.
+        if bytes.len() != Self::LEN {
+            return Err(Self::from_unhashed_bytes(&bytes));
+        }
+        Ok(Self::from_unhashed_bytes(&bytes))
     }
 }
 impl fmt::Debug for Addr {
