@@ -23,12 +23,30 @@ impl Addr {
         let h = <[u8; 32]>::from(blake3::hash(bytes));
         Self(multibase::encode(Base::Base58Btc, &h))
     }
+    /// Create an `Addr` from a `Base::Base58Btc` encoded byte slice.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use fixity::Addr;
+    /// let addr1 = Addr::from_unhashed_bytes("foo".as_bytes());
+    /// let addr2 = Addr::from_encoded(addr1.long());
+    /// assert_eq!(Some(addr1), addr2);
+    /// ```
+    pub fn from_encoded(bytes: Vec<u8>) -> Option<Self> {
+        let s = String::from_utf8(bytes).ok()?;
+        Some(Self(s))
+    }
     /// Return a partial address which is *usually* unique enough to reference
     /// a content address.
     ///
     /// Useful for a decent UX.
     pub fn short(&self) -> &str {
         self.0.split_at(ADDR_SHORT_LEN).0
+    }
+    /// Return a `Base58Btc` encoded `Addr`, in full.
+    pub fn long(&self) -> &str {
+        self.0.as_str()
     }
     /// Convert the underlying String into a str.
     pub fn as_str(&self) -> &str {
@@ -50,13 +68,6 @@ impl TryFrom<Vec<u8>> for Addr {
             return Err(Self::from_unhashed_bytes(&bytes));
         }
         Ok(Self::from_unhashed_bytes(&bytes))
-    }
-}
-impl fmt::Debug for Addr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Addr(")?;
-        f.write_str(self.0.as_str())?;
-        f.write_str(")")
     }
 }
 impl std::borrow::Borrow<str> for Addr {
@@ -88,6 +99,13 @@ impl From<&Vec<u8>> for Addr {
     fn from(bytes: &Vec<u8>) -> Self {
         log::warn!("Deprecated From<Bytes> usage");
         Self::from_unhashed_bytes(bytes)
+    }
+}
+impl fmt::Debug for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Addr(")?;
+        f.write_str(self.0.as_str())?;
+        f.write_str(")")
     }
 }
 impl fmt::Display for Addr {

@@ -68,7 +68,7 @@ impl Head {
     /// Commit the address that `STAGE` is at to that of the branch the `HEAD` points to.
     pub async fn commit(&mut self) -> Result<Addr, Error> {
         match &mut self.state {
-            State::Detached(_) => return Err(Error::DetatchedHead),
+            State::Detached(_) => return Err(Error::DetachedHead),
             State::Ref { ref_, addr, staged } => {
                 {
                     let staged = match staged {
@@ -106,7 +106,7 @@ impl Head {
     /// Move the `HEAD`
     pub async fn stage(&mut self, addr: &Addr) -> Result<(), Error> {
         match &mut self.state {
-            State::Detached(_) => return Err(Error::DetatchedHead),
+            State::Detached(_) => return Err(Error::DetachedHead),
             State::Ref { staged, .. } => {
                 staged.replace(addr.clone());
             }
@@ -325,7 +325,7 @@ pub enum Error {
     #[error("cannot commit empty STAGE")]
     CommitEmptyStage,
     #[error("cannot commit or stage on a detatched HEAD")]
-    DetatchedHead,
+    DetachedHead,
     #[error("unable to init head `{path:?}`: `{message}`")]
     Init { path: PathBuf, message: String },
     #[error("unable to open ref `{path:?}`: `{message}`")]

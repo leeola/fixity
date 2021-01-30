@@ -3,7 +3,13 @@ mod memory;
 pub use self::{fs::Fs, memory::Memory};
 use crate::{primitive::CommitLog, storage::StorageRead, Addr};
 #[async_trait::async_trait]
-pub trait Workspace: Sized {
+pub trait Init {
+    type Workspace: Workspace;
+    async fn init(&self) -> Result<Self::Workspace, Error>;
+    async fn open(&self) -> Result<Self::Workspace, Error>;
+}
+#[async_trait::async_trait]
+pub trait Workspace {
     type Guard<'a>: Guard;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error>;
     // async fn log(&self) -> Result<Log, Error>;
@@ -89,7 +95,7 @@ pub enum Error {
     #[error("cannot commit empty STAGE")]
     CommitEmptyStage,
     #[error("cannot commit or stage on a detatched HEAD")]
-    DetatchedHead,
+    DetachedHead,
     #[error("workspace in use")]
     InUse,
 }
@@ -99,7 +105,7 @@ pub mod test {
     #[derive(Debug, Copy, Clone)]
     enum TestWorkspace {
         Memory,
-        // Fs,
+        Fs,
     }
     #[derive(Debug, Copy, Clone)]
     enum TestAction {
@@ -111,9 +117,10 @@ pub mod test {
         fn proptest_general_behavior(
             (workspace, addrs, test_actions) in (1..100usize)
             .prop_flat_map(|change_count| (
-                (0..1usize)
+                (0..2usize)
                     .prop_map(|i| match i {
                         0 => TestWorkspace::Memory,
+                        1 => TestWorkspace::Fs,
                         _ => unreachable!(),
                     }),
                 prop::collection::vec(
@@ -135,13 +142,16 @@ pub mod test {
             Runtime::new().unwrap().block_on(async {
                 match workspace {
                     TestWorkspace::Memory => {
-                        let workspace = Memory::new("".to_string());
+                        let workspace = Memory::new("default".to_string());
                         test_general_behavior(workspace, &addrs, &test_actions).await;
                     }
-                    // TestWorkspace::Fs => {
-                    //     let workspace = Fs::new("".to_string());
-                    //     test_general_behavior(workspace, &addrs, &test_actions).await;
-                    // }
+                     TestWorkspace::Fs => {
+                         // TODO: I could/should incorporate init/open behavior into these tests.
+                         // Which should also include RNG workspace names.
+                         let temp_dir = tempfile::tempdir().unwrap();
+                         let workspace = Fs::init(temp_dir.path().to_owned(), "default".to_string()).await.unwrap();
+                         test_general_behavior(workspace, &addrs, &test_actions).await;
+                     }
                 }
             });
         }
@@ -158,15 +168,17 @@ pub mod test {
             match test_action {
                 TestAction::Stage => match prev_status {
                     Status::Init { .. } | Status::InitStaged { .. } => {
-                        assert!(guard.stage(addr).await.is_ok());
+                        assert!(guard.stage(addr.clone()).await.is_ok());
                         let new_status = guard.status().await.unwrap();
                         assert!(matches!(new_status, Status::InitStaged { .. }));
+                        assert_eq!(new_status.staged_addr().unwrap(), addr);
                         prev_status = new_status
                     }
                     Status::Clean { .. } | Status::Staged { .. } => {
-                        assert!(guard.stage(addr).await.is_ok());
+                        assert!(guard.stage(addr.clone()).await.is_ok());
                         let new_status = guard.status().await.unwrap();
                         assert!(matches!(new_status, Status::Staged { .. }));
+                        assert_eq!(new_status.staged_addr().unwrap(), addr);
                         prev_status = new_status
                     }
                     Status::Detached(_) => unreachable!("action not implemented in tests yet"),
@@ -179,9 +191,10 @@ pub mod test {
                         ));
                     }
                     Status::InitStaged { .. } | Status::Staged { .. } => {
-                        assert!(guard.commit(addr).await.is_ok());
+                        assert!(guard.commit(addr.clone()).await.is_ok());
                         let new_status = guard.status().await.unwrap();
                         assert!(matches!(new_status, Status::Clean { .. }));
+                        assert_eq!(new_status.commit_addr().unwrap(), addr);
                         prev_status = new_status
                     }
                     Status::Clean { .. } => {

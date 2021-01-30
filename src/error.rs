@@ -1,9 +1,5 @@
 use {
-    crate::{
-        deser, fixity, head, storage,
-        value::{Addr, Key},
-        workspace,
-    },
+    crate::{deser, fixity, head, storage, value::Addr, workspace},
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
