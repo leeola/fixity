@@ -5,8 +5,8 @@ use crate::{primitive::CommitLog, storage::StorageRead, Addr};
 #[async_trait::async_trait]
 pub trait Init {
     type Workspace: Workspace;
-    async fn init(&self) -> Result<Self::Workspace, Error>;
-    async fn open(&self) -> Result<Self::Workspace, Error>;
+    async fn init(&self, workspace: String) -> Result<Self::Workspace, Error>;
+    async fn open(&self, workspace: String) -> Result<Self::Workspace, Error>;
 }
 #[async_trait::async_trait]
 pub trait Workspace {

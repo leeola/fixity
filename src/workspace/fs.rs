@@ -13,6 +13,7 @@ use {
 };
 const WORKSPACE_LOCK_FILE_NAME: &str = "WORKSPACE.lock";
 const HEAD_FILE_NAME: &str = "HEAD";
+const BRANCHES_DIR: &str = "branches";
 /// A separator between the lhs and optional rhs of a [`Ref`].
 const KV_SEP: &str = ": ";
 const LINE_SEP: &str = "\n";
@@ -20,26 +21,25 @@ const DETACHED_KEY: &str = "detached";
 const BRANCH_KEY: &str = "branch";
 const STAGED_CONTENT_KEY: &str = "staged_content";
 pub struct Config {
-    pub fixi_dir: PathBuf,
-    pub workspace: String,
+    pub workspaces_root_dir: PathBuf,
 }
 #[async_trait::async_trait]
 impl Init for Config {
     type Workspace = Fs;
-    async fn init(&self) -> Result<Self::Workspace, Error> {
-        Fs::init(self.fixi_dir.clone(), self.workspace.clone()).await
+    async fn init(&self, workspace: String) -> Result<Self::Workspace, Error> {
+        Fs::init(self.workspaces_root_dir.clone(), workspace).await
     }
-    async fn open(&self) -> Result<Self::Workspace, Error> {
-        Fs::open(self.fixi_dir.clone(), self.workspace.clone()).await
+    async fn open(&self, workspace: String) -> Result<Self::Workspace, Error> {
+        Fs::open(self.workspaces_root_dir.clone(), workspace).await
     }
 }
 pub struct Fs {
-    fixi_dir: PathBuf,
+    workspaces_root_dir: PathBuf,
     workspace: String,
 }
 impl Fs {
-    pub async fn init(fixi_dir: PathBuf, workspace: String) -> Result<Self, Error> {
-        let workspace_path = fixi_dir.join(&workspace);
+    pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
+        let workspace_path = workspaces_root_dir.join(&workspace);
         fs::create_dir(&workspace_path)
             .await
             .map_err(|source| Error::Internal(format!("create workspace dir: {}", source)))?;
@@ -47,24 +47,36 @@ impl Fs {
             .await
             .map_err(|source| Error::Internal(format!("create branches dir: {}", source)))?;
         Ok(Self {
-            fixi_dir,
+            workspaces_root_dir,
             workspace,
         })
     }
-    pub async fn open(fixi_dir: PathBuf, workspace: String) -> Result<Self, Error> {
-        let _ = HeadState::open(fixi_dir.join(&workspace).as_path()).await?;
+    pub async fn open(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
+        let _ = HeadState::open(workspaces_root_dir.join(&workspace).as_path()).await?;
         Ok(Self {
-            fixi_dir,
+            workspaces_root_dir,
             workspace,
         })
     }
+}
+async fn fetch_branch_addr<P: AsRef<Path>>(branch_path: P) -> Result<Option<Addr>, Error> {
+    let branch_path = branch_path.as_ref();
+    let branch_contents = read_to_string(branch_path)
+        .await
+        .map_err(|err| Error::Internal(format!("open BRANCH `{:?}`, `{}`", branch_path, err)))?;
+    branch_contents
+        .map(|addr| {
+            Addr::from_encoded(addr.into_bytes())
+                .ok_or_else(|| Error::Internal("HEAD branch invalid Addr".to_owned()))
+        })
+        .transpose()
 }
 #[async_trait::async_trait]
 impl Workspace for Fs {
     type Guard<'a> = FsGuard;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
         let file_lock_path = self
-            .fixi_dir
+            .workspaces_root_dir
             .join(&self.workspace)
             .join(WORKSPACE_LOCK_FILE_NAME);
         // using a non-async File since we're going to drop it in a blocking manner.
@@ -89,7 +101,39 @@ impl Workspace for Fs {
         })
     }
     async fn status(&self) -> Result<Status, Error> {
-        todo!("MemoryGuard")
+        let head_state =
+            HeadState::open(self.workspaces_root_dir.join(&self.workspace).as_path()).await?;
+        let status = match head_state {
+            HeadState::Detached { addr } => Status::Detached(addr),
+            HeadState::Branch {
+                branch,
+                staged_content,
+            } => {
+                let branch_path = self
+                    .workspaces_root_dir
+                    .join(&self.workspace)
+                    .join(BRANCHES_DIR)
+                    .join(&branch);
+                let branch_addr = fetch_branch_addr(branch_path).await?;
+                match (staged_content, branch_addr) {
+                    (None, None) => Status::Init { branch },
+                    (Some(staged_content), None) => Status::InitStaged {
+                        branch,
+                        staged_content,
+                    },
+                    (None, Some(addr)) => Status::Clean {
+                        branch,
+                        commit: addr,
+                    },
+                    (Some(staged_content), Some(addr)) => Status::Staged {
+                        branch,
+                        staged_content,
+                        commit: addr,
+                    },
+                }
+            }
+        };
+        Ok(status)
     }
 }
 pub struct FsGuard {
