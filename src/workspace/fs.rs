@@ -73,7 +73,7 @@ async fn fetch_branch_addr<P: AsRef<Path>>(branch_path: P) -> Result<Option<Addr
 }
 #[async_trait::async_trait]
 impl Workspace for Fs {
-    type Guard<'a> = FsGuard;
+    type Guard<'a> = FsGuard<'a>;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
         let file_lock_path = self
             .workspaces_root_dir
@@ -96,54 +96,59 @@ impl Workspace for Fs {
             }
         };
         Ok(FsGuard {
+            workspaces_root_dir: &self.workspaces_root_dir.as_path(),
+            workspace: self.workspace.as_str(),
             workspace_guard_file: Some(workspace_guard_file),
             file_lock_path,
         })
     }
     async fn status(&self) -> Result<Status, Error> {
-        let head_state =
-            HeadState::open(self.workspaces_root_dir.join(&self.workspace).as_path()).await?;
-        let status = match head_state {
-            HeadState::Detached { addr } => Status::Detached(addr),
-            HeadState::Branch {
-                branch,
-                staged_content,
-            } => {
-                let branch_path = self
-                    .workspaces_root_dir
-                    .join(&self.workspace)
-                    .join(BRANCHES_DIR)
-                    .join(&branch);
-                let branch_addr = fetch_branch_addr(branch_path).await?;
-                match (staged_content, branch_addr) {
-                    (None, None) => Status::Init { branch },
-                    (Some(staged_content), None) => Status::InitStaged {
-                        branch,
-                        staged_content,
-                    },
-                    (None, Some(addr)) => Status::Clean {
-                        branch,
-                        commit: addr,
-                    },
-                    (Some(staged_content), Some(addr)) => Status::Staged {
-                        branch,
-                        staged_content,
-                        commit: addr,
-                    },
-                }
-            }
-        };
-        Ok(status)
+        status(self.workspaces_root_dir.as_path(), self.workspace.as_ref()).await
     }
 }
-pub struct FsGuard {
+async fn status(workspaces_root_dir: &Path, workspace: &str) -> Result<Status, Error> {
+    let head_state = HeadState::open(workspaces_root_dir.join(workspace).as_path()).await?;
+    let status = match head_state {
+        HeadState::Detached { addr } => Status::Detached(addr),
+        HeadState::Branch {
+            branch,
+            staged_content,
+        } => {
+            let branch_path = workspaces_root_dir
+                .join(workspace)
+                .join(BRANCHES_DIR)
+                .join(&branch);
+            let branch_addr = fetch_branch_addr(branch_path).await?;
+            match (staged_content, branch_addr) {
+                (None, None) => Status::Init { branch },
+                (Some(staged_content), None) => Status::InitStaged {
+                    branch,
+                    staged_content,
+                },
+                (None, Some(addr)) => Status::Clean {
+                    branch,
+                    commit: addr,
+                },
+                (Some(staged_content), Some(addr)) => Status::Staged {
+                    branch,
+                    staged_content,
+                    commit: addr,
+                },
+            }
+        }
+    };
+    Ok(status)
+}
+pub struct FsGuard<'a> {
+    workspaces_root_dir: &'a Path,
+    workspace: &'a str,
     workspace_guard_file: Option<std::fs::File>,
     file_lock_path: PathBuf,
 }
 #[async_trait::async_trait]
-impl Guard for FsGuard {
+impl<'a> Guard for FsGuard<'a> {
     async fn status(&self) -> Result<Status, Error> {
-        todo!("FsGuard")
+        status(self.workspaces_root_dir, self.workspace).await
     }
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
         todo!("FsGuard")
@@ -152,7 +157,7 @@ impl Guard for FsGuard {
         todo!("FsGuard")
     }
 }
-impl Drop for FsGuard {
+impl<'a> Drop for FsGuard<'a> {
     fn drop(&mut self) {
         let _ = self.workspace_guard_file.take();
         if let Err(err) = std::fs::remove_file(&self.file_lock_path) {
