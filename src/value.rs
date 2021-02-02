@@ -41,12 +41,13 @@ impl Addr {
     /// a content address.
     ///
     /// Useful for a decent UX.
-    pub fn short(&self) -> &str {
-        self.0.split_at(ADDR_SHORT_LEN).0
+    pub fn short(mut self) -> String {
+        let _ = self.0.split_off(ADDR_SHORT_LEN);
+        self.0
     }
     /// Return a `Base58Btc` encoded `Addr`, in full.
-    pub fn long(&self) -> &str {
-        self.0.as_str()
+    pub fn long(self) -> String {
+        self.0
     }
     /// Convert the underlying String into a str.
     pub fn as_str(&self) -> &str {
@@ -110,7 +111,8 @@ impl fmt::Debug for Addr {
 }
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.short())
+        // TODO: encode the first X bytes, once this becomes a fixed [u8; 32].
+        write!(f, "{}", self.clone().short())
     }
 }
 

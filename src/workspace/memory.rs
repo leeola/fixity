@@ -66,7 +66,7 @@ impl Workspace for Memory {
             .lock()
             .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
         let status = match inner.head.clone() {
-            HeadState::Init { branch } => Status::Init { branch: branch },
+            HeadState::Init { branch } => Status::Init { branch },
             HeadState::InitStaged {
                 branch,
                 staged_content,
@@ -150,7 +150,7 @@ impl<'a> Guard for MemoryGuard<'a> {
                 inner.branches.insert(branch.clone(), commit_addr);
                 HeadState::Clean { branch }
             }
-            HeadState::Init { branch } | HeadState::Clean { branch, .. } => {
+            HeadState::Init { .. } | HeadState::Clean { .. } => {
                 return Err(Error::CommitEmptyStage);
             }
             // HeadState::Detached(_) => return Err(Error::DetatchedHead),
@@ -164,7 +164,7 @@ impl<'a> Guard for MemoryGuard<'a> {
             .lock()
             .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
         let status = match inner.head.clone() {
-            HeadState::Init { branch } => Status::Init { branch: branch },
+            HeadState::Init { branch } => Status::Init { branch },
             HeadState::InitStaged {
                 branch,
                 staged_content,

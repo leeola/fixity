@@ -46,6 +46,13 @@ impl Fs {
         fs::create_dir_all(workspace_path.join("branches"))
             .await
             .map_err(|source| Error::Internal(format!("create branches dir: {}", source)))?;
+        let head_path = workspaces_root_dir.join(&workspace).join(HEAD_FILE_NAME);
+        HeadState::Branch {
+            branch: "default".to_owned(),
+            staged_content: None,
+        }
+        .write(head_path.as_path(), true)
+        .await?;
         Ok(Self {
             workspaces_root_dir,
             workspace,
@@ -82,6 +89,7 @@ impl Workspace for Fs {
         // using a non-async File since we're going to drop it in a blocking manner.
         let file_lock_res = std::fs::OpenOptions::new()
             .create_new(true)
+            .write(true)
             .open(&file_lock_path);
         let workspace_guard_file = match file_lock_res {
             Ok(f) => f,
@@ -107,7 +115,8 @@ impl Workspace for Fs {
     }
 }
 async fn status(workspaces_root_dir: &Path, workspace: &str) -> Result<Status, Error> {
-    let head_state = HeadState::open(workspaces_root_dir.join(workspace).as_path()).await?;
+    let head_path = workspaces_root_dir.join(workspace).join(HEAD_FILE_NAME);
+    let head_state = HeadState::open(head_path.as_path()).await?;
     let status = match head_state {
         HeadState::Detached { addr } => Status::Detached(addr),
         HeadState::Branch {
@@ -151,10 +160,67 @@ impl<'a> Guard for FsGuard<'a> {
         status(self.workspaces_root_dir, self.workspace).await
     }
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error> {
-        todo!("FsGuard")
+        let head_path = self
+            .workspaces_root_dir
+            .join(self.workspace)
+            .join(HEAD_FILE_NAME);
+        let head_state = HeadState::open(&head_path).await?;
+        let new_state = match head_state {
+            HeadState::Detached { .. } => return Err(Error::DetachedHead),
+            HeadState::Branch { branch, .. } => HeadState::Branch {
+                branch,
+                staged_content: Some(stage_addr),
+            },
+        };
+        new_state.write(head_path.as_path(), false).await?;
+        Ok(())
     }
     async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
-        todo!("FsGuard")
+        let head_path = self
+            .workspaces_root_dir
+            .join(self.workspace)
+            .join(HEAD_FILE_NAME);
+        let head_state = HeadState::open(&head_path).await?;
+        let branch = match head_state {
+            HeadState::Detached { .. } => return Err(Error::DetachedHead),
+            HeadState::Branch {
+                staged_content: None,
+                ..
+            } => {
+                return Err(Error::CommitEmptyStage);
+            }
+            HeadState::Branch {
+                branch,
+                staged_content: Some(_),
+            } => branch,
+        };
+        {
+            let branch_path = self
+                .workspaces_root_dir
+                .join(self.workspace)
+                .join(BRANCHES_DIR)
+                .join(&branch);
+            let mut f = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(branch_path)
+                .await
+                .map_err(|err| Error::Internal(format!("open branch: {}", err)))?;
+            f.write_all(&commit_addr.long().into_bytes())
+                .await
+                .map_err(|err| Error::Internal(format!("write branch to HEAD: {}", err)))?;
+            f.sync_all()
+                .await
+                .map_err(|err| Error::Internal(format!("sync branch to HEAD: {}", err)))?;
+        }
+        HeadState::Branch {
+            branch,
+            staged_content: None,
+        }
+        .write(head_path.as_path(), false)
+        .await?;
+        Ok(())
     }
 }
 impl<'a> Drop for FsGuard<'a> {
@@ -192,9 +258,51 @@ impl HeadState {
     pub async fn open(head_path: &Path) -> Result<Self, Error> {
         let head_contents = read_to_string(&head_path)
             .await
-            .map_err(|err| Error::Internal(format!("open HEAD `{:?}`, `{}`", head_path, err)))?
+            .map_err(|err| {
+                Error::Internal(format!("open HEAD for read `{:?}`, `{}`", head_path, err))
+            })?
             .ok_or_else(|| Error::Internal(format!("missing HEAD at `{:?}`", head_path)))?;
         head_contents.parse()
+    }
+    pub async fn write(self, head_path: &Path, create_new: bool) -> Result<(), Error> {
+        let bytes = self.format().into_bytes();
+        let mut f = OpenOptions::new()
+            .create_new(create_new)
+            .truncate(true)
+            .write(true)
+            .open(head_path)
+            .await
+            .map_err(|err| Error::Internal(format!("open HEAD for writing: {}", err)))?;
+        f.write_all(&bytes)
+            .await
+            .map_err(|err| Error::Internal(format!("write HEAD: {}", err)))?;
+        f.sync_all()
+            .await
+            .map_err(|err| Error::Internal(format!("sync HEAD: {}", err)))?;
+        Ok(())
+    }
+    pub fn format(self) -> String {
+        match self {
+            HeadState::Detached { addr } => format!("{}{}{}", DETACHED_KEY, KV_SEP, addr.long()),
+            HeadState::Branch {
+                branch,
+                staged_content,
+            } => {
+                if let Some(staged_content) = staged_content {
+                    format!(
+                        "{}{}{}\n{}{}{}",
+                        BRANCH_KEY,
+                        KV_SEP,
+                        branch,
+                        STAGED_CONTENT_KEY,
+                        KV_SEP,
+                        staged_content.long()
+                    )
+                } else {
+                    format!("{}{}{}", BRANCH_KEY, KV_SEP, branch)
+                }
+            }
+        }
     }
 }
 impl FromStr for HeadState {
