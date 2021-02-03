@@ -17,6 +17,9 @@ impl<S> Path<S> {
             segments: Vec::new(),
         }
     }
+    pub fn from_segments(segments: Vec<Box<dyn Segment<S>>>) -> Self {
+        Self { segments }
+    }
     pub fn push<T>(&mut self, segment: T)
     where
         T: Segment<S> + 'static,

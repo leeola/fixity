@@ -137,7 +137,7 @@ pub mod test {
     proptest! {
         #[test]
         fn mem_general_behavior(
-            (workspace, addrs, test_actions) in general_behavior_inputs(
+            (_workspace, addrs, test_actions) in general_behavior_inputs(
                 (0..1usize)
                     .prop_map(|i| match i {
                         0 => TestWorkspace::Memory,
@@ -145,25 +145,14 @@ pub mod test {
                     })),
             ) {
             Runtime::new().unwrap().block_on(async {
-                match workspace {
-                    TestWorkspace::Memory => {
-                        let workspace = Memory::new("default".to_string());
-                        test_general_behavior(workspace, &addrs, &test_actions).await;
-                    }
-                     TestWorkspace::Fs => {
-                         // TODO: I could/should incorporate init/open behavior into these tests.
-                         // Which should also include RNG workspace names.
-                         let temp_dir = tempfile::tempdir().unwrap();
-                         let workspace = Fs::init(temp_dir.path().to_owned(), "default".to_string()).await.unwrap();
-                         test_general_behavior(workspace, &addrs, &test_actions).await;
-                     }
-                }
+                let workspace = Memory::new("default".to_string());
+                test_general_behavior(workspace, &addrs, &test_actions).await;
             });
         }
         #[test]
         #[ignore]
         fn fs_general_behavior(
-            (workspace, addrs, test_actions) in general_behavior_inputs(
+            (_workspace, addrs, test_actions) in general_behavior_inputs(
                 (0..1usize)
                     .prop_map(|i| match i {
                         0 => TestWorkspace::Fs,
@@ -171,19 +160,11 @@ pub mod test {
                     })),
             ) {
             Runtime::new().unwrap().block_on(async {
-                match workspace {
-                    TestWorkspace::Memory => {
-                        let workspace = Memory::new("default".to_string());
-                        test_general_behavior(workspace, &addrs, &test_actions).await;
-                    }
-                     TestWorkspace::Fs => {
-                         // TODO: I could/should incorporate init/open behavior into these tests.
-                         // Which should also include RNG workspace names.
-                         let temp_dir = tempfile::tempdir().unwrap();
-                         let workspace = Fs::init(temp_dir.path().to_owned(), "default".to_string()).await.unwrap();
-                         test_general_behavior(workspace, &addrs, &test_actions).await;
-                     }
-                }
+                // TODO: I could/should incorporate init/open behavior into these tests.
+                // Which should also include RNG workspace names.
+                let temp_dir = tempfile::tempdir().unwrap();
+                let workspace = Fs::init(temp_dir.path().to_owned(), "default".to_string()).await.unwrap();
+                test_general_behavior(workspace, &addrs, &test_actions).await;
             });
         }
     }

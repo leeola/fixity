@@ -20,7 +20,7 @@ pub struct Fixity<S, W> {
     workspace: W,
 }
 impl<S, W> Fixity<S, W> {
-    pub fn builder() -> Builder<S> {
+    pub fn builder() -> Builder<S, W> {
         Builder::default()
     }
     /// Create a fixity instance from the provided workspace and storage.
@@ -87,25 +87,35 @@ where
         Ok(addr)
     }
 }
-pub struct Builder<S> {
+pub struct Builder<S, W> {
+    storage: Option<S>,
+    workspace: Option<W>,
     fixi_dir_name: Option<PathBuf>,
     fixi_dir: Option<PathBuf>,
-    storage: Option<S>,
     fs_storage_dir: Option<PathBuf>,
-    workspace: Option<String>,
+    workspace_name: Option<String>,
 }
-impl<S> Default for Builder<S> {
+impl<S, W> Default for Builder<S, W> {
     fn default() -> Self {
         Self {
+            storage: None,
+            workspace: None,
             fixi_dir_name: None,
             fixi_dir: None,
-            storage: None,
             fs_storage_dir: None,
-            workspace: None,
+            workspace_name: None,
         }
     }
 }
-impl<S> Builder<S> {
+impl<S, W> Builder<S, W> {
+    pub fn with_storage(mut self, storage: S) -> Self {
+        self.storage.replace(storage);
+        self
+    }
+    pub fn with_workspace(mut self, workspace: W) -> Self {
+        self.workspace.replace(workspace);
+        self
+    }
     pub fn fixi_dir_name(mut self, fixi_dir_name: Option<PathBuf>) -> Self {
         self.fixi_dir_name = fixi_dir_name;
         self
@@ -114,20 +124,16 @@ impl<S> Builder<S> {
         self.fixi_dir = fixi_dir;
         self
     }
-    pub fn workspace(mut self, workspace: Option<String>) -> Self {
-        self.workspace = workspace;
+    pub fn workspace_name(mut self, workspace_name: Option<String>) -> Self {
+        self.workspace_name = workspace_name;
         self
     }
     pub fn with_fixi_dir_name(mut self, fixi_dir_name: PathBuf) -> Self {
         self.fixi_dir_name.replace(fixi_dir_name);
         self
     }
-    pub fn with_workspace(mut self, workspace: String) -> Self {
-        self.workspace.replace(workspace);
-        self
-    }
-    pub fn with_storage(mut self, storage: S) -> Self {
-        self.storage.replace(storage);
+    pub fn with_workspace_name(mut self, workspace_name: String) -> Self {
+        self.workspace_name.replace(workspace_name);
         self
     }
     pub fn fs_storage_dir(mut self, fs_storage_dir: Option<PathBuf>) -> Self {
@@ -135,12 +141,9 @@ impl<S> Builder<S> {
         self
     }
 }
-impl Builder<Fs> {
+impl Builder<storage::Fs, workspace::Fs> {
     /// Initialize a new Fixity repository.
     pub async fn init(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
-        let workspace = self.workspace.ok_or_else(|| Error::Builder {
-            message: "missing workspace".into(),
-        })?;
         let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
             (_, Some(fixi_dir)) => fixi_dir,
             (fixi_dir_name, None) => fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME)),
@@ -157,13 +160,16 @@ impl Builder<Fs> {
             .map_err(|source| InitError::Storage { source })?,
         };
         // init the Workspace
-        let workspace = workspace::Fs::init(fixi_dir, workspace).await?;
+        let workspace = match self.workspace {
+            Some(w) => w,
+            None => {
+                let workspace_name = self.workspace_name.unwrap_or_else(|| "default".to_owned());
+                workspace::Fs::init(fixi_dir.join("workspaces"), workspace_name).await?
+            }
+        };
         Ok(Fixity::new(storage, workspace))
     }
     pub async fn open(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
-        let workspace = self.workspace.ok_or_else(|| Error::Builder {
-            message: "missing workspace".into(),
-        })?;
         let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
             (_, Some(fixi_dir)) => fixi_dir,
             (fixi_dir_name, None) => {
@@ -178,7 +184,14 @@ impl Builder<Fs> {
                 path: fs_storage_dir.unwrap_or_else(|| fixi_dir.join("storage")),
             })?,
         };
-        let workspace = workspace::Fs::open(fixi_dir, workspace).await?;
+        // open the Workspace
+        let workspace = match self.workspace {
+            Some(w) => w,
+            None => {
+                let workspace_name = self.workspace_name.unwrap_or_else(|| "default".to_owned());
+                workspace::Fs::open(fixi_dir.join("workspaces"), workspace_name).await?
+            }
+        };
         Ok(Fixity::new(storage, workspace))
     }
 }

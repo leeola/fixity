@@ -1,7 +1,13 @@
 #[cfg(feature = "web")]
 use fixi_web::Config as WebConfig;
 use {
-    fixity::{fixity::Builder, storage::Fs, value::Value, Fixity, Path, Storage},
+    fixity::{
+        fixity::Builder,
+        storage,
+        value::{Key, Value},
+        workspace::{self, Workspace},
+        Fixity, Storage,
+    },
     std::path::PathBuf,
     structopt::StructOpt,
 };
@@ -67,15 +73,16 @@ async fn main() -> Result<(), Error> {
         storage_dir,
     } = opt.fixi_opt;
 
-    let builder = fixity::Fixity::<Fs>::build()
-        .fixi_dir_name(fixi_dir_name)
-        .fixi_dir(fixi_dir)
-        .with_workspace(workspace)
-        .fs_storage_dir(storage_dir);
-
-    let fixi = match opt.subcmd {
-        Command::Init => return cmd_init(builder).await,
-        _ => builder.open().await?,
+    let fixi = {
+        let builder = fixity::Fixity::<storage::Fs, workspace::Fs>::builder()
+            .fixi_dir_name(fixi_dir_name)
+            .fixi_dir(fixi_dir)
+            .with_workspace_name(workspace)
+            .fs_storage_dir(storage_dir);
+        match opt.subcmd {
+            Command::Init => return cmd_init(builder).await,
+            _ => builder.open().await?,
+        }
     };
 
     match opt.subcmd {
@@ -86,7 +93,7 @@ async fn main() -> Result<(), Error> {
         // Command::Web(c) => fixi_web::serve(c).await,
     }
 }
-async fn cmd_init(b: Builder<Fs>) -> Result<(), Error> {
+async fn cmd_init(b: Builder<storage::Fs, workspace::Fs>) -> Result<(), Error> {
     b.init().await?;
     Ok(())
 }
@@ -112,9 +119,10 @@ enum MapSubcmd {
         value: Option<Value>,
     },
 }
-async fn cmd_map<S>(fixi: Fixity<S>, subcmd: MapSubcmd) -> Result<(), Error>
+async fn cmd_map<S, W>(fixi: Fixity<S, W>, subcmd: MapSubcmd) -> Result<(), Error>
 where
     S: Storage,
+    W: Workspace,
 {
     match subcmd {
         MapSubcmd::Get { path } => cmd_get(fixi, path).await,
@@ -125,9 +133,10 @@ where
         },
     }
 }
-async fn cmd_get<S>(fixi: Fixity<S>, mut path: Path) -> Result<(), Error>
+async fn cmd_get<S, W>(fixi: Fixity<S, W>, mut path: Path) -> Result<(), Error>
 where
     S: Storage,
+    W: Workspace,
 {
     todo!("get map")
     // let key = path.pop().expect("CLI interface enforces at least one key");
@@ -136,23 +145,28 @@ where
     // dbg!(v);
     // Ok(())
 }
-async fn cmd_put_stdin<S>(fixi: Fixity<S>, _path: Path) -> Result<(), Error>
+async fn cmd_put_stdin<S, W>(fixi: Fixity<S, W>, _path: Path) -> Result<(), Error>
 where
     S: Storage,
+    W: Workspace,
 {
     let addr = fixi.put_reader(tokio::io::stdin()).await?;
     println!("{}", addr);
     Ok(())
 }
-async fn cmd_put_value<S>(fixi: Fixity<S>, mut path: Path, value: Value) -> Result<(), Error>
+async fn cmd_put_value<S, W>(
+    fixi: Fixity<S, W>,
+    mut path: Vec<Key>,
+    value: Value,
+) -> Result<(), Error>
 where
     S: Storage,
+    W: Workspace,
 {
-    todo!("put map")
-    // let key = path.pop().expect("CLI interface enforces at least one key");
-    // let mut map = fixi.map(path).await?;
-    // map.insert(key, value);
-    // let addr = map.commit().await?;
-    // dbg!(addr);
-    // Ok(())
+    let key = path.pop().expect("CLI interface enforces at least one key");
+    let mut map = fixi.map().await?;
+    map.insert(key, value);
+    let addr = map.commit().await?;
+    dbg!(addr);
+    Ok(())
 }

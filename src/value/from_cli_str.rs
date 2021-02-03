@@ -1,5 +1,10 @@
 use {
-    super::{Addr, Key, Path, Scalar, Value},
+    super::{Addr, Key, Scalar, Value},
+    crate::{
+        map::MapSegment,
+        path::{Path, Segment},
+        storage::{StorageRead, StorageWrite},
+    },
     nom::{
         branch::alt,
         bytes::complete::{escaped_transform, is_not, tag, tag_no_case},
@@ -33,13 +38,21 @@ impl Key {
         Ok(scalar.into())
     }
 }
-impl Path {
+impl<S> Path<S> {
     /// An experimental implementation to parse a [`Path`] value from a string
     /// focused interface; eg parsing values from the command line.
     ///
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
-    pub fn from_cli_str(s: &str) -> Result<Self, Error> {
+    ///
+    /// # Important
+    ///
+    /// The implementation currently assumes every segment is a map Segment. A more robust
+    /// implementation is warranted.
+    pub fn from_cli_str(s: &str) -> Result<Self, Error>
+    where
+        S: StorageRead + StorageWrite,
+    {
         let (_, path) = parse_path(s).map_err(|err| Error::InvalidPath(format!("{}", err)))?;
         Ok(path)
     }
@@ -82,21 +95,26 @@ fn parse_typed_scalar(input: &str) -> IResult<&str, Scalar> {
 fn parse_scalar(input: &str) -> IResult<&str, Scalar> {
     all_consuming(alt((parse_typed_scalar, parse_untyped_scalar)))(input)
 }
-fn parse_path(input: &str) -> IResult<&str, Path> {
+fn parse_path<S>(input: &str) -> IResult<&str, Path<S>>
+where
+    S: StorageRead + StorageWrite,
+{
     all_consuming(map(
         separated_list1(
             tag("/"),
             map_res(
                 escaped_transform(is_not("/\\"), '\\', value("/", tag("/"))),
                 |s: String| match parse_scalar(s.as_str()) {
-                    Ok((_, scalar)) => Ok(Key::from(scalar)),
+                    Ok((_, scalar)) => {
+                        Ok(Box::new(MapSegment::from(Key::from(scalar))) as Box<dyn Segment<S>>)
+                    }
                     // Error should be impossible, since any string is a valid scalar
                     // as a last resort.
                     Err(_) => Err(()),
                 },
             ),
         ),
-        Path::new,
+        Path::from_segments,
     ))(input)
 }
 #[cfg(test)]

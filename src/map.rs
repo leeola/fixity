@@ -279,6 +279,11 @@ where
         }
     }
 }
+impl From<Key> for MapSegment {
+    fn from(key: Key) -> Self {
+        Self { key }
+    }
+}
 #[cfg(test)]
 pub mod test {
     use crate::{Fixity, Value};
