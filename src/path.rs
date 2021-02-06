@@ -80,7 +80,7 @@ impl Path {
         S: StorageRead + StorageWrite,
     {
         for seg in self.segments.iter() {
-            match seg.resolve(storage, addr).await? {
+            match seg.resolve(storage, dbg!(addr)).await? {
                 Some(resolved_addr) => {
                     addr = resolved_addr;
                 }

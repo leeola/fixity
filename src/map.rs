@@ -115,6 +115,7 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
+        dbg!(&content_addr);
         let content_addr = if let Some(content_addr) = content_addr {
             self.path.resolve_last(self.storage, content_addr).await?
         } else {

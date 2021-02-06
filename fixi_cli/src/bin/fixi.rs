@@ -49,7 +49,7 @@ enum Command {
     /// Key-Value format of Fixity.
     Map {
         /// The destination to write a `Value` or Bytes to.
-        #[structopt(short = "p", long = "path", parse(try_from_str = Path::from_cli_str), default_value)]
+        #[structopt(short = "p", long = "path", parse(try_from_str = Path::from_cli_str), default_value = "")]
         path: Path,
         #[structopt(subcommand)]
         subcmd: MapSubcmd,
@@ -145,7 +145,7 @@ where
 {
     let map = fixi.map(path);
     let v = map.get(key).await?;
-    dbg!(v);
+    println!("{:?}", v);
     Ok(())
 }
 async fn cmd_put_stdin<S, W>(fixi: Fixity<S, W>, _path: Path) -> Result<(), Error>
@@ -154,7 +154,7 @@ where
     W: Workspace,
 {
     let addr = fixi.put_reader(tokio::io::stdin()).await?;
-    println!("{}", addr);
+    println!("{:?}", addr);
     Ok(())
 }
 async fn cmd_put_value<S, W>(
@@ -169,8 +169,8 @@ where
 {
     let mut map = fixi.map(path);
     map.insert(key, value);
-    dbg!(map.stage().await?);
+    map.stage().await?;
     let addr = map.commit().await?;
-    dbg!(addr);
+    println!("{:?}", addr);
     Ok(())
 }

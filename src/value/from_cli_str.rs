@@ -50,6 +50,9 @@ impl Path {
     /// The implementation currently assumes every segment is a map Segment. A more robust
     /// implementation is warranted.
     pub fn from_cli_str(s: &str) -> Result<Self, Error> {
+        if s.is_empty() {
+            return Ok(Path::new());
+        }
         let (_, path) = parse_path(s).map_err(|err| Error::InvalidPath(format!("{}", err)))?;
         Ok(path)
     }
