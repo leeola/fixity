@@ -119,6 +119,19 @@ impl fmt::Debug for Path {
         Ok(())
     }
 }
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Path(\n")?;
+        let iter = self.segments.iter();
+        for seg in iter {
+            f.write_str("    ")?;
+            seg.fmt(f)?;
+            f.write_str(",\n")?;
+        }
+        f.write_str(")")?;
+        Ok(())
+    }
+}
 #[derive(Debug, Clone)]
 pub enum Segment {
     Map(MapSegment),
@@ -129,6 +142,13 @@ impl Segment {
             Some(s)
         } else {
             None
+        }
+    }
+}
+impl fmt::Display for Segment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Map(seg) => seg.fmt(f),
         }
     }
 }

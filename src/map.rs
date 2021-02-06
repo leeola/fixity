@@ -235,6 +235,13 @@ impl fmt::Debug for PathSegment {
         f.write_str(")")
     }
 }
+impl fmt::Display for PathSegment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Map(")?;
+        self.key.fmt(f)?;
+        f.write_str(")")
+    }
+}
 #[async_trait::async_trait]
 impl<S> SegmentResolve<S> for PathSegment
 where

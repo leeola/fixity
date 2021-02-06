@@ -48,8 +48,8 @@ impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
-    pub fn map(&self) -> crate::Map<'_, S, W> {
-        crate::Map::new(&self.storage, &self.workspace, crate::path::Path::new())
+    pub fn map(&self, path: crate::path::Path) -> crate::Map<'_, S, W> {
+        crate::Map::new(&self.storage, &self.workspace, path)
     }
     // pub async fn map(
     //     &self,

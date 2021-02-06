@@ -3,6 +3,7 @@ use fixi_web::Config as WebConfig;
 use {
     fixity::{
         fixity::Builder,
+        map::Map,
         path::Path,
         storage,
         value::{Key, Value},
@@ -47,6 +48,9 @@ enum Command {
     /// Map is a primarily low level interface, enabling insight and mutation on the raw
     /// Key-Value format of Fixity.
     Map {
+        /// The destination to write a `Value` or Bytes to.
+        #[structopt(short = "p", long = "path", parse(try_from_str = Path::from_cli_str), default_value)]
+        path: Path,
         #[structopt(subcommand)]
         subcmd: MapSubcmd,
     },
@@ -88,7 +92,7 @@ async fn main() -> Result<(), Error> {
 
     match opt.subcmd {
         Command::Init => unreachable!("matched above"),
-        Command::Map { subcmd } => cmd_map(fixi, subcmd).await,
+        Command::Map { path, subcmd } => cmd_map(fixi, path, subcmd).await,
         #[cfg(feature = "web")]
         Command::Web(c) => unimplemented!("web serve"),
         // Command::Web(c) => fixi_web::serve(c).await,
@@ -101,18 +105,18 @@ async fn cmd_init(b: Builder<storage::Fs, workspace::Fs>) -> Result<(), Error> {
 #[derive(Debug, StructOpt)]
 enum MapSubcmd {
     Get {
-        /// The Path to get a `Value` from.
-        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
-        path: Path,
+        /// The `Key` to get a `Value` from.
+        #[structopt(name = "KEY", parse(try_from_str = Key::from_cli_str))]
+        key: Key,
     },
     Put {
         /// Write stdin to the given [`Path`].
         #[structopt(long, short = "i")]
         stdin: bool,
-        /// The destination to write a `Value` or Bytes to.
-        #[structopt(name = "PATH", parse(try_from_str = Path::from_cli_str))]
-        path: Path,
-        /// Write the [`Value`] to the given [`Path`].
+        /// The `Key` to write a `Value` or Bytes to.
+        #[structopt(name = "KEY", parse(try_from_str = Key::from_cli_str))]
+        key: Key,
+        /// Write the [`Value`] to the given [`Key`].
         #[structopt(
              name = "VALUE", parse(try_from_str = Value::from_cli_str),
              required_unless("stdin"),
@@ -120,31 +124,29 @@ enum MapSubcmd {
         value: Option<Value>,
     },
 }
-async fn cmd_map<S, W>(fixi: Fixity<S, W>, subcmd: MapSubcmd) -> Result<(), Error>
+async fn cmd_map<S, W>(fixi: Fixity<S, W>, path: Path, subcmd: MapSubcmd) -> Result<(), Error>
 where
     S: Storage,
     W: Workspace,
 {
     match subcmd {
-        MapSubcmd::Get { path } => cmd_get(fixi, path).await,
-        MapSubcmd::Put { stdin, path, value } => match (stdin, value) {
-            (false, Some(value)) => cmd_put_value(fixi, path, value).await,
-            (true, None) => cmd_put_stdin(fixi, path).await,
+        MapSubcmd::Get { key } => cmd_get(fixi, path, key).await,
+        MapSubcmd::Put { stdin, key, value } => match (stdin, value) {
+            (false, Some(value)) => cmd_put_value(fixi, path, key, value).await,
+            (true, None) => cmd_put_stdin(fixi, todo!()).await,
             _ => unreachable!("Structopt should be configured to make this unreachable"),
         },
     }
 }
-async fn cmd_get<S, W>(fixi: Fixity<S, W>, mut path: Path) -> Result<(), Error>
+async fn cmd_get<S, W>(fixi: Fixity<S, W>, path: Path, key: Key) -> Result<(), Error>
 where
     S: Storage,
     W: Workspace,
 {
-    todo!("get map")
-    // let key = path.pop().expect("CLI interface enforces at least one key");
-    // let map = fixi.map(path).await?;
-    // let v = map.get(key).await?;
-    // dbg!(v);
-    // Ok(())
+    let map = fixi.map(path);
+    let v = map.get(key).await?;
+    dbg!(v);
+    Ok(())
 }
 async fn cmd_put_stdin<S, W>(fixi: Fixity<S, W>, _path: Path) -> Result<(), Error>
 where
@@ -155,18 +157,17 @@ where
     println!("{}", addr);
     Ok(())
 }
-async fn cmd_put_value<S, W>(fixi: Fixity<S, W>, mut path: Path, value: Value) -> Result<(), Error>
+async fn cmd_put_value<S, W>(
+    fixi: Fixity<S, W>,
+    path: Path,
+    key: Key,
+    value: Value,
+) -> Result<(), Error>
 where
     S: Storage,
     W: Workspace,
 {
-    let key = path
-        .pop()
-        .expect("CLI interface enforces at least one key")
-        .map()
-        .expect("last Path segment must be a key, to be inserted into a map")
-        .key;
-    let mut map = fixi.map();
+    let mut map = fixi.map(path);
     map.insert(key, value);
     dbg!(map.stage().await?);
     let addr = map.commit().await?;
