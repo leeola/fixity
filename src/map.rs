@@ -105,6 +105,7 @@ where
         K: Into<Key>,
     {
         let key = key.into();
+        dbg!(&key);
         if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
@@ -158,6 +159,7 @@ where
             .await?;
         let (resolved_path, old_self_addr) = match staged_addr {
             Some(staged_content) => {
+                dbg!(&staged_content);
                 let resolved_path = self.path.resolve(self.storage, staged_content).await?;
                 let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
                 (resolved_path, old_self_addr)
@@ -249,10 +251,11 @@ where
 {
     async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
         let reader = refimpl::Read::new(storage, self_addr);
-        let value = match reader.get(&self.key).await? {
+        let value = match reader.get(dbg!(&self.key)).await? {
             Some(v) => v,
             None => return Ok(None),
         };
+        dbg!(&value);
         let addr = match value {
             Value::Addr(addr) => addr,
             _ => {
@@ -286,7 +289,7 @@ where
             refimpl::Update::new(storage, self_addr).with_vec(kvs).await
         } else {
             let kvs = vec![(self.key.clone(), Value::Addr(child_addr))];
-            refimpl::Create::new(storage).with_vec(kvs).await
+            dbg!(refimpl::Create::new(storage).with_vec(kvs).await)
         }
     }
 }
@@ -327,11 +330,11 @@ pub mod test {
     #[tokio::test]
     async fn write_to_path_double() {
         let f = Fixity::memory();
-        let mut m_1 = f.map().into_map("foo").into_map("bar");
+        let mut m_1 = f.map(Path::new()).into_map("foo").into_map("bar");
         m_1.insert("bang", "boom");
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
-        let m_2 = f.map();
+        let m_2 = f.map(Path::new());
         dbg!(m_2.get("foo").await.unwrap());
         dbg!(m_2.get("bar").await.unwrap());
         let foo_value = m_2.get("foo").await.unwrap().unwrap();

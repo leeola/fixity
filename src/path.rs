@@ -106,6 +106,29 @@ impl Path {
         Ok(new_addr)
     }
 }
+impl<T> From<T> for Path
+where
+    T: Into<Segment>,
+{
+    fn from(t: T) -> Self {
+        Self::from_segments(vec![t.into()])
+    }
+}
+impl<T> From<&[T]> for Path
+where
+    T: Clone + Into<Segment>,
+{
+    fn from(t: &[T]) -> Self {
+        Self::from_segments(t.iter().map(|t| t.clone().into()).collect())
+    }
+}
+impl IntoIterator for Path {
+    type Item = Segment;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.segments.into_iter()
+    }
+}
 impl fmt::Debug for Path {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Path(\n")?;
