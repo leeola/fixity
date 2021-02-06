@@ -3,6 +3,7 @@ use fixi_web::Config as WebConfig;
 use {
     fixity::{
         fixity::Builder,
+        path::Path,
         storage,
         value::{Key, Value},
         workspace::{self, Workspace},
@@ -154,17 +155,18 @@ where
     println!("{}", addr);
     Ok(())
 }
-async fn cmd_put_value<S, W>(
-    fixi: Fixity<S, W>,
-    mut path: Vec<Key>,
-    value: Value,
-) -> Result<(), Error>
+async fn cmd_put_value<S, W>(fixi: Fixity<S, W>, mut path: Path, value: Value) -> Result<(), Error>
 where
     S: Storage,
     W: Workspace,
 {
-    let key = path.pop().expect("CLI interface enforces at least one key");
-    let mut map = fixi.map().await?;
+    let key = path
+        .pop()
+        .expect("CLI interface enforces at least one key")
+        .map()
+        .expect("last Path segment must be a key, to be inserted into a map")
+        .key;
+    let mut map = fixi.map();
     map.insert(key, value);
     let addr = map.commit().await?;
     dbg!(addr);

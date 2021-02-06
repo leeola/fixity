@@ -1,7 +1,7 @@
 use {
     crate::{
         error::TypeError,
-        path::{Path, Segment},
+        path::{Path, Segment, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
@@ -13,11 +13,11 @@ use {
 pub struct Map<'f, S, W> {
     storage: &'f S,
     workspace: &'f W,
-    path: Path<S>,
+    path: Path,
     cache: HashMap<Key, refimpl::Change>,
 }
 impl<'f, S, W> Map<'f, S, W> {
-    pub fn new(storage: &'f S, workspace: &'f W, path: Path<S>) -> Self {
+    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
         Self {
             storage,
             workspace,
@@ -84,14 +84,14 @@ where
         Self::new(
             &self.storage,
             &self.workspace,
-            self.path.clone().into_map(MapSegment { key: key.into() }),
+            self.path.clone().into_map(PathSegment { key: key.into() }),
         )
     }
     pub fn into_map<K>(mut self, key: K) -> Self
     where
         K: Into<Key>,
     {
-        self.path.push_map(MapSegment { key: key.into() });
+        self.path.push_map(PathSegment { key: key.into() });
         self
     }
 }
@@ -158,7 +158,7 @@ where
             .await?;
         let (resolved_path, old_self_addr) = match staged_addr {
             Some(staged_content) => {
-                let resolved_path = self.path.resolve(&self.storage, staged_content).await?;
+                let resolved_path = self.path.resolve(self.storage, staged_content).await?;
                 let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
                 (resolved_path, old_self_addr)
             }
@@ -181,7 +181,7 @@ where
         dbg!(&self.path, &new_self_addr, &resolved_path);
         let new_staged_content = self
             .path
-            .update(&self.storage, resolved_path, new_self_addr)
+            .update(self.storage, resolved_path, new_self_addr)
             .await?;
         dbg!("was it update?");
         workspace_guard.stage(new_staged_content.clone()).await?;
@@ -227,10 +227,10 @@ where
     }
 }
 #[derive(Clone)]
-pub struct MapSegment {
-    key: Key,
+pub struct PathSegment {
+    pub key: Key,
 }
-impl fmt::Debug for MapSegment {
+impl fmt::Debug for PathSegment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Map(")?;
         self.key.fmt(f)?;
@@ -238,9 +238,9 @@ impl fmt::Debug for MapSegment {
     }
 }
 #[async_trait::async_trait]
-impl<'f, S> Segment<S> for MapSegment
+impl<S> SegmentResolve<S> for PathSegment
 where
-    S: StorageRead + StorageWrite,
+    S: StorageRead,
 {
     async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
         let reader = refimpl::Read::new(storage, self_addr);
@@ -260,6 +260,12 @@ where
         };
         Ok(Some(addr))
     }
+}
+#[async_trait::async_trait]
+impl<S> SegmentUpdate<S> for PathSegment
+where
+    S: StorageRead + StorageWrite,
+{
     async fn update(
         &self,
         storage: &S,
@@ -279,7 +285,7 @@ where
         }
     }
 }
-impl From<Key> for MapSegment {
+impl From<Key> for PathSegment {
     fn from(key: Key) -> Self {
         Self { key }
     }

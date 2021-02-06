@@ -1,7 +1,7 @@
 use {
     super::{Addr, Key, Scalar, Value},
     crate::{
-        map::MapSegment,
+        map::PathSegment as MapSegment,
         path::{Path, Segment},
         storage::{StorageRead, StorageWrite},
     },
@@ -38,7 +38,7 @@ impl Key {
         Ok(scalar.into())
     }
 }
-impl<S> Path<S> {
+impl Path {
     /// An experimental implementation to parse a [`Path`] value from a string
     /// focused interface; eg parsing values from the command line.
     ///
@@ -49,10 +49,7 @@ impl<S> Path<S> {
     ///
     /// The implementation currently assumes every segment is a map Segment. A more robust
     /// implementation is warranted.
-    pub fn from_cli_str(s: &str) -> Result<Self, Error>
-    where
-        S: StorageRead + StorageWrite,
-    {
+    pub fn from_cli_str(s: &str) -> Result<Self, Error> {
         let (_, path) = parse_path(s).map_err(|err| Error::InvalidPath(format!("{}", err)))?;
         Ok(path)
     }
@@ -95,19 +92,14 @@ fn parse_typed_scalar(input: &str) -> IResult<&str, Scalar> {
 fn parse_scalar(input: &str) -> IResult<&str, Scalar> {
     all_consuming(alt((parse_typed_scalar, parse_untyped_scalar)))(input)
 }
-fn parse_path<S>(input: &str) -> IResult<&str, Path<S>>
-where
-    S: StorageRead + StorageWrite,
-{
+fn parse_path(input: &str) -> IResult<&str, Path> {
     all_consuming(map(
         separated_list1(
             tag("/"),
             map_res(
                 escaped_transform(is_not("/\\"), '\\', value("/", tag("/"))),
                 |s: String| match parse_scalar(s.as_str()) {
-                    Ok((_, scalar)) => {
-                        Ok(Box::new(MapSegment::from(Key::from(scalar))) as Box<dyn Segment<S>>)
-                    }
+                    Ok((_, scalar)) => Ok(Segment::Map(MapSegment::from(Key::from(scalar)))),
                     // Error should be impossible, since any string is a valid scalar
                     // as a last resort.
                     Err(_) => Err(()),
