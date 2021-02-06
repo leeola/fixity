@@ -168,6 +168,7 @@ where
         .key;
     let mut map = fixi.map();
     map.insert(key, value);
+    dbg!(map.stage().await?);
     let addr = map.commit().await?;
     dbg!(addr);
     Ok(())

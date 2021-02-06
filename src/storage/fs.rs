@@ -18,7 +18,7 @@ pub struct Fs {
 }
 impl Fs {
     pub async fn init(config: Config) -> Result<Self, Error> {
-        fs::create_dir_all(&config.path).await?;
+        fs::create_dir(&config.path).await?;
         Ok(Self { config })
     }
     pub fn open(config: Config) -> Result<Self, Error> {

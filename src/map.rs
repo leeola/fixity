@@ -178,12 +178,10 @@ where
                 .collect::<Vec<_>>();
             refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
-        dbg!(&self.path, &new_self_addr, &resolved_path);
         let new_staged_content = self
             .path
             .update(self.storage, resolved_path, new_self_addr)
             .await?;
-        dbg!("was it update?");
         workspace_guard.stage(new_staged_content.clone()).await?;
         Ok(new_staged_content)
     }

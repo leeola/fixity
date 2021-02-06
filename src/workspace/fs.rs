@@ -39,6 +39,9 @@ pub struct Fs {
 }
 impl Fs {
     pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
+        fs::create_dir(&workspaces_root_dir)
+            .await
+            .map_err(|source| Error::Internal(format!("create workspaces dir: {}", source)))?;
         let workspace_path = workspaces_root_dir.join(&workspace);
         fs::create_dir(&workspace_path)
             .await
@@ -59,7 +62,13 @@ impl Fs {
         })
     }
     pub async fn open(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
-        let _ = HeadState::open(workspaces_root_dir.join(&workspace).as_path()).await?;
+        let _ = HeadState::open(
+            workspaces_root_dir
+                .join(&workspace)
+                .join(HEAD_FILE_NAME)
+                .as_path(),
+        )
+        .await?;
         Ok(Self {
             workspaces_root_dir,
             workspace,
