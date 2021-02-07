@@ -7,7 +7,7 @@ use {
     dyn_clone::DynClone,
     std::fmt,
 };
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Path {
     segments: Vec<Segment>,
 }
@@ -26,6 +26,13 @@ impl Path {
     {
         self.segments.push(segment.into());
     }
+    pub fn into_push<T>(mut self, segment: T) -> Self
+    where
+        T: Into<Segment>,
+    {
+        self.push(segment);
+        self
+    }
     pub fn len(&self) -> usize {
         self.segments.len()
     }
@@ -41,8 +48,12 @@ impl Path {
     pub fn reverse(&mut self) {
         self.segments.reverse()
     }
-}
-impl Path {
+    pub fn from_map<T>(map_segment: T) -> Self
+    where
+        T: Into<MapSegment>,
+    {
+        Self::new().into_map(map_segment)
+    }
     pub fn push_map<T>(&mut self, map_segment: T)
     where
         T: Into<MapSegment>,
@@ -147,7 +158,7 @@ impl fmt::Display for Path {
         Ok(())
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Segment {
     Map(MapSegment),
 }
@@ -158,16 +169,6 @@ impl Segment {
         } else {
             None
         }
-    }
-}
-impl<T> From<T> for Segment
-where
-    T: Into<Value>,
-{
-    fn from(t: T) -> Self {
-        Self::Map(MapSegment {
-            key: Value::from(t).into(),
-        })
     }
 }
 impl fmt::Display for Segment {
@@ -216,4 +217,16 @@ pub trait SegmentUpdate<S> {
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error>;
+}
+#[macro_export]
+macro_rules! map_path {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut p = Path::new();
+            $(
+                p.push_map($x);
+            )*
+            p
+        }
+    };
 }

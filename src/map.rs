@@ -227,7 +227,7 @@ where
         Ok(commit_addr)
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PathSegment {
     pub key: Key,
 }
@@ -294,19 +294,22 @@ where
         }
     }
 }
-impl From<Key> for PathSegment {
-    fn from(key: Key) -> Self {
-        Self { key }
+impl<T> From<T> for PathSegment
+where
+    T: Into<Key>,
+{
+    fn from(t: T) -> Self {
+        Self { key: t.into() }
     }
 }
 #[cfg(test)]
 pub mod test {
-    use crate::{Fixity, Value};
+    use {super::*, crate::Fixity};
     #[tokio::test]
     async fn write_to_root() {
         let f = Fixity::memory();
-        let mut m_1 = f.map();
-        let m_2 = f.map();
+        let mut m_1 = f.map(Path::new());
+        let m_2 = f.map(Path::new());
         m_1.insert("foo", "bar");
         assert_eq!(m_2.get("foo").await.unwrap(), None);
         m_1.stage().await.unwrap();
@@ -316,11 +319,11 @@ pub mod test {
     #[tokio::test]
     async fn write_to_path_single() {
         let f = Fixity::memory();
-        let mut m_1 = f.map().into_map("foo");
+        let mut m_1 = f.map(Path::from_map("foo"));
         m_1.insert("bang", "boom");
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
-        let m_2 = f.map();
+        let m_2 = f.map(Path::new());
         let foo_value = m_2.get("foo").await.unwrap().unwrap();
         assert!(matches!(foo_value, Value::Addr(_)));
         assert_eq!(

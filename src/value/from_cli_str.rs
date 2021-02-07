@@ -114,7 +114,7 @@ fn parse_path(input: &str) -> IResult<&str, Path> {
 }
 #[cfg(test)]
 pub mod test {
-    use super::*;
+    use {super::*, crate::map_path};
     #[test]
     fn untyped_scalar() {
         assert_eq!(
@@ -148,16 +148,13 @@ pub mod test {
     }
     #[test]
     fn path() {
-        assert_eq!(parse_path("5"), Ok(("", Path::from(5u32))),);
-        assert_eq!(
-            parse_path("5/foo"),
-            Ok(("", Path::from(5u32).push_chain("foo"))),
-        );
-        assert_eq!(parse_path("foo\\/bar"), Ok(("", Path::from("foo/bar"))),);
-        assert_eq!(parse_path("5\\/foo"), Ok(("", Path::from("5/foo"))),);
+        assert_eq!(parse_path("5"), Ok(("", Path::new().into_map(5u32))),);
+        assert_eq!(parse_path("5/foo"), Ok(("", map_path![5u32, "foo"])),);
+        assert_eq!(parse_path("foo\\/bar"), Ok(("", map_path!["foo/bar"])),);
+        assert_eq!(parse_path("5\\/foo"), Ok(("", map_path!["5/foo"])),);
         assert_eq!(
             parse_path("5/foo/bar\\/"),
-            Ok(("", Path::from(5u32).push("foo").push("bar/"))),
+            Ok(("", map_path![5u32, "foo", "bar/"])),
         );
     }
 }
