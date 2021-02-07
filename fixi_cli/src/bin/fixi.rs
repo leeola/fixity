@@ -3,7 +3,6 @@ use fixi_web::Config as WebConfig;
 use {
     fixity::{
         fixity::Builder,
-        map::Map,
         path::Path,
         storage,
         value::{Key, Value},

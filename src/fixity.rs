@@ -1,10 +1,7 @@
 use {
     crate::{
-        head::{Guard, Head},
-        primitive::{commitlog::CommitNode, Chain, Commit, CommitLog},
         storage::{self, fs::Config as FsConfig, Fs},
-        workspace::{self, Workspace},
-        Error, Map, Path, Storage,
+        workspace, Error, Map, Path, Storage,
     },
     multibase::Base,
     std::path::PathBuf,

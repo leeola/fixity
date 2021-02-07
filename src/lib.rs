@@ -7,7 +7,6 @@ pub mod deser;
 mod dir;
 pub mod error;
 pub mod fixity;
-pub mod head;
 pub mod map;
 pub mod path;
 pub mod primitive;

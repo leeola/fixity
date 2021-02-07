@@ -1,7 +1,7 @@
 use {
     crate::{
         error::TypeError,
-        path::{Path, Segment, SegmentResolve, SegmentUpdate},
+        path::{Path, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
@@ -105,7 +105,6 @@ where
         K: Into<Key>,
     {
         let key = key.into();
-        dbg!(&key);
         if let Some(refimpl::Change::Insert(value)) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
@@ -115,7 +114,6 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
-        dbg!(&content_addr);
         let content_addr = if let Some(content_addr) = content_addr {
             self.path.resolve_last(self.storage, content_addr).await?
         } else {
@@ -160,7 +158,6 @@ where
             .await?;
         let (resolved_path, old_self_addr) = match staged_addr {
             Some(staged_content) => {
-                dbg!(&staged_content);
                 let resolved_path = self.path.resolve(self.storage, staged_content).await?;
                 let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
                 (resolved_path, old_self_addr)
@@ -252,11 +249,10 @@ where
 {
     async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
         let reader = refimpl::Read::new(storage, self_addr);
-        let value = match reader.get(dbg!(&self.key)).await? {
+        let value = match reader.get(&self.key).await? {
             Some(v) => v,
             None => return Ok(None),
         };
-        dbg!(&value);
         let addr = match value {
             Value::Addr(addr) => addr,
             _ => {
@@ -281,7 +277,6 @@ where
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error> {
-        dbg!(&self.key, &self_addr, &child_addr);
         if let Some(self_addr) = self_addr {
             let kvs = vec![(
                 self.key.clone(),
@@ -290,7 +285,7 @@ where
             refimpl::Update::new(storage, self_addr).with_vec(kvs).await
         } else {
             let kvs = vec![(self.key.clone(), Value::Addr(child_addr))];
-            dbg!(refimpl::Create::new(storage).with_vec(kvs).await)
+            refimpl::Create::new(storage).with_vec(kvs).await
         }
     }
 }
@@ -339,10 +334,10 @@ pub mod test {
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
         let m_2 = f.map(Path::new());
-        dbg!(m_2.get("foo").await.unwrap());
-        dbg!(m_2.get("bar").await.unwrap());
+        println!("{:?}", m_2.get("foo").await.unwrap());
+        println!("{:?}", m_2.get("bar").await.unwrap());
         let foo_value = m_2.get("foo").await.unwrap().unwrap();
-        dbg!(&foo_value);
+        println!("{:?}", &foo_value);
         assert!(matches!(foo_value, Value::Addr(_)));
         let m_2 = m_2.into_map("foo");
         let bar_value = m_2.get("bar").await.unwrap().unwrap();

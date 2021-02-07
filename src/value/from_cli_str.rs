@@ -3,7 +3,6 @@ use {
     crate::{
         map::PathSegment as MapSegment,
         path::{Path, Segment},
-        storage::{StorageRead, StorageWrite},
     },
     nom::{
         branch::alt,
@@ -69,6 +68,8 @@ pub enum Error {
 fn parse_uint32(input: &str) -> IResult<&str, u32> {
     map_res(all_consuming(digit1), |s| u32::from_str_radix(s, 10))(input)
 }
+// allowing, because this is the Nom pattern, imo.
+#[allow(clippy::unnecessary_wraps)]
 fn parse_string(input: &str) -> IResult<&str, String> {
     Ok(("", input.to_owned()))
 }

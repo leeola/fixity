@@ -1,5 +1,5 @@
 use {
-    crate::{deser, fixity, head, storage, value::Addr, workspace},
+    crate::{deser, fixity, storage, value::Addr, workspace},
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -84,11 +84,6 @@ pub enum InternalError {
         source: fixity::InitError,
     },
     #[error("head: `{source}`")]
-    Head {
-        #[from]
-        source: head::Error,
-    },
-    #[error("head: `{source}`")]
     Workspace {
         #[from]
         source: workspace::Error,
@@ -102,11 +97,6 @@ pub enum InternalError {
 impl From<cjson::Error> for Error {
     fn from(err: cjson::Error) -> Self {
         Self::Cjson(err)
-    }
-}
-impl From<head::Error> for Error {
-    fn from(err: head::Error) -> Self {
-        Self::Internal { source: err.into() }
     }
 }
 impl From<workspace::Error> for Error {

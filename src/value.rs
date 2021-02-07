@@ -3,7 +3,7 @@ pub mod from_cli_str;
 use {
     crate::Error,
     multibase::Base,
-    std::{convert::TryFrom, fmt, iter::IntoIterator},
+    std::{convert::TryFrom, fmt},
 };
 
 const ADDR_SHORT_LEN: usize = 8;
@@ -265,10 +265,10 @@ pub fn serialize<T>(t: T) -> Result<Vec<u8>, Error>
 where
     T: borsh::BorshSerialize,
 {
-    Ok(t.try_to_vec()
+    t.try_to_vec()
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
-        .map_err(Error::Borsh)?)
+        .map_err(Error::Borsh)
 }
 /// A helper to centralize deserialization logic for a potential future
 /// where we change/tweak/configure deserialization.
@@ -287,10 +287,10 @@ pub fn deserialize<T>(bytes: &[u8]) -> Result<T, Error>
 where
     T: borsh::BorshDeserialize,
 {
-    Ok(T::try_from_slice(bytes)
+    T::try_from_slice(bytes)
         // mapping because it's actually a `std::io::Error`, so ?
         // would convert the wrong type.
-        .map_err(Error::Borsh)?)
+        .map_err(Error::Borsh)
 }
 /// A helper to centralize deserialization logic for a potential future
 /// where we change/tweak/configure deserialization.
@@ -309,10 +309,10 @@ pub fn deserialize_with_addr<T>(bytes: &[u8], addr: &Addr) -> Result<T, Error>
 where
     T: borsh::BorshDeserialize,
 {
-    Ok(T::try_from_slice(bytes).map_err(|err| Error::BorshAddr {
+    T::try_from_slice(bytes).map_err(|err| Error::BorshAddr {
         addr: addr.clone(),
         err,
-    })?)
+    })
 }
 impl<T> From<T> for Value
 where

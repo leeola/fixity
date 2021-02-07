@@ -4,7 +4,6 @@ use {
         storage::{StorageRead, StorageWrite},
         Addr, Error,
     },
-    dyn_clone::DynClone,
     std::fmt,
 };
 #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -164,11 +163,8 @@ pub enum Segment {
 }
 impl Segment {
     pub fn map(self) -> Option<MapSegment> {
-        if let Segment::Map(s) = self {
-            Some(s)
-        } else {
-            None
-        }
+        let Segment::Map(s) = self;
+        Some(s)
     }
 }
 impl fmt::Display for Segment {

@@ -39,7 +39,7 @@ pub struct Fs {
 }
 impl Fs {
     pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
-        fs::create_dir(dbg!(&workspaces_root_dir))
+        fs::create_dir(&workspaces_root_dir)
             .await
             .map_err(|source| Error::Internal(format!("create workspaces dir: {}", source)))?;
         let workspace_path = workspaces_root_dir.join(&workspace);
@@ -340,28 +340,27 @@ impl FromStr for HeadState {
                     .next()
                     .ok_or_else(|| Error::Internal("branch value missing".to_owned()))?
                     .to_owned();
-                let staged_content =
-                    lines
-                        .next()
-                        .map(|staged_line| {
-                            let mut staged_line = staged_line.splitn(2, KV_SEP);
-                            let staged_key = staged_line
-                                .next()
-                                .expect("first value of split impossibly missing");
-                            if staged_key != STAGED_CONTENT_KEY {
-                                return Err(Error::Internal(format!(
-                                    "unknown HEAD staged_content key `{:?}`",
-                                    staged_key
-                                )));
-                            }
-                            let addr = staged_line.next().ok_or_else(|| {
-                                Error::Internal("staged_content value missing".to_owned())
-                            })?;
-                            Ok(Addr::from_encoded(addr.to_owned().into_bytes()).ok_or_else(
-                                || Error::Internal("HEAD staged_content invalid Addr".to_owned()),
-                            )?)
+                let staged_content = lines
+                    .next()
+                    .map(|staged_line| {
+                        let mut staged_line = staged_line.splitn(2, KV_SEP);
+                        let staged_key = staged_line
+                            .next()
+                            .expect("first value of split impossibly missing");
+                        if staged_key != STAGED_CONTENT_KEY {
+                            return Err(Error::Internal(format!(
+                                "unknown HEAD staged_content key `{:?}`",
+                                staged_key
+                            )));
+                        }
+                        let addr = staged_line.next().ok_or_else(|| {
+                            Error::Internal("staged_content value missing".to_owned())
+                        })?;
+                        Addr::from_encoded(addr.to_owned().into_bytes()).ok_or_else(|| {
+                            Error::Internal("HEAD staged_content invalid Addr".to_owned())
                         })
-                        .transpose()?;
+                    })
+                    .transpose()?;
                 Self::Branch {
                     branch,
                     staged_content,
@@ -385,7 +384,7 @@ async fn read_to_string(path: &Path) -> Result<Option<String>, std::io::Error> {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             return Ok(None);
         }
-        Err(err) => return Err(dbg!(err)),
+        Err(err) => return Err(err),
     };
     f.read_to_string(&mut s).await?;
     Ok(Some(s))

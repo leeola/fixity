@@ -134,9 +134,6 @@ where
         Ok(Map::new(self.storage, addr))
     }
 }
-pub struct MapSegment {
-    key: Key,
-}
 #[cfg(test)]
 pub mod test {
     use {super::*, crate::storage::Memory};
