@@ -47,28 +47,6 @@ where
     pub fn map(&self, path: Path) -> Map<'_, S, W> {
         Map::new(&self.storage, &self.workspace, path)
     }
-    // pub async fn map(
-    //     &self,
-    //     path: Path,
-    // ) -> Result<Guard<Commit<'_, S, Chain<'_, Map<'_, S>>>>, Error> {
-    //     let head = Head::open(self.fixity_dir.as_path(), self.workspace.as_str()).await?;
-    //     let commit_log = CommitLog::new(&self.storage, head.addr());
-    //     let content_addr = commit_log
-    //         .first()
-    //         .await?
-    //         .map(|CommitNode { content, .. }| content);
-    //     let inner = if path.is_empty() {
-    //         Chain::new(Map::new(&self.storage, content_addr))
-    //     } else {
-    //         let mut b = Chain::<Map<'_, S>>::build(content_addr);
-    //         for key in path {
-    //             b.push(key, Map::build(&self.storage)).await?;
-    //         }
-    //         b.build(Map::build(&self.storage)).await?
-    //     };
-    //     let inner = commit_log.wrap_inner(inner);
-    //     Ok(Guard::new(head, inner))
-    // }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
         R: AsyncRead + Unpin + Send,
