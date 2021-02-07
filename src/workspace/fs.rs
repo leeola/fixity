@@ -39,7 +39,7 @@ pub struct Fs {
 }
 impl Fs {
     pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
-        fs::create_dir(&workspaces_root_dir)
+        fs::create_dir(dbg!(&workspaces_root_dir))
             .await
             .map_err(|source| Error::Internal(format!("create workspaces dir: {}", source)))?;
         let workspace_path = workspaces_root_dir.join(&workspace);

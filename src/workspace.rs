@@ -163,7 +163,8 @@ pub mod test {
                 // TODO: I could/should incorporate init/open behavior into these tests.
                 // Which should also include RNG workspace names.
                 let temp_dir = tempfile::tempdir().unwrap();
-                let workspace = Fs::init(temp_dir.path().to_owned(), "default".to_string()).await.unwrap();
+                let workspaces_path = temp_dir.path().to_owned().join("workspaces");
+                let workspace = Fs::init(workspaces_path, "default".to_string()).await.unwrap();
                 test_general_behavior(workspace, &addrs, &test_actions).await;
             });
         }
