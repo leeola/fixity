@@ -57,9 +57,10 @@ where
                 });
             }
         }
-        let mut kvs = Read::new(self.storage, self.root_addr.clone())
+        let all_kvs = Read::new(self.storage, self.root_addr.clone())
             .to_vec()
-            .await?
+            .await?;
+        let mut kvs = all_kvs
             .into_iter()
             // Filter out any Keys that were removed.
             .filter(|(source_key, _)| {
@@ -67,7 +68,9 @@ where
                     .iter()
                     .find(|(changed_key, _)| source_key == changed_key)
                     .map(|(_, change)| change);
-                matches!(change, Some(Change::Remove))
+                let key_is_removed = matches!(change, Some(Change::Remove));
+                // if the key is removed, return false to drop it from the vec via filter.
+                !key_is_removed
             })
             // Collecting into a hashmap allows us to uniquely apply insertions.
             .collect::<HashMap<_, _>>();
