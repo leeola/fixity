@@ -157,7 +157,7 @@ pub mod test {
         assert_eq!(parse_path("5\\/foo"), Ok(("", Path::from("5/foo"))),);
         assert_eq!(
             parse_path("5/foo/bar\\/"),
-            Ok(("", Path::from(5u32).push_chain("foo").push_chain("bar/"))),
+            Ok(("", Path::from(5u32).push("foo").push("bar/"))),
         );
     }
 }

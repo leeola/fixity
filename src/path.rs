@@ -106,14 +106,6 @@ impl Path {
         Ok(new_addr)
     }
 }
-impl<T> From<T> for Path
-where
-    T: Into<Segment>,
-{
-    fn from(t: T) -> Self {
-        Self::from_segments(vec![t.into()])
-    }
-}
 impl<T> From<&[T]> for Path
 where
     T: Clone + Into<Segment>,
@@ -166,6 +158,16 @@ impl Segment {
         } else {
             None
         }
+    }
+}
+impl<T> From<T> for Segment
+where
+    T: Into<Value>,
+{
+    fn from(t: T) -> Self {
+        Self::Map(MapSegment {
+            key: Value::from(t).into(),
+        })
     }
 }
 impl fmt::Display for Segment {
