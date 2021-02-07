@@ -1,11 +1,10 @@
 use {
     crate::{
         head::{Guard, Head},
-        primitive::{commitlog::CommitNode, Chain, Commit, CommitLog, Map},
+        primitive::{commitlog::CommitNode, Chain, Commit, CommitLog},
         storage::{self, fs::Config as FsConfig, Fs},
-        value::{Key, Path},
         workspace::{self, Workspace},
-        Error, Storage,
+        Error, Map, Path, Storage,
     },
     multibase::Base,
     std::path::PathBuf,
@@ -48,8 +47,8 @@ impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
-    pub fn map(&self, path: crate::path::Path) -> crate::Map<'_, S, W> {
-        crate::Map::new(&self.storage, &self.workspace, path)
+    pub fn map(&self, path: Path) -> Map<'_, S, W> {
+        Map::new(&self.storage, &self.workspace, path)
     }
     // pub async fn map(
     //     &self,

@@ -20,8 +20,9 @@ pub use self::{
     error::{Error, Result},
     fixity::Fixity,
     map::Map,
+    path::Path,
     storage::{Storage, StorageRead, StorageWrite},
-    value::{Addr, Path, Value},
+    value::{Addr, Value},
 };
 
 /*
