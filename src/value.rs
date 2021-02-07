@@ -23,14 +23,14 @@ impl Addr {
         let h = <[u8; 32]>::from(blake3::hash(bytes));
         Self(multibase::encode(Base::Base58Btc, &h))
     }
-    /// Create an `Addr` from a `Base::Base58Btc` encoded byte slice.
+    /// Create an `Addr` from a `Base::Base58Btc` encoded byte vec.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use fixity::Addr;
     /// let addr1 = Addr::from_unhashed_bytes("foo".as_bytes());
-    /// let addr2 = Addr::from_encoded(addr1.long());
+    /// let addr2 = Addr::from_encoded(addr1.clone().long().into_bytes());
     /// assert_eq!(Some(addr1), addr2);
     /// ```
     pub fn from_encoded(bytes: Vec<u8>) -> Option<Self> {

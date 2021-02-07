@@ -32,9 +32,9 @@ impl<'f, S, W> Map<'f, S, W> {
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # use fixity::{Fixity,Map};
+    /// # use fixity::{Fixity,Map,path::Path};
     /// let f = Fixity::memory();
-    /// let mut m = f.map();
+    /// let mut m = f.map(Path::new());
     /// m.insert("foo", "bar");
     /// m.clear();
     /// assert!(m.get("foo").await.unwrap().is_none());
@@ -53,10 +53,10 @@ impl<'f, S, W> Map<'f, S, W> {
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # use fixity::{Fixity,Map};
+    /// # use fixity::{Fixity,Map,path::Path};
     /// let f = Fixity::memory();
-    /// let mut m_1 = f.map();
-    /// let m_2 = f.map();
+    /// let mut m_1 = f.map(Path::new());
+    /// let m_2 = f.map(Path::new());
     /// m_1.insert("foo", "bar");
     /// // get pulls from in-memory cache, awaiting stage/commit.
     /// assert_eq!(m_1.get("foo").await.unwrap(), Some("bar".into()));
@@ -135,10 +135,10 @@ where
     /// ```rust
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # use fixity::{Fixity,Map};
+    /// # use fixity::{Fixity,Map,path::Path};
     /// let f = Fixity::memory();
-    /// let mut m_1 = f.map();
-    /// let m_2 = f.map();
+    /// let mut m_1 = f.map(Path::new());
+    /// let m_2 = f.map(Path::new());
     /// m_1.insert("foo", "bar");
     /// // not yet written to storage.
     /// assert_eq!(m_2.get("foo").await.unwrap(), None);
@@ -195,10 +195,10 @@ where
     /// ```rust
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # use fixity::{Fixity,Map};
+    /// # use fixity::{Fixity,Map,path::Path};
     /// let f = Fixity::memory();
-    /// let mut m_1 = f.map();
-    /// let m_2 = f.map();
+    /// let mut m_1 = f.map(Path::new());
+    /// let m_2 = f.map(Path::new());
     /// m_1.insert("foo", "bar");
     /// // not yet written to storage.
     /// assert_eq!(m_2.get("foo").await.unwrap(), None);
