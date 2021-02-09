@@ -41,7 +41,6 @@ pub trait StorageWrite: Sync {
         self.write(hash, &*b).await
     }
 }
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unhandled error: `{message}`")]

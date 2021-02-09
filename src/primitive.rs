@@ -2,6 +2,7 @@
 
 pub mod appendlog;
 // pub mod bytelog;
+pub mod bytes;
 pub mod chain;
 pub mod commitlog;
 pub mod map;

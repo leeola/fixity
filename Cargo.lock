@@ -707,6 +707,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "git_fixi"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "fixity",
+ "log",
+ "structopt",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -8,6 +8,7 @@ use {
         Addr, Error,
     },
     std::{collections::HashMap, mem},
+    tokio::io::{self, AsyncRead, AsyncWrite},
 };
 pub struct Bytes<'s, S> {
     storage: &'s S,
@@ -17,16 +18,18 @@ impl<'s, S> Bytes<'s, S> {
     pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
         Self { storage, addr }
     }
-    pub fn read(&self, path: Path) -> () {
-        todo!()
+    pub fn read<W>(&self, w: W) -> Result<(), Error>
+    where
+        S: StorageRead,
+        W: AsyncWrite + Unpin + Send,
+    {
+        todo!("bytes read")
     }
-}
-pub struct ByteReader<'s, S> {
-    storage: &'s S,
-    addr: Option<Addr>,
-}
-impl<'s, S> ByteReader<'s, S> {
-    pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
-        Self { storage, addr }
+    pub async fn write<R>(&self, r: R) -> Result<Addr, Error>
+    where
+        S: StorageWrite,
+        R: AsyncRead + Unpin + Send;
+    {
+        todo!("bytes write")
     }
 }

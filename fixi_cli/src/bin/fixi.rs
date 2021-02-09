@@ -70,14 +70,13 @@ async fn main() -> Result<(), Error> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
 
-    let FixiOpt {
-        fixi_dir_name,
-        fixi_dir,
-        workspace,
-        storage_dir,
-    } = opt.fixi_opt;
-
     let fixi = {
+        let FixiOpt {
+            fixi_dir_name,
+            fixi_dir,
+            workspace,
+            storage_dir,
+        } = opt.fixi_opt;
         let builder = fixity::Fixity::<storage::Fs, workspace::Fs>::builder()
             .fixi_dir_name(fixi_dir_name)
             .fixi_dir(fixi_dir)

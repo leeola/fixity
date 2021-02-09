@@ -6,6 +6,7 @@
 pub mod deser;
 mod dir;
 pub mod error;
+pub mod file;
 pub mod fixity;
 pub mod map;
 pub mod path;
