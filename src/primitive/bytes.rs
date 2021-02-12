@@ -1,35 +1,89 @@
 use {
     crate::{
-        error::TypeError,
-        primitive::{Build, Flush, GetAddr, InsertAddr},
-        prolly::refimpl,
+        error::{InternalError, TypeError},
+        primitive::{prollylist::refimpl, Build, Flush, GetAddr, InsertAddr},
         storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         Addr, Error,
     },
+    fastcdc::{Chunk, FastCDC},
     std::{collections::HashMap, mem},
-    tokio::io::{self, AsyncRead, AsyncWrite},
+    tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite},
 };
-pub struct Bytes<'s, S> {
+const CDC_MIN: usize = 1024 * 16;
+const CDC_AVG: usize = 1024 * 32;
+const CDC_MAX: usize = 1024 * 64;
+pub struct Read<'s, S> {
     storage: &'s S,
-    addr: Option<Addr>,
+    addr: Addr,
 }
-impl<'s, S> Bytes<'s, S> {
-    pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
+impl<'s, S> Read<'s, S> {
+    pub fn new(storage: &'s S, addr: Addr) -> Self {
         Self { storage, addr }
     }
-    pub fn read<W>(&self, w: W) -> Result<(), Error>
+    pub async fn read<W>(&self, mut w: W) -> Result<u64, Error>
     where
         S: StorageRead,
         W: AsyncWrite + Unpin + Send,
     {
-        todo!("bytes read")
+        let values = {
+            let tree = refimpl::Read::new(self.storage, self.addr.clone());
+            tree.to_vec().await?
+        };
+        let mut total_bytes = 0;
+        for value in values {
+            let addr = value
+                .into_addr()
+                .ok_or_else(|| TypeError::UnexpectedValueVariant {
+                    at_segment: None,
+                    at_addr: None,
+                })?;
+            total_bytes += self.storage.read(addr, &mut w).await?;
+        }
+        Ok(total_bytes)
     }
-    pub async fn write<R>(&self, r: R) -> Result<Addr, Error>
+}
+pub struct Create<'s, S> {
+    storage: &'s S,
+    cdc_min: usize,
+    cdc_avg: usize,
+    cdc_max: usize,
+}
+impl<'s, S> Create<'s, S> {
+    pub fn new(storage: &'s S) -> Self {
+        Self {
+            storage,
+            cdc_min: CDC_MIN,
+            cdc_avg: CDC_AVG,
+            cdc_max: CDC_MAX,
+        }
+    }
+    pub async fn write<R>(&self, mut r: R) -> Result<Addr, Error>
     where
         S: StorageWrite,
-        R: AsyncRead + Unpin + Send;
+        R: AsyncRead + Unpin + Send,
     {
-        todo!("bytes write")
+        let addrs = {
+            let mut addrs = Vec::new();
+            let mut b = Vec::new();
+            // I don't think len can ever differ from the Vec len..?
+            let _ = r
+                .read_to_end(&mut b)
+                .await
+                .map_err(|err| InternalError::Io(format!("{}", err)))?;
+            // TODO: use chunked streaming once this [1] is fixed/merged, and when we impl a
+            // proper streaming prollylist::Create, not the refimpl.
+            // [1]: https://github.com/nlfiedler/fastcdc-rs/issues/3
+            let chunker = FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
+            for Chunk { offset, length } in chunker {
+                let chunk = &b[offset..offset + length];
+                let addr = Addr::from_unhashed_bytes(chunk);
+                self.storage.write(addr.clone(), chunk).await?;
+                addrs.push(Value::Addr(addr));
+            }
+            addrs
+        };
+        let tree = refimpl::Create::new(self.storage);
+        tree.with_vec(addrs).await
     }
 }

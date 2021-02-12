@@ -92,6 +92,9 @@ pub enum InternalError {
     Primitive(String),
     #[error("path: `{0}`")]
     Path(String),
+    /// An internal input/output error.
+    #[error("input/output error: `{0}`")]
+    Io(String),
 }
 #[cfg(feature = "cjson")]
 impl From<cjson::Error> for Error {

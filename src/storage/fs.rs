@@ -27,7 +27,7 @@ impl Fs {
 }
 #[async_trait::async_trait]
 impl StorageRead for Fs {
-    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<(), Error>
+    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<u64, Error>
     where
         S: AsRef<str> + 'static + Send,
         W: AsyncWrite + Unpin + Send,
@@ -37,8 +37,8 @@ impl StorageRead for Fs {
             .read(true)
             .open(self.config.path.join(hash))
             .await?;
-        io::copy(&mut f, &mut w).await?;
-        Ok(())
+        let n = io::copy(&mut f, &mut w).await?;
+        Ok(n)
     }
 }
 #[async_trait::async_trait]

@@ -24,7 +24,7 @@ impl std::cmp::PartialEq<Self> for Memory {
 }
 #[async_trait::async_trait]
 impl StorageRead for Memory {
-    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<(), Error>
+    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<u64, Error>
     where
         S: AsRef<str> + 'static + Send,
         W: AsyncWrite + Unpin + Send,
@@ -43,7 +43,7 @@ impl StorageRead for Memory {
                 .clone()
         };
         w.write_all(&r).await?;
-        Ok(())
+        Ok(r.len() as u64)
     }
 }
 #[async_trait::async_trait]

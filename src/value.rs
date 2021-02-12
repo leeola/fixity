@@ -195,6 +195,20 @@ pub enum Value {
     Vec(Vec<Scalar>),
 }
 impl Value {
+    /// Return the underlying `Addr` if the variant is an `Addr`, `None` otherwise.
+    pub fn addr(&self) -> Option<&Addr> {
+        match self {
+            Self::Addr(addr) => Some(addr),
+            _ => None,
+        }
+    }
+    /// Return the underlying `Addr` if the variant is an `Addr`, `None` otherwise.
+    pub fn into_addr(self) -> Option<Addr> {
+        match self {
+            Self::Addr(addr) => Some(addr),
+            _ => None,
+        }
+    }
     fn fmt_variant(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use fmt::Debug;
         match self {
