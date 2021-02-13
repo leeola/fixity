@@ -69,16 +69,18 @@ impl Path {
     pub async fn resolve<S>(
         &self,
         storage: &S,
-        addr: Option<Addr>,
+        root_addr: Option<Addr>,
     ) -> Result<Vec<Option<Addr>>, Error>
     where
         S: StorageRead,
     {
-        let mut addr = match addr {
+        let resolved_len = self.segments.len() + 1;
+        let mut addr = match root_addr {
             Some(addr) => addr,
-            None => return Ok(vec![None; self.segments.len()]),
+            None => return Ok(vec![None; resolved_len]),
         };
-        let mut resolved_segs = Vec::new();
+        let mut resolved_segs = Vec::with_capacity(resolved_len);
+        resolved_segs.push(Some(addr.clone()));
         for seg in self.segments.iter() {
             match seg.resolve(storage, addr).await? {
                 Some(resolved_addr) => {
@@ -88,8 +90,7 @@ impl Path {
                 None => {
                     // resolve the remaining segments as None
                     // this will always be >= 1
-                    resolved_segs
-                        .append(&mut vec![None; self.segments.len() - resolved_segs.len()]);
+                    resolved_segs.append(&mut vec![None; resolved_len - resolved_segs.len()]);
                     return Ok(resolved_segs);
                 }
             }
@@ -123,16 +124,22 @@ impl Path {
     pub async fn update<S>(
         &self,
         storage: &S,
-        mut resolved_addrs: Vec<Option<Addr>>,
-        mut new_addr: Addr,
+        resolved_addrs: Vec<Option<Addr>>,
+        new_last_segment_addr: Addr,
     ) -> Result<Addr, Error>
     where
         S: StorageRead + StorageWrite,
     {
-        for (seg_addr, seg) in resolved_addrs.into_iter().zip(self.segments.iter()).rev() {
-            new_addr = seg.update(storage, seg_addr, new_addr).await?;
+        let mut new_addr_cursor = new_last_segment_addr;
+        for (seg_addr, seg) in resolved_addrs
+            .into_iter()
+            .rev()
+            .skip(1)
+            .zip(self.segments.iter().rev())
+        {
+            new_addr_cursor = seg.update(storage, seg_addr, new_addr_cursor).await?;
         }
-        Ok(new_addr)
+        Ok(new_addr_cursor)
     }
 }
 impl<T> From<&[T]> for Path
