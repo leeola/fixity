@@ -50,6 +50,13 @@ lru = "0.6.0"
 nom = "6.0.0"
 chrono = "0.4.19"
 dyn-clone = "1.0.4"
+# TODO: Remove once the linked issue[1] is fixed.
+#
+# Solely added as a workaround to bitvec failing to compile, which is a dep of nom.
+# See also: [1]
+#
+# [1]: https://github.com/bitvecto-rs/bitvec/issues/105#issuecomment-778570981
+funty = "=1.1.0"
 
 [dev-dependencies]
 env_logger = "0.7"
