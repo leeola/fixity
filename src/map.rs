@@ -198,8 +198,11 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
-        let resolved_path = self.path.resolve(self.storage, root_content_addr).await?;
-        let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
+        let resolved_path = self
+            .path
+            .resolve(self.storage, root_content_addr.clone())
+            .await?;
+        let old_self_addr = resolved_path.last().cloned().unwrap_or(root_content_addr);
         let new_self_addr = if let Some(self_addr) = old_self_addr {
             let kvs = kvs.collect::<Vec<_>>();
             refimpl::Update::new(self.storage, self_addr)
@@ -212,9 +215,7 @@ where
                     refimpl::Change::Remove => None,
                 })
                 .collect::<Vec<_>>();
-            refimpl::Create::new(self.storage)
-                .with_vec(dbg!(kvs))
-                .await?
+            refimpl::Create::new(self.storage).with_vec(kvs).await?
         };
         let new_staged_content = self
             .path
@@ -397,5 +398,35 @@ pub mod test {
         m.commit().await.unwrap();
         assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
         assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
+    }
+    #[tokio::test]
+    async fn nested_multi_value() {
+        let f = Fixity::memory();
+        let mut m = f.map(Path::new());
+        m.insert("foo", "fooval");
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        m.stage().await.unwrap();
+        m.insert("bar", "barval");
+        m.stage().await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
+        m.commit().await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
+        let mut m_2 = m.map("nested");
+        m_2.insert("baz", "bazval");
+        m_2.stage().await.unwrap();
+        m_2.insert("bang", "bangval");
+        m_2.stage().await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
+        assert_eq!(
+            m.map("nested").get("baz").await.unwrap(),
+            Some("bazval".into())
+        );
+        assert_eq!(
+            m.map("nested").get("bang").await.unwrap(),
+            Some("bangval".into())
+        );
     }
 }

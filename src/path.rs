@@ -69,7 +69,7 @@ impl Path {
     pub async fn resolve<S>(
         &self,
         storage: &S,
-        mut addr: Option<Addr>,
+        addr: Option<Addr>,
     ) -> Result<Vec<Option<Addr>>, Error>
     where
         S: StorageRead,
