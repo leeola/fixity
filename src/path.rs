@@ -66,10 +66,18 @@ impl Path {
         self.push_map(map_segment);
         self
     }
-    pub async fn resolve<S>(&self, storage: &S, mut addr: Addr) -> Result<Vec<Option<Addr>>, Error>
+    pub async fn resolve<S>(
+        &self,
+        storage: &S,
+        mut addr: Option<Addr>,
+    ) -> Result<Vec<Option<Addr>>, Error>
     where
-        S: StorageRead + StorageWrite,
+        S: StorageRead,
     {
+        let mut addr = match addr {
+            Some(addr) => addr,
+            None => return Ok(vec![None; self.segments.len()]),
+        };
         let mut resolved_segs = Vec::new();
         for seg in self.segments.iter() {
             match seg.resolve(storage, addr).await? {
@@ -78,17 +86,28 @@ impl Path {
                     addr = resolved_addr;
                 }
                 None => {
-                    resolved_segs.push(None);
+                    // resolve the remaining segments as None
+                    // this will always be >= 1
+                    resolved_segs
+                        .append(&mut vec![None; self.segments.len() - resolved_segs.len()]);
                     return Ok(resolved_segs);
                 }
             }
         }
         Ok(resolved_segs)
     }
-    pub async fn resolve_last<S>(&self, storage: &S, mut addr: Addr) -> Result<Option<Addr>, Error>
+    pub async fn resolve_last<S>(
+        &self,
+        storage: &S,
+        addr: Option<Addr>,
+    ) -> Result<Option<Addr>, Error>
     where
-        S: StorageRead + StorageWrite,
+        S: StorageRead,
     {
+        let mut addr = match addr {
+            Some(addr) => addr,
+            None => return Ok(None),
+        };
         for seg in self.segments.iter() {
             match seg.resolve(storage, dbg!(addr)).await? {
                 Some(resolved_addr) => {
@@ -104,7 +123,7 @@ impl Path {
     pub async fn update<S>(
         &self,
         storage: &S,
-        resolved_addrs: Vec<Option<Addr>>,
+        mut resolved_addrs: Vec<Option<Addr>>,
         mut new_addr: Addr,
     ) -> Result<Addr, Error>
     where

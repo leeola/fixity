@@ -3,12 +3,13 @@
 #![allow(incomplete_features)]
 #![feature(generic_associated_types)]
 
+pub mod bytes;
 pub mod deser;
 mod dir;
 pub mod error;
-pub mod file;
 pub mod fixity;
 pub mod map;
+pub mod misc;
 pub mod path;
 pub mod primitive;
 pub mod prolly;
@@ -17,8 +18,9 @@ pub mod value;
 pub mod workspace;
 
 pub use self::{
+    bytes::Bytes,
     error::{Error, Result},
-    fixity::Fixity,
+    fixity::{Commit, Fixity},
     map::Map,
     path::Path,
     storage::{Storage, StorageRead, StorageWrite},

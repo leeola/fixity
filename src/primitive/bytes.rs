@@ -32,12 +32,10 @@ impl<'s, S> Read<'s, S> {
         };
         let mut total_bytes = 0;
         for value in values {
-            let addr = value
-                .into_addr()
-                .ok_or_else(|| TypeError::UnexpectedValueVariant {
-                    at_segment: None,
-                    at_addr: None,
-                })?;
+            let addr = value.into_addr().ok_or(TypeError::UnexpectedValueVariant {
+                at_segment: None,
+                at_addr: None,
+            })?;
             total_bytes += self.storage.read(addr, &mut w).await?;
         }
         Ok(total_bytes)

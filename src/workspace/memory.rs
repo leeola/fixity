@@ -1,11 +1,8 @@
 use {
     super::{Error, Guard, Status, Workspace},
     crate::Addr,
-    std::{
-        collections::HashMap,
-        mem,
-        sync::{Arc, Mutex, MutexGuard},
-    },
+    std::{collections::HashMap, mem, sync::Arc},
+    tokio::sync::{Mutex, MutexGuard},
 };
 #[derive(Debug, Clone)]
 pub(super) enum HeadState {
@@ -51,20 +48,14 @@ impl Memory {
 impl Workspace for Memory {
     type Guard<'a> = MemoryGuard<'a>;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error> {
-        let _guard = self
-            .guard
-            .lock()
-            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let _guard = self.guard.lock().await;
         Ok(MemoryGuard {
             _guard,
             state: self.state.clone(),
         })
     }
     async fn status(&self) -> Result<Status, Error> {
-        let inner = self
-            .state
-            .lock()
-            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let inner = self.state.lock().await;
         let status = match inner.head.clone() {
             HeadState::Init { branch } => Status::Init { branch },
             HeadState::InitStaged {
@@ -114,10 +105,7 @@ pub struct MemoryGuard<'a> {
 #[async_trait::async_trait]
 impl<'a> Guard for MemoryGuard<'a> {
     async fn stage(&self, staged_content: Addr) -> Result<(), Error> {
-        let mut inner = self
-            .state
-            .lock()
-            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let mut inner = self.state.lock().await;
         inner.head = match mem::replace(&mut inner.head, HeadState::Aborted) {
             HeadState::Init { branch } | HeadState::InitStaged { branch, .. } => {
                 HeadState::InitStaged {
@@ -135,10 +123,7 @@ impl<'a> Guard for MemoryGuard<'a> {
         Ok(())
     }
     async fn commit(&self, commit_addr: Addr) -> Result<(), Error> {
-        let mut inner = self
-            .state
-            .lock()
-            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let mut inner = self.state.lock().await;
         // if matches!(inner.head, HeadState::Detached(_)) {
         //     return Err(Error::DetatchedHead);
         // }
@@ -159,10 +144,7 @@ impl<'a> Guard for MemoryGuard<'a> {
         Ok(())
     }
     async fn status(&self) -> Result<Status, Error> {
-        let inner = self
-            .state
-            .lock()
-            .map_err(|_| Error::Internal("failed to acquire workspace lock".into()))?;
+        let inner = self.state.lock().await;
         let status = match inner.head.clone() {
             HeadState::Init { branch } => Status::Init { branch },
             HeadState::InitStaged {

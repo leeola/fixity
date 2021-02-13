@@ -1,7 +1,9 @@
 use {
     crate::{
-        storage::{self, fs::Config as FsConfig, Fs},
-        workspace, Error, Map, Path, Storage,
+        primitive::CommitLog,
+        storage::{self, fs::Config as FsConfig, Fs, StorageRef},
+        workspace::{self, Guard, Status, Workspace, WorkspaceRef},
+        Addr, Bytes, Error, Map, Path, Storage,
     },
     multibase::Base,
     std::path::PathBuf,
@@ -46,6 +48,9 @@ where
 {
     pub fn map(&self, path: Path) -> Map<'_, S, W> {
         Map::new(&self.storage, &self.workspace, path)
+    }
+    pub fn bytes(&self, path: Path) -> Bytes<'_, S, W> {
+        Bytes::new(&self.storage, &self.workspace, path)
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
@@ -178,6 +183,61 @@ pub enum InitError {
         #[from]
         source: storage::Error,
     },
+}
+impl<S, W> WorkspaceRef for Fixity<S, W>
+where
+    W: Workspace,
+{
+    type Workspace = W;
+    fn workspace_ref(&self) -> &Self::Workspace {
+        &self.workspace
+    }
+}
+impl<S, W> StorageRef for Fixity<S, W>
+where
+    S: Storage,
+{
+    type Storage = S;
+    fn storage_ref(&self) -> &Self::Storage {
+        &self.storage
+    }
+}
+/// A trait to describe a `T` that can write a new commit log to storage, and update
+/// the workspace pointer to the newly writen commit log.
+///
+/// This trait is usually implemented on root `Fixity` interfaces, such as [`Map`] and
+/// [`Bytes`], along with [`Fixity`] itself.
+#[async_trait::async_trait]
+pub trait Commit {
+    /// Commit any staged changes to storage, and update the workspace pointer to match.
+    async fn commit(&self) -> Result<Addr, Error>;
+}
+#[async_trait::async_trait]
+impl<T> Commit for T
+where
+    T: WorkspaceRef + StorageRef + Sync,
+{
+    async fn commit(&self) -> Result<Addr, Error> {
+        let storage = self.storage_ref();
+        let workspace = self.workspace_ref();
+        let workspace_guard = workspace.lock().await?;
+        let (commit_addr, staged_content) = match workspace_guard.status().await? {
+            Status::InitStaged { staged_content, .. } => (None, staged_content),
+            Status::Staged {
+                commit,
+                staged_content,
+                ..
+            } => (Some(commit), staged_content),
+            Status::Detached(_) => return Err(Error::DetachedHead),
+            Status::Init { .. } | Status::Clean { .. } => {
+                return Err(Error::NoStageToCommit);
+            }
+        };
+        let mut commit_log = CommitLog::new(storage, commit_addr);
+        let commit_addr = commit_log.append(staged_content).await?;
+        workspace_guard.commit(commit_addr.clone()).await?;
+        Ok(commit_addr)
+    }
 }
 /*
 pub mod table;

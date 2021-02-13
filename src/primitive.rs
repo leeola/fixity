@@ -14,6 +14,7 @@ use crate::{
 pub use {
     crate::prolly,
     appendlog::AppendLog,
+    bytes::{Create as BytesCreate, Read as BytesRead},
     // bytelog::ByteLog,
     chain::Chain,
     commitlog::{Commit, CommitLog},

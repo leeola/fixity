@@ -111,8 +111,8 @@ impl fmt::Debug for Addr {
 }
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: encode the first X bytes, once this becomes a fixed [u8; 32].
-        write!(f, "{}", self.clone().short())
+        // TODO: encode before printing, once this becomes a fixed [u8; 32].
+        write!(f, "{}", self.clone().long())
     }
 }
 

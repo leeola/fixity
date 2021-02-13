@@ -65,3 +65,11 @@ impl Error {
         matches!(self, Self::NotFound { .. })
     }
 }
+/// A helper trait to allow a single `T` to return references to both a `Workspace` and
+/// a `Storage`.
+///
+/// See [`Commit`](crate::Commit) for example usage.
+pub trait StorageRef {
+    type Storage: Storage;
+    fn storage_ref(&self) -> &Self::Storage;
+}

@@ -1,6 +1,7 @@
 use {
     crate::{
         error::TypeError,
+        misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
         path::{Path, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prolly::refimpl},
         storage::{StorageRead, StorageWrite},
@@ -8,7 +9,11 @@ use {
         workspace::{Guard, Status, Workspace},
         Addr, Error,
     },
-    std::{collections::HashMap, fmt, mem},
+    std::{
+        collections::HashMap,
+        fmt, mem,
+        ops::{Bound, RangeBounds},
+    },
 };
 pub struct Map<'f, S, W> {
     storage: &'f S,
@@ -69,8 +74,49 @@ impl<'f, S, W> Map<'f, S, W> {
         K: Into<Key>,
         V: Into<Value>,
     {
+        // TODO: move multi-stepped-insertion behavior to its own struct, such that
+        // `Map` becomes an always-clean interface.
         self.cache
             .insert(key.into(), refimpl::Change::Insert(value.into()));
+    }
+    pub async fn iter<R>(
+        &self,
+        range: R,
+    ) -> Result<Box<dyn Iterator<Item = Result<(Key, Value), Error>>>, Error>
+    where
+        W: Workspace,
+        S: StorageRead + StorageWrite,
+        R: RangeBoundsExt<Key>,
+    {
+        let content_addr = self
+            .workspace
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
+        } else {
+            return Ok(Box::new(Vec::new().into_iter()));
+        };
+        let OwnedRangeBounds { start, end } = range.into_bounds();
+        let iter = reader
+            .to_vec()
+            .await?
+            .into_iter()
+            .filter(move |(k, _)| match &start {
+                Bound::Included(start) => k >= start,
+                Bound::Excluded(start) => k > start,
+                Bound::Unbounded => true,
+            })
+            .take_while(move |(k, _)| match &end {
+                Bound::Included(end) => k >= end,
+                Bound::Excluded(end) => k > end,
+                Bound::Unbounded => true,
+            })
+            .map(Ok);
+        Ok(Box::new(iter))
     }
 }
 impl<'f, S, W> Map<'f, S, W>
@@ -114,11 +160,7 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
-        let content_addr = if let Some(content_addr) = content_addr {
-            self.path.resolve_last(self.storage, content_addr).await?
-        } else {
-            None
-        };
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
         let reader = if let Some(content_addr) = content_addr {
             refimpl::Read::new(self.storage, content_addr)
         } else {
@@ -151,19 +193,13 @@ where
         // NIT: This drops the data on a failure - something we may want to tweak in the future.
         let kvs = mem::replace(&mut self.cache, HashMap::new()).into_iter();
         let workspace_guard = self.workspace.lock().await?;
-        let staged_addr = workspace_guard
+        let root_content_addr = workspace_guard
             .status()
             .await?
             .content_addr(self.storage)
             .await?;
-        let (resolved_path, old_self_addr) = match staged_addr {
-            Some(staged_content) => {
-                let resolved_path = self.path.resolve(self.storage, staged_content).await?;
-                let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
-                (resolved_path, old_self_addr)
-            }
-            None => (vec![None; self.path.len()], None),
-        };
+        let resolved_path = self.path.resolve(self.storage, root_content_addr).await?;
+        let old_self_addr = resolved_path.last().cloned().unwrap_or(None);
         let new_self_addr = if let Some(self_addr) = old_self_addr {
             let kvs = kvs.collect::<Vec<_>>();
             refimpl::Update::new(self.storage, self_addr)
@@ -176,7 +212,9 @@ where
                     refimpl::Change::Remove => None,
                 })
                 .collect::<Vec<_>>();
-            refimpl::Create::new(self.storage).with_vec(kvs).await?
+            refimpl::Create::new(self.storage)
+                .with_vec(dbg!(kvs))
+                .await?
         };
         let new_staged_content = self
             .path
@@ -344,5 +382,20 @@ pub mod test {
         assert!(matches!(bar_value, Value::Addr(_)));
         let m_2 = m_2.map("bar");
         assert_eq!(m_2.get("bang").await.unwrap(), Some("boom".into()));
+    }
+    #[tokio::test]
+    async fn multi_value() {
+        let f = Fixity::memory();
+        let mut m = f.map(Path::new());
+        m.insert("foo", "fooval");
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        m.stage().await.unwrap();
+        m.insert("bar", "barval");
+        m.stage().await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
+        m.commit().await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
+        assert_eq!(m.get("bar").await.unwrap(), Some("barval".into()));
     }
 }

@@ -9,7 +9,7 @@ pub trait Init {
     async fn open(&self, workspace: String) -> Result<Self::Workspace, Error>;
 }
 #[async_trait::async_trait]
-pub trait Workspace {
+pub trait Workspace: Send + Sync {
     type Guard<'a>: Guard;
     async fn lock(&self) -> Result<Self::Guard<'_>, Error>;
     // async fn log(&self) -> Result<Log, Error>;
@@ -17,7 +17,7 @@ pub trait Workspace {
     async fn status(&self) -> Result<Status, Error>;
 }
 #[async_trait::async_trait]
-pub trait Guard {
+pub trait Guard: Send + Sync {
     async fn status(&self) -> Result<Status, Error>;
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error>;
     async fn commit(&self, commit_addr: Addr) -> Result<(), Error>;
@@ -221,4 +221,12 @@ pub mod test {
             }
         }
     }
+}
+/// A helper trait to allow a single `T` to return references to both a `Workspace` and
+/// a `Storage`.
+///
+/// See [`Commit`](crate::Commit) for example usage.
+pub trait WorkspaceRef {
+    type Workspace: Workspace;
+    fn workspace_ref(&self) -> &Self::Workspace;
 }
