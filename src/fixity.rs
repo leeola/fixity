@@ -1,10 +1,9 @@
 use {
     crate::{
-        path::MapSegment,
         primitive::CommitLog,
         storage::{self, fs::Config as FsConfig, Fs, StorageRef},
         workspace::{self, Guard, Status, Workspace, WorkspaceRef},
-        Addr, Bytes, Error, Key, Map, Path, Storage,
+        Addr, Bytes, Error, Map, Path, Storage,
     },
     multibase::Base,
     std::path::PathBuf,

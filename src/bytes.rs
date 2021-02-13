@@ -1,21 +1,17 @@
 use {
     crate::{
-        error::TypeError,
-        path::{Path, SegmentResolve, SegmentUpdate},
-        primitive::{commitlog::CommitLog, prolly::refimpl, BytesCreate, BytesRead},
+        path::Path,
+        primitive::{BytesCreate, BytesRead},
         storage::{StorageRead, StorageRef, StorageWrite},
-        value::{Key, Value},
-        workspace::{Guard, Status, Workspace, WorkspaceRef},
+        workspace::{Guard, Workspace, WorkspaceRef},
         Addr, Error,
     },
-    std::{fmt, mem},
-    tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite},
+    tokio::io::{AsyncRead, AsyncWrite},
 };
 pub struct Bytes<'f, S, W> {
     storage: &'f S,
     workspace: &'f W,
     path: Path,
-    staged_content: Option<Addr>,
 }
 impl<'f, S, W> Bytes<'f, S, W> {
     pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
@@ -23,10 +19,9 @@ impl<'f, S, W> Bytes<'f, S, W> {
             storage,
             workspace,
             path,
-            staged_content: None,
         }
     }
-    pub async fn read<Writer>(&self, mut w: Writer) -> Result<Option<u64>, Error>
+    pub async fn read<Writer>(&self, w: Writer) -> Result<Option<u64>, Error>
     where
         S: StorageRead,
         W: Workspace,
@@ -50,7 +45,7 @@ impl<'f, S, W> Bytes<'f, S, W> {
         let n = reader.read(w).await?;
         Ok(Some(n))
     }
-    pub async fn stage<R>(&self, mut r: R) -> Result<Addr, Error>
+    pub async fn stage<R>(&self, r: R) -> Result<Addr, Error>
     where
         S: StorageRead + StorageWrite,
         W: Workspace,

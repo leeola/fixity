@@ -2,7 +2,7 @@ pub use crate::map::PathSegment as MapSegment;
 use {
     crate::{
         storage::{StorageRead, StorageWrite},
-        Addr, Error, Key,
+        Addr, Error,
     },
     std::fmt,
 };
@@ -113,7 +113,7 @@ impl Path {
             None => return Ok(None),
         };
         for seg in self.segments.iter() {
-            match seg.resolve(storage, dbg!(addr)).await? {
+            match seg.resolve(storage, addr).await? {
                 Some(resolved_addr) => {
                     addr = resolved_addr;
                 }

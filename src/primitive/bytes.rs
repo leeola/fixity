@@ -1,14 +1,13 @@
 use {
     crate::{
         error::{InternalError, TypeError},
-        primitive::{prollylist::refimpl, Build, Flush, GetAddr, InsertAddr},
+        primitive::prollylist::refimpl,
         storage::{StorageRead, StorageWrite},
-        value::{Key, Value},
+        value::Value,
         Addr, Error,
     },
     fastcdc::{Chunk, FastCDC},
-    std::{collections::HashMap, mem},
-    tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite},
+    tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite},
 };
 const CDC_MIN: usize = 1024 * 16;
 const CDC_AVG: usize = 1024 * 32;

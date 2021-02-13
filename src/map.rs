@@ -9,11 +9,7 @@ use {
         workspace::{Guard, Status, Workspace},
         Addr, Error,
     },
-    std::{
-        collections::HashMap,
-        fmt, mem,
-        ops::{Bound, RangeBounds},
-    },
+    std::{collections::HashMap, fmt, mem, ops::Bound},
 };
 pub struct Map<'f, S, W> {
     storage: &'f S,
@@ -198,17 +194,14 @@ where
             .await?
             .content_addr(self.storage)
             .await?;
-        dbg!(&root_content_addr);
         let resolved_path = self
             .path
             .resolve(self.storage, root_content_addr.clone())
             .await?;
-        dbg!(&resolved_path);
         let old_self_addr = resolved_path
             .last()
             .cloned()
             .expect("resolved Path has zero len");
-        dbg!(&old_self_addr);
         let new_self_addr = if let Some(self_addr) = old_self_addr {
             let kvs = kvs.collect::<Vec<_>>();
             refimpl::Update::new(self.storage, self_addr)
@@ -293,9 +286,7 @@ where
     S: StorageRead,
 {
     async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
-        dbg!(&self_addr, &self.key);
         let reader = refimpl::Read::new(storage, self_addr);
-        dbg!(reader.to_vec().await.unwrap());
         let value = match reader.get(&self.key).await? {
             Some(v) => v,
             None => return Ok(None),
@@ -324,7 +315,6 @@ where
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error> {
-        dbg!(&self_addr, &child_addr);
         if let Some(self_addr) = self_addr {
             let kvs = vec![(
                 self.key.clone(),
