@@ -130,7 +130,7 @@ enum MapSubcmd {
          )]
         value: Value,
     },
-    List {
+    Ls {
         #[structopt(short = "s", long = "start", parse(try_from_str = Key::from_cli_str))]
         start: Option<Key>,
         #[structopt(short = "e", long = "end", parse(try_from_str = Key::from_cli_str))]
@@ -145,7 +145,7 @@ where
     match subcmd {
         MapSubcmd::Get { key } => cmd_map_get(fixi, path, key).await,
         MapSubcmd::Put { commit, key, value } => cmd_map_put(fixi, path, commit, key, value).await,
-        MapSubcmd::List { start, end } => cmd_map_list(fixi, path, start, end).await,
+        MapSubcmd::Ls { start, end } => cmd_map_ls(fixi, path, start, end).await,
     }
 }
 async fn cmd_map_get<S, W>(fixi: Fixity<S, W>, path: Path, key: Key) -> Result<(), Error>
@@ -178,7 +178,7 @@ where
     }
     Ok(())
 }
-async fn cmd_map_list<S, W>(
+async fn cmd_map_ls<S, W>(
     fixi: Fixity<S, W>,
     path: Path,
     start: Option<Key>,
