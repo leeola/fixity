@@ -225,13 +225,8 @@ where
     S: Storage,
     W: Workspace,
 {
-    if path.len() == 0 {
-        return Err(Error::User(
-            "cannot get/put bytes to root of fixity repository".to_owned(),
-        ));
-    }
     let stdout = tokio::io::stdout();
-    let bytes = fixi.bytes(path);
+    let bytes = fixi.bytes(path)?;
     let _ = bytes.read(stdout).await?;
     Ok(())
 }
@@ -260,7 +255,7 @@ where
     //
     // [1]: https://docs.rs/tokio/1.2.0/tokio/io/struct.Stdin.html
     let stdin = tokio::io::stdin();
-    let bytes = fixi.bytes(path);
+    let bytes = fixi.bytes(path)?;
     let _ = bytes.stage(stdin).await?;
     if commit {
         let addr = bytes.commit().await?;

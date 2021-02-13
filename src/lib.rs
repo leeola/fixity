@@ -24,7 +24,7 @@ pub use self::{
     map::Map,
     path::Path,
     storage::{Storage, StorageRead, StorageWrite},
-    value::{Addr, Value},
+    value::{Addr, Key, Value},
 };
 
 /*

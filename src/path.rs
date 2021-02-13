@@ -2,7 +2,7 @@ pub use crate::map::PathSegment as MapSegment;
 use {
     crate::{
         storage::{StorageRead, StorageWrite},
-        Addr, Error,
+        Addr, Error, Key,
     },
     std::fmt,
 };
@@ -15,6 +15,9 @@ impl Path {
         Self {
             segments: Vec::new(),
         }
+    }
+    pub fn is_root_map(&self) -> bool {
+        self.segments.get(0).map_or(false, Segment::is_map)
     }
     pub fn from_segments(segments: Vec<Segment>) -> Self {
         Self { segments }
@@ -192,12 +195,23 @@ impl Segment {
         let Segment::Map(s) = self;
         Some(s)
     }
+    /// Returns `true` if this `Segment` is of the `Segment::Map` variant.
+    pub fn is_map(&self) -> bool {
+        // A bit silly, but lint complains with if or match
+        let Segment::Map(_) = self;
+        true
+    }
 }
 impl fmt::Display for Segment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Map(seg) => seg.fmt(f),
         }
+    }
+}
+impl From<MapSegment> for Segment {
+    fn from(seg: MapSegment) -> Self {
+        Segment::Map(seg)
     }
 }
 #[async_trait::async_trait]

@@ -26,6 +26,10 @@ pub enum Error {
     /// An action is unsupported when the HEAD is detached.
     #[error("an action is unsupported when the HEAD is detached")]
     DetachedHead,
+    /// Writing a non-[`Map`](crate::Map) to the root of the Fixity repository is
+    /// not allowed in most cases, as it would dangle the majority of pointers.
+    #[error("cannot replace root data structure with non-map")]
+    CannotReplaceRootMap,
     /// An addr exists but data was not found in storage.
     #[error("an address if dangling: `{message}`")]
     DanglingAddr {

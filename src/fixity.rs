@@ -1,9 +1,10 @@
 use {
     crate::{
+        path::MapSegment,
         primitive::CommitLog,
         storage::{self, fs::Config as FsConfig, Fs, StorageRef},
         workspace::{self, Guard, Status, Workspace, WorkspaceRef},
-        Addr, Bytes, Error, Map, Path, Storage,
+        Addr, Bytes, Error, Key, Map, Path, Storage,
     },
     multibase::Base,
     std::path::PathBuf,
@@ -49,8 +50,14 @@ where
     pub fn map(&self, path: Path) -> Map<'_, S, W> {
         Map::new(&self.storage, &self.workspace, path)
     }
-    pub fn bytes(&self, path: Path) -> Bytes<'_, S, W> {
-        Bytes::new(&self.storage, &self.workspace, path)
+    pub fn bytes(&self, path: Path) -> Result<Bytes<'_, S, W>, Error> {
+        if path.is_empty() {
+            return Err(Error::CannotReplaceRootMap);
+        }
+        if !path.is_root_map() {
+            return Err(Error::CannotReplaceRootMap);
+        }
+        Ok(Bytes::new(&self.storage, &self.workspace, path))
     }
     pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
     where
