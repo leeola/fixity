@@ -76,7 +76,7 @@ fn parse_string(input: &str) -> IResult<&str, String> {
 fn parse_addr(input: &str) -> IResult<&str, Addr> {
     // all addrs are alphanum currently, so we may as well
     // enforce it.
-    map(all_consuming(digit1), Addr::from)(input)
+    map_res(all_consuming(digit1), |s| Addr::decode(s).ok_or(()))(input)
 }
 fn parse_untyped_scalar(input: &str) -> IResult<&str, Scalar> {
     alt((

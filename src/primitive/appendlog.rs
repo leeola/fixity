@@ -40,7 +40,7 @@ where
             };
             Deser::default().to_vec(&node)?
         };
-        let addr = Addr::from_unhashed_bytes(&buf);
+        let addr = Addr::hash(&buf);
         self.storage.write(addr.clone(), &*buf).await?;
         let _ = self.addr.replace(addr.clone());
         Ok(addr)

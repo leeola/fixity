@@ -1,5 +1,6 @@
 use {
     super::{Error, StorageRead, StorageWrite},
+    crate::Addr,
     std::{
         collections::HashMap,
         sync::{Arc, Mutex},
@@ -7,7 +8,7 @@ use {
     tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
 };
 #[derive(Debug, Default, Clone)]
-pub struct Memory(Arc<Mutex<HashMap<String, Vec<u8>>>>);
+pub struct Memory(Arc<Mutex<HashMap<Addr, Vec<u8>>>>);
 impl Memory {
     pub fn new() -> Self {
         Self::default()
@@ -24,21 +25,19 @@ impl std::cmp::PartialEq<Self> for Memory {
 }
 #[async_trait::async_trait]
 impl StorageRead for Memory {
-    async fn read<S, W>(&self, hash: S, mut w: W) -> Result<u64, Error>
+    async fn read<A, W>(&self, addr: A, mut w: W) -> Result<u64, Error>
     where
-        S: AsRef<str> + 'static + Send,
+        A: AsRef<Addr> + 'static + Send,
         W: AsyncWrite + Unpin + Send,
     {
-        let hash = hash.as_ref();
+        let addr = addr.as_ref().clone();
         let r = {
             let store = self.0.lock().map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire storage lock: {0}", err),
             })?;
             store
-                .get(hash)
-                .ok_or_else(|| Error::NotFound {
-                    hash: hash.to_owned(),
-                })?
+                .get(&addr)
+                .ok_or_else(|| Error::NotFound { addr: addr.long() })?
                 // cloning for simplicity, since this is a test focused storage impl.
                 .clone()
         };
@@ -48,15 +47,16 @@ impl StorageRead for Memory {
 }
 #[async_trait::async_trait]
 impl StorageWrite for Memory {
-    async fn write<S, R>(&self, hash: S, mut r: R) -> Result<u64, Error>
+    async fn write<A, R>(&self, addr: A, mut r: R) -> Result<u64, Error>
     where
-        S: AsRef<str> + 'static + Send,
+        A: AsRef<Addr> + 'static + Send,
         R: AsyncRead + Unpin + Send,
     {
-        let hash = hash.as_ref();
+        let addr_ref = addr.as_ref();
+        let addr = addr_ref.clone();
         let mut b = Vec::new();
         r.read_to_end(&mut b).await.map_err(|err| Error::IoHash {
-            hash: hash.to_owned(),
+            hash: addr_ref.clone().long(),
             err,
         })?;
         let len = b.len();
@@ -65,7 +65,7 @@ impl StorageWrite for Memory {
             .map_err(|err| Error::Unhandled {
                 message: format!("unable to acquire store lock: {0}", err),
             })?
-            .insert(hash.to_owned(), b);
+            .insert(addr, b);
         Ok(len as u64)
     }
 }
@@ -75,9 +75,9 @@ pub mod test {
     #[tokio::test]
     async fn io() {
         let mem = Memory::default();
-        let key = "foo";
+        let key = Addr::hash("foo".as_bytes());
         let io_in = "bar".to_owned();
-        mem.write_string(key, io_in.clone()).await.unwrap();
+        mem.write_string(key.clone(), io_in.clone()).await.unwrap();
         let io_out = mem.read_string(key).await.unwrap();
         assert_eq!(io_out, io_in);
     }

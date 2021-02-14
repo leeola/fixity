@@ -92,7 +92,7 @@ where
     }
     async fn write_node(&self, node: NodeOwned) -> Result<Addr, Error> {
         let node_bytes = Deser::default().to_vec(&node)?;
-        let node_addr = Addr::from_unhashed_bytes(&node_bytes);
+        let node_addr = Addr::hash(&node_bytes);
         self.storage.write(node_addr.clone(), &*node_bytes).await?;
         Ok(node_addr)
     }

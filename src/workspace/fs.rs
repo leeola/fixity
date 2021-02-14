@@ -82,8 +82,7 @@ async fn fetch_branch_addr<P: AsRef<Path>>(branch_path: P) -> Result<Option<Addr
         .map_err(|err| Error::Internal(format!("open BRANCH `{:?}`, `{}`", branch_path, err)))?;
     branch_contents
         .map(|addr| {
-            Addr::from_encoded(addr.into_bytes())
-                .ok_or_else(|| Error::Internal("HEAD branch invalid Addr".to_owned()))
+            Addr::decode(addr).ok_or_else(|| Error::Internal("HEAD branch invalid Addr".to_owned()))
         })
         .transpose()
 }
@@ -331,7 +330,7 @@ impl FromStr for HeadState {
                     .next()
                     .ok_or_else(|| Error::Internal("detached value missing".to_owned()))?;
                 Self::Detached {
-                    addr: Addr::from_encoded(addr.to_owned().into_bytes())
+                    addr: Addr::decode(addr)
                         .ok_or_else(|| Error::Internal("detached HEAD invalid Addr".to_owned()))?,
                 }
             }
@@ -356,7 +355,7 @@ impl FromStr for HeadState {
                         let addr = staged_line.next().ok_or_else(|| {
                             Error::Internal("staged_content value missing".to_owned())
                         })?;
-                        Addr::from_encoded(addr.to_owned().into_bytes()).ok_or_else(|| {
+                        Addr::decode(addr).ok_or_else(|| {
                             Error::Internal("HEAD staged_content invalid Addr".to_owned())
                         })
                     })

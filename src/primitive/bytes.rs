@@ -74,7 +74,7 @@ impl<'s, S> Create<'s, S> {
             let chunker = FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
             for Chunk { offset, length } in chunker {
                 let chunk = &b[offset..offset + length];
-                let addr = Addr::from_unhashed_bytes(chunk);
+                let addr = Addr::hash(chunk);
                 self.storage.write(addr.clone(), chunk).await?;
                 addrs.push(Value::Addr(addr));
             }

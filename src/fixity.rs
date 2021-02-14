@@ -5,11 +5,10 @@ use {
         workspace::{self, Guard, Status, Workspace, WorkspaceRef},
         Addr, Bytes, Error, Map, Path, Storage,
     },
-    multibase::Base,
     std::path::PathBuf,
     tokio::{
         fs::{self},
-        io::{self, AsyncRead},
+        io,
     },
 };
 const FIXI_DIR_NAME: &str = ".fixi";
@@ -57,19 +56,6 @@ where
             return Err(Error::CannotReplaceRootMap);
         }
         Ok(Bytes::new(&self.storage, &self.workspace, path))
-    }
-    pub async fn put_reader<R>(&self, mut r: R) -> Result<String, Error>
-    where
-        R: AsyncRead + Unpin + Send,
-    {
-        log::warn!("putting without chunking");
-        let mut bytes = Vec::new();
-        io::copy(&mut r, &mut bytes).await?;
-        let hash = <[u8; 32]>::from(blake3::hash(&bytes));
-        let addr = multibase::encode(Base::Base58Btc, &hash);
-        let n = self.storage.write(addr.clone(), r).await?;
-        log::trace!("{} bytes written to {}", n, addr);
-        Ok(addr)
     }
 }
 pub struct Builder<S, W> {

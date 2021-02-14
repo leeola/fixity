@@ -3,10 +3,13 @@ pub mod from_cli_str;
 use {
     crate::Error,
     multibase::Base,
-    std::{convert::TryFrom, fmt},
+    std::{
+        convert::{TryFrom, TryInto},
+        fmt,
+    },
 };
 
-const ADDR_SHORT_LEN: usize = 8;
+const PRIMARY_ENCODING: Base = Base::Base58Btc;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -14,108 +17,87 @@ const ADDR_SHORT_LEN: usize = 8;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-pub struct Addr(String);
+pub struct Addr([u8; 32]);
 impl Addr {
     /// The length in bytes of an [`Addr`].
     pub const LEN: usize = 32;
     /// Hash the provided bytes and create an `Addr` of the bytes.
-    pub fn from_unhashed_bytes(bytes: &[u8]) -> Self {
-        let h = <[u8; 32]>::from(blake3::hash(bytes));
-        Self(multibase::encode(Base::Base58Btc, &h))
+    pub fn hash<B: AsRef<[u8]>>(bytes: B) -> Self {
+        let h: [u8; 32] = <[u8; 32]>::from(blake3::hash(bytes.as_ref()));
+        Self(h)
     }
-    /// Create an `Addr` from a `Base::Base58Btc` encoded byte vec.
+    /// Create an `Addr` from a string of encoded bytes.
+    ///
+    /// If the decoded bytes length does not match `Addr::LEN`, `None` is returned.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use fixity::Addr;
-    /// let addr1 = Addr::from_unhashed_bytes("foo".as_bytes());
-    /// let addr2 = Addr::from_encoded(addr1.clone().long().into_bytes());
+    /// let addr1 = Addr::hash("foo");
+    /// let addr2 = Addr::decode(addr1.long());
     /// assert_eq!(Some(addr1), addr2);
     /// ```
-    pub fn from_encoded(bytes: Vec<u8>) -> Option<Self> {
-        let s = String::from_utf8(bytes).ok()?;
-        Some(Self(s))
-    }
-    /// Return a partial address which is *usually* unique enough to reference
-    /// a content address.
     ///
-    /// Useful for a decent UX.
-    pub fn short(mut self) -> String {
-        let _ = self.0.split_off(ADDR_SHORT_LEN);
-        self.0
+    /// Corrupt encodings return None.
+    ///
+    /// ```rust
+    /// # use fixity::Addr;
+    /// let addr = Addr::decode("foo");
+    /// assert_eq!(addr, None);
+    /// ```
+    ///
+    /// Valid encodings but invalid byte lengths return None.
+    ///
+    /// ```rust
+    /// # use fixity::Addr;
+    /// let encoded = multibase::encode(multibase::Base::Base58Btc, &[1,2,3,4]);
+    /// let addr = Addr::decode(encoded);
+    /// assert_eq!(addr, None);
+    /// ```
+    ///
+    pub fn decode<S: AsRef<str>>(s: S) -> Option<Self> {
+        let (_, bytes) = multibase::decode(s).ok()?;
+        let arr: [u8; 32] = bytes.try_into().ok()?;
+        Some(Self(arr))
     }
     /// Return a `Base58Btc` encoded `Addr`, in full.
-    pub fn long(self) -> String {
-        self.0
-    }
-    /// Convert the underlying String into a str.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn long(&self) -> String {
+        multibase::encode(PRIMARY_ENCODING, &self.0)
     }
     /// Convert the underlying String into a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        &self.0[..]
+    }
+}
+impl AsRef<Addr> for Addr {
+    fn as_ref(&self) -> &Self {
+        self
     }
 }
 impl TryFrom<Vec<u8>> for Addr {
-    type Error = Addr;
+    type Error = Vec<u8>;
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        // This will be better in the nearish future, when Addr is converted from
-        // an Addr(String) and into an Addr([u8; 32]).
-        //
-        // For now though, we have to hash it to ensure safe utf8 encoding.
-        if bytes.len() != Self::LEN {
-            return Err(Self::from_unhashed_bytes(&bytes));
-        }
-        Ok(Self::from_unhashed_bytes(&bytes))
-    }
-}
-impl std::borrow::Borrow<str> for Addr {
-    fn borrow(&self) -> &str {
-        self.0.as_str()
-    }
-}
-impl std::borrow::Borrow<String> for Addr {
-    fn borrow(&self) -> &String {
-        &self.0
-    }
-}
-impl AsRef<str> for Addr {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-impl From<String> for Addr {
-    fn from(hash: String) -> Self {
-        Self(hash)
-    }
-}
-impl From<&str> for Addr {
-    fn from(hash: &str) -> Self {
-        hash.to_owned().into()
-    }
-}
-impl From<&Vec<u8>> for Addr {
-    fn from(bytes: &Vec<u8>) -> Self {
-        log::warn!("Deprecated From<Bytes> usage");
-        Self::from_unhashed_bytes(bytes)
+        let arr: [u8; 32] = bytes.try_into()?;
+        Ok(Self(arr))
     }
 }
 impl fmt::Debug for Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Addr(")?;
-        f.write_str(self.0.as_str())?;
+        // TODO: is there a way we can encode this without allocating? Perhaps into
+        // a different encoding?
+        f.write_str(self.long().as_str())?;
         f.write_str(")")
     }
 }
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: encode before printing, once this becomes a fixed [u8; 32].
-        write!(f, "{}", self.clone().long())
+        // TODO: is there a way we can encode this without allocating? Perhaps into
+        // a different encoding?
+        write!(f, "{}", self.long())
     }
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
@@ -214,7 +196,9 @@ impl Value {
         match self {
             Self::Addr(v) => {
                 f.write_str("Addr(")?;
-                f.write_str(v.as_str())?;
+                // TODO: is there a way we can encode this without allocating? Perhaps into
+                // a different encoding?
+                f.write_str(v.long().as_str())?;
             }
             Self::Uint32(v) => {
                 f.write_str("Uint32(")?;
