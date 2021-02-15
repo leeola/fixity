@@ -266,6 +266,11 @@ where
 pub struct PathSegment {
     pub key: Key,
 }
+impl PathSegment {
+    pub fn new<T: Into<Key>>(t: T) -> Self {
+        Self { key: t.into() }
+    }
+}
 impl fmt::Debug for PathSegment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Map(")?;
@@ -443,7 +448,6 @@ pub mod test {
         assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
         let mut m_2 = m.map("nested");
         m_2.insert("baz", "bazval");
-        println!("----------------------------------------------------------------- staging baz");
         m_2.stage().await.unwrap();
         assert_eq!(
             m.map("nested").get("baz").await.unwrap(),

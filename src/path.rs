@@ -145,6 +145,14 @@ impl Path {
         Ok(new_addr_cursor)
     }
 }
+impl<T> From<Vec<T>> for Path
+where
+    T: Into<Segment>,
+{
+    fn from(t: Vec<T>) -> Self {
+        Self::from_segments(t.into_iter().map(|t| t.into()).collect())
+    }
+}
 impl<T> From<&[T]> for Path
 where
     T: Clone + Into<Segment>,
