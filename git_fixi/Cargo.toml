@@ -1,0 +1,21 @@
+[package]
+name = "git_fixi"
+version = "0.1.0"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "git-fixi"
+path = "src/bin/git_fixi.rs"
+
+[lib]
+name = "git_fixi"
+path = "src/lib.rs"
+
+[dependencies]
+fixity = { path = "..", features = ["structopt"] }
+tokio = { version = "0.2.22", features = ["rt-threaded", "macros", "io-std"] }
+structopt = "0.3"
+thiserror = "1.0.21"
+env_logger = "0.7"
+log = "0.4.11"

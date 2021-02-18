@@ -1,0 +1,22 @@
+[package]
+name = "fixi_cli"
+version = "0.1.0"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "fixi"
+path = "src/bin/fixi.rs"
+
+[features]
+default = []
+web = ["fixi_web", "fixi_web/structopt"]
+
+[dependencies]
+fixity = { path = "..", features = ["structopt"] }
+fixi_web = { optional = true, path = "../fixi_web" }
+structopt = "0.3"
+env_logger = "0.7"
+tokio = { version = "1.2.0", features = ["rt-multi-thread", "macros", "io-std"] }
+thiserror = "1.0.21"
+log = "0.4.11"
