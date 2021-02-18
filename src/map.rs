@@ -1,6 +1,6 @@
 use {
     crate::{
-        error::TypeError,
+        error::Type as TypeError,
         misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
         path::{Path, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prollytree::refimpl},

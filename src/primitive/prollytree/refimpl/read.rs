@@ -1,5 +1,5 @@
 use crate::{
-    primitive::prollytree::node::{Node, NodeOwned},
+    primitive::prollytree::{Node, NodeOwned},
     storage::StorageRead,
     value::{Addr, Key, Value},
     Error,

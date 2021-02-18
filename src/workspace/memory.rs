@@ -75,7 +75,7 @@ impl Workspace for Memory {
                     })?
                     .clone();
                 Status::Clean { branch, commit }
-            }
+            },
             HeadState::Staged {
                 branch,
                 staged_content,
@@ -92,12 +92,14 @@ impl Workspace for Memory {
                     commit,
                     staged_content,
                 }
-            }
+            },
             HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
         };
         Ok(status)
     }
 }
+// allowing name repetition since this is a Guard for the Fs type. Seems logical.
+#[allow(clippy::module_name_repetitions)]
 pub struct MemoryGuard<'a> {
     _guard: MutexGuard<'a, ()>,
     state: Arc<Mutex<InnerMemory>>,
@@ -112,7 +114,7 @@ impl<'a> Guard for MemoryGuard<'a> {
                     branch,
                     staged_content,
                 }
-            }
+            },
             HeadState::Clean { branch } | HeadState::Staged { branch, .. } => HeadState::Staged {
                 branch,
                 staged_content,
@@ -134,10 +136,10 @@ impl<'a> Guard for MemoryGuard<'a> {
             HeadState::InitStaged { branch, .. } | HeadState::Staged { branch, .. } => {
                 inner.branches.insert(branch.clone(), commit_addr);
                 HeadState::Clean { branch }
-            }
+            },
             HeadState::Init { .. } | HeadState::Clean { .. } => {
                 return Err(Error::CommitEmptyStage);
-            }
+            },
             // HeadState::Detached(_) => return Err(Error::DetatchedHead),
             HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
         };
@@ -164,7 +166,7 @@ impl<'a> Guard for MemoryGuard<'a> {
                     })?
                     .clone();
                 Status::Clean { branch, commit }
-            }
+            },
             HeadState::Staged {
                 branch,
                 staged_content,
@@ -181,7 +183,7 @@ impl<'a> Guard for MemoryGuard<'a> {
                     commit,
                     staged_content,
                 }
-            }
+            },
             HeadState::Aborted => return Err(Error::Internal("HeadState::Aborted".into())),
         };
         Ok(status)

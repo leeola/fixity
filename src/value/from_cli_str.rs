@@ -22,7 +22,7 @@ impl Value {
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
     pub fn from_cli_str(s: &str) -> Result<Self, Error> {
-        let (_, scalar) = parse_scalar(s).map_err(|err| Error::InvalidValue(format!("{}", err)))?;
+        let (_, scalar) = parse_scalar(s).map_err(|err| Error::Value(format!("{}", err)))?;
         Ok(scalar.into())
     }
 }
@@ -33,7 +33,7 @@ impl Key {
     /// This differs from a `FromStr` implementation in that there may be multiple
     /// interfaces tailored towards different user interfaces.
     pub fn from_cli_str(s: &str) -> Result<Self, Error> {
-        let (_, scalar) = parse_scalar(s).map_err(|err| Error::InvalidKey(format!("{}", err)))?;
+        let (_, scalar) = parse_scalar(s).map_err(|err| Error::Key(format!("{}", err)))?;
         Ok(scalar.into())
     }
 }
@@ -52,18 +52,18 @@ impl Path {
         if s.is_empty() {
             return Ok(Path::new());
         }
-        let (_, path) = parse_path(s).map_err(|err| Error::InvalidPath(format!("{}", err)))?;
+        let (_, path) = parse_path(s).map_err(|err| Error::Path(format!("{}", err)))?;
         Ok(path)
     }
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unable to create Key from cli: `{0}`")]
-    InvalidKey(String),
+    Key(String),
     #[error("unable to create Value from cli: `{0}`")]
-    InvalidValue(String),
+    Value(String),
     #[error("unable to create Path from cli: `{0}`")]
-    InvalidPath(String),
+    Path(String),
 }
 fn parse_uint32(input: &str) -> IResult<&str, u32> {
     map_res(all_consuming(digit1), |s| u32::from_str_radix(s, 10))(input)

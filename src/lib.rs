@@ -11,7 +11,7 @@
     future_incompatible,
     clippy::complexity,
     clippy::perf,
-    // clippy::pedantic
+    clippy::pedantic
     // clippy::nursery
     // clippy::cargo,
 )]

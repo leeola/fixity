@@ -1,8 +1,8 @@
 use {
     crate::{
         primitive::CommitLog,
-        storage::{self, fs::Config as FsConfig, Fs, StorageRef},
-        workspace::{self, Guard, Status, Workspace, WorkspaceRef},
+        storage::{self, fs::Config as FsConfig, AsStorageRef, Fs},
+        workspace::{self, AsWorkspaceRef, Guard, Status, Workspace},
         Addr, Bytes, Error, Map, Path, Storage,
     },
     std::path::PathBuf,
@@ -177,21 +177,21 @@ pub enum InitError {
         source: storage::Error,
     },
 }
-impl<S, W> WorkspaceRef for Fixity<S, W>
+impl<S, W> AsWorkspaceRef for Fixity<S, W>
 where
     W: Workspace,
 {
     type Workspace = W;
-    fn workspace_ref(&self) -> &Self::Workspace {
+    fn as_workspace_ref(&self) -> &Self::Workspace {
         &self.workspace
     }
 }
-impl<S, W> StorageRef for Fixity<S, W>
+impl<S, W> AsStorageRef for Fixity<S, W>
 where
     S: Storage,
 {
     type Storage = S;
-    fn storage_ref(&self) -> &Self::Storage {
+    fn as_storage_ref(&self) -> &Self::Storage {
         &self.storage
     }
 }
@@ -209,11 +209,11 @@ pub trait Commit {
 #[async_trait::async_trait]
 impl<T> Commit for T
 where
-    T: WorkspaceRef + StorageRef + Sync,
+    T: AsWorkspaceRef + AsStorageRef + Sync,
 {
     async fn commit(&self) -> Result<Addr, Error> {
-        let storage = self.storage_ref();
-        let workspace = self.workspace_ref();
+        let storage = self.as_storage_ref();
+        let workspace = self.as_workspace_ref();
         let workspace_guard = workspace.lock().await?;
         let (commit_addr, staged_content) = match workspace_guard.status().await? {
             Status::InitStaged { staged_content, .. } => (None, staged_content),

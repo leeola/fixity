@@ -2,8 +2,8 @@ use {
     crate::{
         deser::{Deser, Error as DeserError},
         primitive::prollytree::{
-            node::{Node, NodeOwned},
             roller::{Config as RollerConfig, Roller},
+            Node, NodeOwned,
         },
         storage::StorageWrite,
         value::{Key, Value},

@@ -156,6 +156,8 @@ async fn status(workspaces_root_dir: &Path, workspace: &str) -> Result<Status, E
     };
     Ok(status)
 }
+// allowing name repetition since this is a Guard for the Fs type. Seems logical.
+#[allow(clippy::module_name_repetitions)]
 pub struct FsGuard<'a> {
     workspaces_root_dir: &'a Path,
     workspace: &'a str,

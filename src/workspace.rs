@@ -59,7 +59,7 @@ impl Status {
         match self {
             Self::Detached(commit) | Self::Clean { commit, .. } | Self::Staged { commit, .. } => {
                 Some(commit.clone())
-            }
+            },
             _ => None,
         }
     }
@@ -68,7 +68,7 @@ impl Status {
         match self {
             Self::InitStaged { staged_content, .. } | Self::Staged { staged_content, .. } => {
                 Some(staged_content.clone())
-            }
+            },
             _ => None,
         }
     }
@@ -82,7 +82,7 @@ impl Status {
             Status::Init { .. } => Ok(None),
             Status::InitStaged { staged_content, .. } | Status::Staged { staged_content, .. } => {
                 Ok(Some(staged_content.clone()))
-            }
+            },
             Status::Detached(_) => return Err(crate::Error::DetachedHead),
             Status::Clean { commit, .. } => {
                 let commit_log = CommitLog::new(storage, Some(commit.clone()));
@@ -95,7 +95,7 @@ impl Status {
                             addr: Some(commit.clone()),
                         })?;
                 Ok(Some(commit.content))
-            }
+            },
         }
     }
 }
@@ -186,14 +186,14 @@ pub mod test {
                         assert!(matches!(new_status, Status::InitStaged { .. }));
                         assert_eq!(new_status.staged_addr().unwrap(), addr);
                         prev_status = new_status
-                    }
+                    },
                     Status::Clean { .. } | Status::Staged { .. } => {
                         guard.stage(addr.clone()).await.unwrap();
                         let new_status = guard.status().await.unwrap();
                         assert!(matches!(new_status, Status::Staged { .. }));
                         assert_eq!(new_status.staged_addr().unwrap(), addr);
                         prev_status = new_status
-                    }
+                    },
                     Status::Detached(_) => unreachable!("action not implemented in tests yet"),
                 },
                 TestAction::Commit => match prev_status {
@@ -202,20 +202,20 @@ pub mod test {
                             guard.commit(addr).await,
                             Err(Error::CommitEmptyStage)
                         ));
-                    }
+                    },
                     Status::InitStaged { .. } | Status::Staged { .. } => {
                         guard.commit(addr.clone()).await.unwrap();
                         let new_status = guard.status().await.unwrap();
                         assert!(matches!(new_status, Status::Clean { .. }));
                         assert_eq!(new_status.commit_addr().unwrap(), addr);
                         prev_status = new_status
-                    }
+                    },
                     Status::Clean { .. } => {
                         assert!(matches!(
                             guard.commit(addr).await,
                             Err(Error::CommitEmptyStage)
                         ));
-                    }
+                    },
                     Status::Detached(_) => unreachable!("action not implemented in tests yet"),
                 },
             }
@@ -226,7 +226,7 @@ pub mod test {
 /// a `Storage`.
 ///
 /// See [`Commit`](crate::Commit) for example usage.
-pub trait WorkspaceRef {
+pub trait AsWorkspaceRef {
     type Workspace: Workspace;
-    fn workspace_ref(&self) -> &Self::Workspace;
+    fn as_workspace_ref(&self) -> &Self::Workspace;
 }

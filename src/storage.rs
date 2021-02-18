@@ -9,7 +9,8 @@ use {
 
 pub trait Storage: StorageRead + StorageWrite {}
 impl<T> Storage for T where T: StorageRead + StorageWrite {}
-
+// allowing name repetition to avoid clobbering a std Read or Write trait.
+#[allow(clippy::module_name_repetitions)]
 #[async_trait::async_trait]
 pub trait StorageRead: Sync {
     async fn read<A, W>(&self, addr: A, w: W) -> Result<u64, Error>
@@ -27,7 +28,8 @@ pub trait StorageRead: Sync {
         Ok(s)
     }
 }
-
+// allowing name repetition to avoid clobbering a std Read or Write trait.
+#[allow(clippy::module_name_repetitions)]
 #[async_trait::async_trait]
 pub trait StorageWrite: Sync {
     async fn write<A, R>(&self, addr: A, r: R) -> Result<u64, Error>
@@ -72,7 +74,7 @@ impl Error {
 /// a `Storage`.
 ///
 /// See [`Commit`](crate::Commit) for example usage.
-pub trait StorageRef {
+pub trait AsStorageRef {
     type Storage: Storage;
-    fn storage_ref(&self) -> &Self::Storage;
+    fn as_storage_ref(&self) -> &Self::Storage;
 }

@@ -1,6 +1,6 @@
 use {
     crate::{
-        error::{InternalError, TypeError},
+        error::{Internal as InternalError, Type as TypeError},
         primitive::prollylist::refimpl,
         storage::{StorageRead, StorageWrite},
         value::Value,

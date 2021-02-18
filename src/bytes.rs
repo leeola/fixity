@@ -2,8 +2,8 @@ use {
     crate::{
         path::Path,
         primitive::{BytesCreate, BytesRead},
-        storage::{StorageRead, StorageRef, StorageWrite},
-        workspace::{Guard, Workspace, WorkspaceRef},
+        storage::{AsStorageRef, StorageRead, StorageWrite},
+        workspace::{AsWorkspaceRef, Guard, Workspace},
         Addr, Error,
     },
     tokio::io::{AsyncRead, AsyncWrite},
@@ -67,21 +67,21 @@ impl<'f, S, W> Bytes<'f, S, W> {
         Ok(new_staged_content)
     }
 }
-impl<S, W> WorkspaceRef for Bytes<'_, S, W>
+impl<S, W> AsWorkspaceRef for Bytes<'_, S, W>
 where
     W: Workspace,
 {
     type Workspace = W;
-    fn workspace_ref(&self) -> &Self::Workspace {
+    fn as_workspace_ref(&self) -> &Self::Workspace {
         &self.workspace
     }
 }
-impl<S, W> StorageRef for Bytes<'_, S, W>
+impl<S, W> AsStorageRef for Bytes<'_, S, W>
 where
     S: StorageRead + StorageWrite,
 {
     type Storage = S;
-    fn storage_ref(&self) -> &Self::Storage {
+    fn as_storage_ref(&self) -> &Self::Storage {
         &self.storage
     }
 }

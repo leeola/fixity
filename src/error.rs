@@ -11,7 +11,7 @@ pub enum Error {
     #[error("fixity encountered an internal error: {source}")]
     Internal {
         #[from]
-        source: InternalError,
+        source: Internal,
     },
     /// A fixi repository was not found.
     #[error("fixity repository was not found")]
@@ -41,7 +41,7 @@ pub enum Error {
         addr: Option<Addr>,
     },
     #[error("data type error: {0}")]
-    Type(#[from] TypeError),
+    Type(#[from] Type),
     #[error("builder error: `{message}`")]
     Builder { message: String },
     #[error("prolly error: `{message}`")]
@@ -81,7 +81,7 @@ pub enum Error {
     Cjson(cjson::Error),
 }
 #[derive(Debug, thiserror::Error)]
-pub enum InternalError {
+pub enum Internal {
     #[error("fixity failed to initialize a new repository: {source}")]
     Init {
         #[from]
@@ -117,7 +117,7 @@ impl From<fixity::InitError> for Error {
     }
 }
 #[derive(Debug, thiserror::Error)]
-pub enum TypeError {
+pub enum Type {
     #[error("expected a Value of a specific type, got another")]
     UnexpectedValueVariant {
         /// The segment of the error within a [`crate::Path`], if available.
