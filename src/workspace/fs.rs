@@ -38,10 +38,20 @@ pub struct Fs {
     workspace: String,
 }
 impl Fs {
+    /// Initialize a new _workspaces_ directory.
+    ///
+    /// This does not create a workspace, but initializes the workspaces.
+    ///
+    /// See also: [`Init`].
+    ///
+    /// # Errors
+    ///
+    /// - `Error::InitAlreadyExists`
+    /// - `Error::Internal`
     pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
         fs::create_dir(&workspaces_root_dir)
             .await
-            .map_err(|source| Error::Internal(format!("create workspaces dir: {}", source)))?;
+            .map_err(|source| Error::InitAlreadyExists)?;
         let workspace_path = workspaces_root_dir.join(&workspace);
         fs::create_dir(&workspace_path)
             .await
@@ -61,17 +71,22 @@ impl Fs {
             workspace,
         })
     }
-    pub async fn open(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
+    /// Open the given `workspace_name` at the provided `workspaces_root_dir`
+    ///
+    /// # Errors
+    ///
+    /// - `Error::Internal` for various filesystem read failures.
+    pub async fn open(workspaces_root_dir: PathBuf, workspace_name: String) -> Result<Self, Error> {
         let _ = HeadState::open(
             workspaces_root_dir
-                .join(&workspace)
+                .join(&workspace_name)
                 .join(HEAD_FILE_NAME)
                 .as_path(),
         )
         .await?;
         Ok(Self {
             workspaces_root_dir,
-            workspace,
+            workspace: workspace_name,
         })
     }
 }

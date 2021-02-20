@@ -22,13 +22,18 @@ pub trait Guard: Send + Sync {
     async fn stage(&self, stage_addr: Addr) -> Result<(), Error>;
     async fn commit(&self, commit_addr: Addr) -> Result<(), Error>;
 }
+/// Workspace specific error variants.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("internal error: {0}")]
     Internal(String),
+    #[error("workspaces already exist at the target location")]
+    InitAlreadyExists,
+    #[error("workspace already exists")]
+    WorkspaceAlreadyExists,
     #[error("cannot commit empty STAGE")]
     CommitEmptyStage,
-    #[error("cannot commit or stage on a detatched HEAD")]
+    #[error("cannot commit or stage on a detached HEAD")]
     DetachedHead,
     #[error("workspace in use")]
     InUse,
@@ -55,6 +60,7 @@ pub enum Status {
 }
 impl Status {
     /// Return the underlying commit address, if available.
+    #[must_use]
     pub fn commit_addr(&self) -> Option<Addr> {
         match self {
             Self::Detached(commit) | Self::Clean { commit, .. } | Self::Staged { commit, .. } => {
@@ -64,6 +70,7 @@ impl Status {
         }
     }
     /// Return the underlying staged _content_ address, if available.
+    #[must_use]
     pub fn staged_addr(&self) -> Option<Addr> {
         match self {
             Self::InitStaged { staged_content, .. } | Self::Staged { staged_content, .. } => {
@@ -72,7 +79,12 @@ impl Status {
             _ => None,
         }
     }
-    /// Resolve the content address
+    /// Resolve the content address from this `Status`, in the provided storage.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::DanglingAddr` if the address `HEAD` points to does not exist.
+    /// - `Error::Internal` on various storage failures.
     // NIT: Not sure where best to put this helper. Not a fan of it on `Status`.
     pub async fn content_addr<S>(&self, storage: &S) -> Result<Option<Addr>, crate::Error>
     where
@@ -83,6 +95,8 @@ impl Status {
             Status::InitStaged { staged_content, .. } | Status::Staged { staged_content, .. } => {
                 Ok(Some(staged_content.clone()))
             },
+            // TODO: i think this should be a commit address, and thus perfectly fine
+            // to load. No error needed.
             Status::Detached(_) => return Err(crate::Error::DetachedHead),
             Status::Clean { commit, .. } => {
                 let commit_log = CommitLog::new(storage, Some(commit.clone()));

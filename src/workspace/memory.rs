@@ -32,6 +32,9 @@ struct InnerMemory {
     branches: HashMap<String, Addr>,
 }
 impl Memory {
+    // allowing because it'll eventually be used, and then this lint will pass.
+    #[allow(clippy::needless_pass_by_value)]
+    #[must_use]
     pub fn new(_workspace: String) -> Self {
         Self {
             guard: Mutex::new(()),

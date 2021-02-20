@@ -303,6 +303,10 @@ pub fn deserialize_with_addr<T>(_: T, _: &Addr) -> Result<Vec<u8>, Error> {
 /// where we change/tweak/configure deserialization.
 ///
 /// How we handle schema/deserialization compatibility is TBD.
+///
+/// # Errors
+///
+/// - [`Error::BorshAddr`]
 pub fn deserialize_with_addr<T>(bytes: &[u8], addr: &Addr) -> Result<T, Error>
 where
     T: borsh::BorshDeserialize,
