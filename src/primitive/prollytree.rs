@@ -13,7 +13,6 @@ pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
 
 use crate::{
     value::{Addr, Key, Value},
-    Error,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -80,19 +79,5 @@ impl<K, V, A> Node<K, V, A> {
             Self::Branch(v) => v.is_empty(),
             Self::Leaf(v) => v.is_empty(),
         }
-    }
-}
-#[cfg(feature = "borsh")]
-impl<K, V, A> Node<K, V, A>
-where
-    K: borsh::BorshSerialize,
-    V: borsh::BorshSerialize,
-    A: borsh::BorshSerialize,
-{
-    /// Serialize and hash the Node, returning the `Addr` and bytes.
-    pub fn as_bytes(&self) -> Result<(Addr, Vec<u8>), Error> {
-        let bytes = crate::value::serialize(self)?;
-        let addr = Addr::hash(&bytes);
-        Ok((addr, bytes))
     }
 }

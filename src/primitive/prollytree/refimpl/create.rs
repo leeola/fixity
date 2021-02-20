@@ -14,6 +14,7 @@ use {
 pub struct Create<'s, S> {
     storage: &'s S,
     roller: Roller,
+    deser: Deser,
 }
 impl<'s, S> Create<'s, S> {
     pub fn new(storage: &'s S) -> Self {
@@ -23,6 +24,7 @@ impl<'s, S> Create<'s, S> {
         Self {
             storage,
             roller: Roller::with_config(roller_config),
+            deser: Deser::Borsh,
         }
     }
 }
@@ -113,7 +115,8 @@ where
             .expect("first key impossibly missing")
             .clone();
         let node = NodeOwned::from(block_buf);
-        let (node_addr, node_bytes) = node.as_bytes()?;
+        let node_bytes = self.deser.serialize(&node)?;
+        let node_addr = Addr::hash(&node_bytes);
         self.storage.write(node_addr.clone(), &*node_bytes).await?;
         Ok((key, node_addr))
     }

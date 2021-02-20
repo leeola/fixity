@@ -1,7 +1,6 @@
 pub mod from_cli_str;
 
 use {
-    crate::Error,
     multibase::Base,
     std::{
         convert::{TryFrom, TryInto},
@@ -245,76 +244,6 @@ impl fmt::Debug for Value {
         self.fmt_variant(f)?;
         f.write_str(")")
     }
-}
-/// A helper to centralize serialization logic for a potential future
-/// where we change/tweak/configure serialization.
-///
-/// How we handle schema/serialization compatibility is TBD.
-#[cfg(not(feature = "borsh"))]
-pub fn serialize<T>(_: T) -> Result<Vec<u8>, Error> {
-    Err(Error::Unhandled("serializer not configured".into()))
-}
-#[cfg(feature = "borsh")]
-/// A helper to centralize serialization logic for a potential future
-/// where we change/tweak/configure serialization.
-///
-/// How we handle schema/serialization compatibility is TBD.
-pub fn serialize<T>(t: T) -> Result<Vec<u8>, Error>
-where
-    T: borsh::BorshSerialize,
-{
-    t.try_to_vec()
-        // mapping because it's actually a `std::io::Error`, so ?
-        // would convert the wrong type.
-        .map_err(Error::Borsh)
-}
-/// A helper to centralize deserialization logic for a potential future
-/// where we change/tweak/configure deserialization.
-///
-/// How we handle schema/deserialization compatibility is TBD.
-#[cfg(not(feature = "borsh"))]
-pub fn deserialize<T>(_: T) -> Result<Vec<u8>, Error> {
-    Err(Error::Unhandled("deserializer not configured".into()))
-}
-#[cfg(feature = "borsh")]
-/// A helper to centralize deserialization logic for a potential future
-/// where we change/tweak/configure deserialization.
-///
-/// How we handle schema/deserialization compatibility is TBD.
-pub fn deserialize<T>(bytes: &[u8]) -> Result<T, Error>
-where
-    T: borsh::BorshDeserialize,
-{
-    T::try_from_slice(bytes)
-        // mapping because it's actually a `std::io::Error`, so ?
-        // would convert the wrong type.
-        .map_err(Error::Borsh)
-}
-/// A helper to centralize deserialization logic for a potential future
-/// where we change/tweak/configure deserialization.
-///
-/// How we handle schema/deserialization compatibility is TBD.
-#[cfg(not(feature = "borsh"))]
-pub fn deserialize_with_addr<T>(_: T, _: &Addr) -> Result<Vec<u8>, Error> {
-    Err(Error::Unhandled("deserializer not configured".into()))
-}
-#[cfg(feature = "borsh")]
-/// A helper to centralize deserialization logic for a potential future
-/// where we change/tweak/configure deserialization.
-///
-/// How we handle schema/deserialization compatibility is TBD.
-///
-/// # Errors
-///
-/// - [`Error::BorshAddr`]
-pub fn deserialize_with_addr<T>(bytes: &[u8], addr: &Addr) -> Result<T, Error>
-where
-    T: borsh::BorshDeserialize,
-{
-    T::try_from_slice(bytes).map_err(|err| Error::BorshAddr {
-        addr: addr.clone(),
-        err,
-    })
 }
 impl<T> From<T> for Value
 where

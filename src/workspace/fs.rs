@@ -51,7 +51,7 @@ impl Fs {
     pub async fn init(workspaces_root_dir: PathBuf, workspace: String) -> Result<Self, Error> {
         fs::create_dir(&workspaces_root_dir)
             .await
-            .map_err(|source| Error::InitAlreadyExists)?;
+            .map_err(|_| Error::InitAlreadyExists)?;
         let workspace_path = workspaces_root_dir.join(&workspace);
         fs::create_dir(&workspace_path)
             .await

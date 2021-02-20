@@ -2,16 +2,18 @@ use crate::{
     primitive::prollytree::{Node, NodeOwned},
     storage::StorageRead,
     value::{Addr, Key, Value},
+    deser::Deser,
     Error,
 };
 pub struct Read<'s, S> {
     storage: &'s S,
     root_addr: Addr,
+    deser: Deser,
 }
 impl<'s, S> Read<'s, S> {
     /// Construct a new Read.
     pub fn new(storage: &'s S, root_addr: Addr) -> Self {
-        Self { storage, root_addr }
+        Self { storage, root_addr, deser: Deser::Borsh }
     }
 }
 impl<'s, S> Read<'s, S>
@@ -25,7 +27,7 @@ where
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<(Key, Value)>, Error> {
         let mut buf = Vec::new();
         self.storage.read(addr.clone(), &mut buf).await?;
-        let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+        let node = self.deser.deserialize::<_,NodeOwned>(&buf)?;
         match node {
             Node::Leaf(v) => Ok(v),
             Node::Branch(v) => {
