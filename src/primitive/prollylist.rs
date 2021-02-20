@@ -16,7 +16,7 @@ pub enum Node<Value, Addr> {
     Leaf(Vec<Value>),
 }
 impl<V, A> Node<V, A> {
-    /// Push the given `KeyValue` into the `KeyValues`.
+    /// Push the given `NodeItem` into the `Node`.
     ///
     /// # Panics
     ///
