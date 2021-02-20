@@ -19,6 +19,14 @@ impl Path {
     pub fn is_root_map(&self) -> bool {
         self.segments.get(0).map_or(false, Segment::is_map)
     }
+    pub fn from_segment<T>(t: T) -> Self
+    where
+        T: Into<Segment>,
+    {
+        Self {
+            segments: vec![t.into()],
+        }
+    }
     pub fn from_segments(segments: Vec<Segment>) -> Self {
         Self { segments }
     }
@@ -89,13 +97,13 @@ impl Path {
                 Some(resolved_addr) => {
                     resolved_segs.push(Some(resolved_addr.clone()));
                     addr = resolved_addr;
-                }
+                },
                 None => {
                     // resolve the remaining segments as None
                     // this will always be >= 1
                     resolved_segs.append(&mut vec![None; resolved_len - resolved_segs.len()]);
                     return Ok(resolved_segs);
-                }
+                },
             }
         }
         Ok(resolved_segs)
@@ -116,10 +124,10 @@ impl Path {
             match seg.resolve(storage, addr).await? {
                 Some(resolved_addr) => {
                     addr = resolved_addr;
-                }
+                },
                 None => {
                     return Ok(None);
-                }
+                },
             }
         }
         Ok(Some(addr))
@@ -159,6 +167,41 @@ where
 {
     fn from(t: &[T]) -> Self {
         Self::from_segments(t.iter().map(|t| t.clone().into()).collect())
+    }
+}
+/// A helper trait like [`Into`], to work around the lack of trait specialization in Rust;
+/// allowing us to implement more generic conversions into `Path` than
+/// we otherwise could.
+///
+/// See also: [`FromPath`], [`Into`].
+// Allowing, because otherwise it would name clobber with `Into`.
+#[allow(clippy::module_name_repetitions)]
+pub trait IntoPath {
+    fn into_path(self) -> Path;
+}
+impl<T> IntoPath for T
+where
+    T: Into<Segment>,
+{
+    fn into_path(self) -> Path {
+        Path::from_segment(self.into())
+    }
+}
+/// A helper trait like [`From`] to work around the lack of trait specialization in Rust; allowing
+/// us to implement more generic conversions into `Path` than we otherwise could.
+///
+/// See also: [`FromPath`], [`Into`].
+// Allowing, because otherwise it would name clobber with `Into`.
+#[allow(clippy::module_name_repetitions)]
+pub trait PathFrom<T> {
+    fn path_from(t: T) -> Path;
+}
+impl<T> PathFrom<T> for Path
+where
+    T: IntoPath,
+{
+    fn path_from(t: T) -> Path {
+        t.into_path()
     }
 }
 impl IntoIterator for Path {

@@ -26,7 +26,7 @@ where
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<Value>, Error> {
         let mut buf = Vec::new();
         self.storage.read(addr.clone(), &mut buf).await?;
-        let node = Deser::default().from_slice::<NodeOwned>(&buf)?;
+        let node = Deser::default().deserialize::<_, NodeOwned>(&buf)?;
         match node {
             Node::Leaf(v) => Ok(v),
             Node::Branch(v) => {

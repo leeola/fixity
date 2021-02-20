@@ -192,8 +192,8 @@ enum KeyValue {
 impl KeyValue {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
         match self {
-            Self::KeyValue(kv) => deser.to_vec(kv),
-            Self::KeyAddr(kv) => deser.to_vec(kv),
+            Self::KeyValue(kv) => deser.serialize(kv),
+            Self::KeyAddr(kv) => deser.serialize(kv),
         }
     }
 }

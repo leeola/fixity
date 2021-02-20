@@ -15,7 +15,7 @@ impl<T> Serialize for T where T: borsh::BorshSerialize {}
 pub trait Deserialize: borsh::BorshDeserialize {}
 #[cfg(all(feature = "deser_borsh", not(feature = "deser_json")))]
 impl<T> Deserialize for T where T: borsh::BorshDeserialize {}
-
+///
 #[derive(Debug, Copy, Clone)]
 pub enum Deser {
     #[cfg(feature = "deser_borsh")]
@@ -24,23 +24,38 @@ pub enum Deser {
     Json,
 }
 impl Deser {
-    pub fn from_slice<T>(&self, bytes: &[u8]) -> Result<T, Error>
+    /// Deserialize `T` from the given `[u8]`, based on the variant defined in `Deser`.
+    ///
+    /// # Errors
+    ///
+    /// All errors are based on the underlying `Deser` variant and any errors those serialization
+    /// traits produce.
+    pub fn deserialize<B, T>(self, bytes: B) -> Result<T, Error>
     where
+        B: AsRef<[u8]>,
         T: Deserialize,
     {
         match self {
             #[cfg(feature = "deser_borsh")]
             Self::Borsh => {
-                Ok(<T as borsh::BorshDeserialize>::try_from_slice(bytes)
-                    // mapping because it's actually a `std::io::Error`, so ?
-                    // would convert the wrong type.
-                    .map_err(Error::Borsh)?)
-            }
+                Ok(
+                    <T as borsh::BorshDeserialize>::try_from_slice(bytes.as_ref())
+                        // mapping because it's actually a `std::io::Error`, so ?
+                        // would convert the wrong type.
+                        .map_err(Error::Borsh)?,
+                )
+            },
             #[cfg(feature = "deser_json")]
-            Self::Json => Ok(serde_json::from_slice(bytes)?),
+            Self::Json => Ok(serde_json::from_slice(bytes.as_ref())?),
         }
     }
-    pub fn to_vec<T>(&self, t: &T) -> Result<Vec<u8>, Error>
+    /// Serialize the `T` to a `Vec<u8>`, based on whatever variant is specified by `Deser`.
+    ///
+    /// # Errors
+    ///
+    /// All errors are based on the underlying `Deser` variant and any errors those serialization
+    /// traits produce.
+    pub fn serialize<T>(self, t: &T) -> Result<Vec<u8>, Error>
     where
         T: Serialize,
     {
@@ -51,7 +66,7 @@ impl Deser {
                     // mapping because it's actually a `std::io::Error`, so ?
                     // would convert the wrong type.
                     .map_err(Error::Borsh)?)
-            }
+            },
             #[cfg(feature = "deser_json")]
             Self::Json => Ok(cjson::to_vec(t)?),
         }
@@ -104,8 +119,8 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let expected = Value::from(1);
-        let bytes = Deser::to_vec(&Deser::Borsh, &expected).unwrap();
-        let got = Deser::from_slice::<Value>(&Deser::Borsh, &bytes).unwrap();
+        let bytes = Deser::serialize(Deser::Borsh, &expected).unwrap();
+        let got = Deser::deserialize::<_, Value>(Deser::Borsh, &bytes).unwrap();
         assert_eq!(expected, got);
     }
     #[cfg(feature = "deser_json")]
@@ -117,8 +132,8 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let expected = Value::from(1);
-        let bytes = Deser::to_vec(&Deser::Json, &expected).unwrap();
-        let got = Deser::from_slice::<Value>(&Deser::Json, &bytes).unwrap();
+        let bytes = Deser::serialize(Deser::Json, &expected).unwrap();
+        let got = Deser::deserialize::<_, Value>(Deser::Json, &bytes).unwrap();
         assert_eq!(expected, got);
     }
 }

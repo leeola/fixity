@@ -8,6 +8,13 @@ use {
     },
     tokio::io::{AsyncRead, AsyncWrite},
 };
+/// Bytes reads and writes content defined chunks of data to the fixity store,
+/// storing chunks within a tree structured list.
+///
+/// This data structure allows for ordered inserts in a content addressable system
+/// with minimal read and write cost.
+///
+/// See also: [`prolly_list`](crate::primitive::prolly_list).
 pub struct Bytes<'f, S, W> {
     storage: &'f S,
     workspace: &'f W,
@@ -21,6 +28,32 @@ impl<'f, S, W> Bytes<'f, S, W> {
             path,
         }
     }
+    /// Read bytes from the underlying [`Path`].
+    ///
+    /// If the Path does not exist, `None` is returned, signifying no bytes read.
+    /// Which can be meaningfully different than zero bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # use fixity::{Fixity,Map,path::Path};
+    /// let f = Fixity::memory();
+    /// let mut b = f.bytes("foo");
+    /// let mut buf = Vec::<u8>::new();
+    /// let len = b.read(&mut buf).await.unwrap();
+    /// assert_eq!(len, None);
+    /// b.stage("bytes").await.unwrap();
+    /// let len = b.read(&mut buf);
+    /// assert_eq!(len, Some(5));
+    /// assert_eq!(buf, "bytes".as_bytes());
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Internal`]
     pub async fn read<Writer>(&self, w: Writer) -> Result<Option<u64>, Error>
     where
         S: StorageRead,
@@ -45,6 +78,11 @@ impl<'f, S, W> Bytes<'f, S, W> {
         let n = reader.read(w).await?;
         Ok(Some(n))
     }
+    /// Write the given bytes to storage, staging the result into the active `Workspace`.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Internal`]
     pub async fn stage<R>(&self, r: R) -> Result<Addr, Error>
     where
         S: StorageRead + StorageWrite,

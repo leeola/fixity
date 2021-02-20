@@ -67,8 +67,8 @@ where
 {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
         match self {
-            Self::Branch(item) => deser.to_vec(item),
-            Self::Leaf(item) => deser.to_vec(item),
+            Self::Branch(item) => deser.serialize(item),
+            Self::Leaf(item) => deser.serialize(item),
         }
     }
 }

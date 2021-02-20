@@ -38,7 +38,7 @@ where
                 inner,
                 prev: self.addr.clone(),
             };
-            Deser::default().to_vec(&node)?
+            Deser::default().serialize(&node)?
         };
         let addr = Addr::hash(&buf);
         self.storage.write(addr.clone(), &*buf).await?;
@@ -60,7 +60,7 @@ where
         };
         let mut buf = Vec::new();
         self.storage.read(addr.clone(), &mut buf).await?;
-        let node = Deser::default().from_slice(&buf)?;
+        let node = Deser::default().deserialize(&buf)?;
         Ok(Some(LogContainer { addr, node }))
     }
     pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>

@@ -1,5 +1,6 @@
 use {
     crate::{
+        path::IntoPath,
         primitive::CommitLog,
         storage::{self, fs::Config as FsConfig, AsStorageRef, Fs},
         workspace::{self, AsWorkspaceRef, Guard, Status, Workspace},
@@ -12,11 +13,15 @@ use {
     },
 };
 const FIXI_DIR_NAME: &str = ".fixi";
+/// The primary root interface to the fixity store; a thin wrapper around the storage `S` and the
+/// workspace `W`.
 pub struct Fixity<S, W> {
     storage: S,
     workspace: W,
 }
 impl<S, W> Fixity<S, W> {
+    /// Construct a [`Builder`] for `Fixity`.
+    #[must_use]
     pub fn builder() -> Builder<S, W> {
         Builder::default()
     }
@@ -35,6 +40,7 @@ impl Fixity<storage::Memory, workspace::Memory> {
     ///
     /// This instance does not save data. Both the storage and the workspace are
     /// in-memory only, and **will be lost** when this instance is dropped.
+    #[must_use]
     pub fn memory() -> Fixity<storage::Memory, workspace::Memory> {
         Self {
             storage: storage::Memory::new(),
@@ -46,10 +52,20 @@ impl<S, W> Fixity<S, W>
 where
     S: Storage,
 {
+    /// Return a `Map` interface at the given `Path` within the fixity store.
     pub fn map(&self, path: Path) -> Map<'_, S, W> {
         Map::new(&self.storage, &self.workspace, path)
     }
-    pub fn bytes(&self, path: Path) -> Result<Bytes<'_, S, W>, Error> {
+    /// Return a `Bytes` interface at the given `Path` within the fixity store.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::CannotReplaceRootMap`]
+    pub fn bytes<T>(&self, path: T) -> Result<Bytes<'_, S, W>, Error>
+    where
+        T: IntoPath,
+    {
+        let path = path.into_path();
         if path.is_empty() {
             return Err(Error::CannotReplaceRootMap);
         }
@@ -59,6 +75,11 @@ where
         Ok(Bytes::new(&self.storage, &self.workspace, path))
     }
 }
+/// A builder pattern for the `Fixity` instance.
+///
+/// # Warning
+///
+/// This UX is awkward due to the generic types, so it may be nuked in the future.
 pub struct Builder<S, W> {
     storage: Option<S>,
     workspace: Option<W>,

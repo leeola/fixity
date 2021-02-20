@@ -18,6 +18,8 @@ pub enum Error {
     RepositoryNotFound,
     /// An action was attempted that writes changes to the repository, but
     /// no changes exist.
+    ///
+    /// Ie, the resulting content address is the same as `HEAD`.
     #[error("no changes to write to repository")]
     NoChangesToWrite,
     /// A commit was attempted without any changes staged.
