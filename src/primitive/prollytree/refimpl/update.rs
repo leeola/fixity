@@ -1,10 +1,10 @@
 use {
     crate::{
+        cache::{CacheRead, CacheWrite},
         primitive::prollytree::{
             refimpl::{Create, Read},
             roller::Config as RollerConfig,
         },
-        storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         Addr, Error,
     },
@@ -15,16 +15,16 @@ pub enum Change {
     Insert(Value),
     Remove,
 }
-pub struct Update<'s, S> {
-    storage: &'s S,
+pub struct Update<'s, C> {
+    storage: &'s C,
     root_addr: Addr,
     roller_config: RollerConfig,
 }
-impl<'s, S> Update<'s, S> {
-    pub fn new(storage: &'s S, root_addr: Addr) -> Self {
+impl<'s, C> Update<'s, C> {
+    pub fn new(storage: &'s C, root_addr: Addr) -> Self {
         Self::with_roller(storage, root_addr, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s S, root_addr: Addr, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(storage: &'s C, root_addr: Addr, roller_config: RollerConfig) -> Self {
         Self {
             storage,
             root_addr,
@@ -32,9 +32,9 @@ impl<'s, S> Update<'s, S> {
         }
     }
 }
-impl<'s, S> Update<'s, S>
+impl<'s, C> Update<'s, C>
 where
-    S: StorageWrite + StorageRead,
+    C: CacheWrite + CacheRead,
 {
     /// Applies the given changes to the Prolly tree being updated.
     ///

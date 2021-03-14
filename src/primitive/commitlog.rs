@@ -1,7 +1,7 @@
 use {
     crate::{
+        cache::{CacheRead, CacheWrite},
         primitive::{appendlog::LogContainer, AppendLog},
-        storage::{StorageRead, StorageWrite},
         Addr, Error,
     },
     chrono::Utc,
@@ -16,18 +16,18 @@ pub struct CommitNode {
     pub timestamp: i64,
     pub content: Addr,
 }
-pub struct CommitLog<'s, S> {
-    log: AppendLog<'s, S>,
+pub struct CommitLog<'s, C> {
+    log: AppendLog<'s, C>,
 }
-impl<'s, S> CommitLog<'s, S> {
-    pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
+impl<'s, C> CommitLog<'s, C> {
+    pub fn new(storage: &'s C, addr: Option<Addr>) -> Self {
         let log = AppendLog::new(storage, addr);
         Self { log }
     }
 }
-impl<'s, S> CommitLog<'s, S>
+impl<'s, C> CommitLog<'s, C>
 where
-    S: StorageRead,
+    C: CacheRead,
 {
     pub async fn first_container(&self) -> Result<Option<LogContainer<'_, CommitNode>>, Error> {
         let container = self.log.first_container::<CommitNode>().await?;
@@ -41,9 +41,9 @@ where
         Ok(container.map(|LogContainer { node, .. }| node))
     }
 }
-impl<'s, S> CommitLog<'s, S>
+impl<'s, C> CommitLog<'s, C>
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
     pub async fn append(&mut self, content: Addr) -> Result<Addr, Error> {
         let container = self.first_container().await?;

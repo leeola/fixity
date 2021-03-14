@@ -1,7 +1,7 @@
 pub use crate::map::PathSegment as MapSegment;
 use {
     crate::{
-        storage::{StorageRead, StorageWrite},
+        cache::{CacheRead, CacheWrite},
         Addr, Error,
     },
     std::fmt,
@@ -69,13 +69,13 @@ impl Path {
         self.push_map(map_segment);
         self
     }
-    pub async fn resolve<S>(
+    pub async fn resolve<C>(
         &self,
-        storage: &S,
+        storage: &C,
         root_addr: Option<Addr>,
     ) -> Result<Vec<Option<Addr>>, Error>
     where
-        S: StorageRead,
+        C: CacheRead,
     {
         let resolved_len = self.segments.len() + 1;
         let mut addr = match root_addr {
@@ -89,24 +89,24 @@ impl Path {
                 Some(resolved_addr) => {
                     resolved_segs.push(Some(resolved_addr.clone()));
                     addr = resolved_addr;
-                }
+                },
                 None => {
                     // resolve the remaining segments as None
                     // this will always be >= 1
                     resolved_segs.append(&mut vec![None; resolved_len - resolved_segs.len()]);
                     return Ok(resolved_segs);
-                }
+                },
             }
         }
         Ok(resolved_segs)
     }
-    pub async fn resolve_last<S>(
+    pub async fn resolve_last<C>(
         &self,
-        storage: &S,
+        storage: &C,
         addr: Option<Addr>,
     ) -> Result<Option<Addr>, Error>
     where
-        S: StorageRead,
+        C: CacheRead,
     {
         let mut addr = match addr {
             Some(addr) => addr,
@@ -116,22 +116,22 @@ impl Path {
             match seg.resolve(storage, addr).await? {
                 Some(resolved_addr) => {
                     addr = resolved_addr;
-                }
+                },
                 None => {
                     return Ok(None);
-                }
+                },
             }
         }
         Ok(Some(addr))
     }
-    pub async fn update<S>(
+    pub async fn update<C>(
         &self,
-        storage: &S,
+        storage: &C,
         resolved_addrs: Vec<Option<Addr>>,
         new_last_segment_addr: Addr,
     ) -> Result<Addr, Error>
     where
-        S: StorageRead + StorageWrite,
+        C: CacheRead + CacheWrite,
     {
         let mut new_addr_cursor = new_last_segment_addr;
         for (seg_addr, seg) in resolved_addrs
@@ -223,24 +223,24 @@ impl From<MapSegment> for Segment {
     }
 }
 #[async_trait::async_trait]
-impl<S> SegmentResolve<S> for Segment
+impl<C> SegmentResolve<C> for Segment
 where
-    S: StorageRead,
+    C: CacheRead,
 {
-    async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
+    async fn resolve(&self, storage: &C, self_addr: Addr) -> Result<Option<Addr>, Error> {
         match self {
             Self::Map(seg) => seg.resolve(storage, self_addr).await,
         }
     }
 }
 #[async_trait::async_trait]
-impl<S> SegmentUpdate<S> for Segment
+impl<C> SegmentUpdate<C> for Segment
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
     async fn update(
         &self,
-        storage: &S,
+        storage: &C,
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error> {
@@ -250,14 +250,14 @@ where
     }
 }
 #[async_trait::async_trait]
-pub trait SegmentResolve<S> {
-    async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error>;
+pub trait SegmentResolve<C> {
+    async fn resolve(&self, storage: &C, self_addr: Addr) -> Result<Option<Addr>, Error>;
 }
 #[async_trait::async_trait]
-pub trait SegmentUpdate<S> {
+pub trait SegmentUpdate<C> {
     async fn update(
         &self,
-        storage: &S,
+        storage: &C,
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error>;

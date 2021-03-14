@@ -1,9 +1,10 @@
 use {
     crate::{
+        cache::{AsCacheRef, CacheRead, CacheWrite},
         primitive::CommitLog,
-        storage::{self, fs::Config as FsConfig, AsStorageRef, Fs},
+        storage::{self, fs::Config as FsConfig, Fs},
         workspace::{self, AsWorkspaceRef, Guard, Status, Workspace},
-        Addr, Bytes, Error, Map, Path, Storage,
+        Addr, Bytes, Error, Map, Path,
     },
     std::path::PathBuf,
     tokio::{
@@ -12,18 +13,18 @@ use {
     },
 };
 const FIXI_DIR_NAME: &str = ".fixi";
-pub struct Fixity<S, W> {
-    storage: S,
+pub struct Fixity<C, W> {
+    storage: C,
     workspace: W,
 }
-impl<S, W> Fixity<S, W> {
-    pub fn builder() -> Builder<S, W> {
+impl<C, W> Fixity<C, W> {
+    pub fn builder() -> Builder<C, W> {
         Builder::default()
     }
     /// Create a fixity instance from the provided workspace and storage.
     ///
     /// Most users will want to use [`Fixity::builder`].
-    pub fn new(storage: S, workspace: W) -> Self {
+    pub fn new(storage: C, workspace: W) -> Self {
         Self { storage, workspace }
     }
 }
@@ -42,14 +43,14 @@ impl Fixity<storage::Memory, workspace::Memory> {
         }
     }
 }
-impl<S, W> Fixity<S, W>
+impl<C, W> Fixity<C, W>
 where
-    S: Storage,
+    C: CacheRead + CacheWrite,
 {
-    pub fn map(&self, path: Path) -> Map<'_, S, W> {
+    pub fn map(&self, path: Path) -> Map<'_, C, W> {
         Map::new(&self.storage, &self.workspace, path)
     }
-    pub fn bytes(&self, path: Path) -> Result<Bytes<'_, S, W>, Error> {
+    pub fn bytes(&self, path: Path) -> Result<Bytes<'_, C, W>, Error> {
         if path.is_empty() {
             return Err(Error::CannotReplaceRootMap);
         }
@@ -59,15 +60,15 @@ where
         Ok(Bytes::new(&self.storage, &self.workspace, path))
     }
 }
-pub struct Builder<S, W> {
-    storage: Option<S>,
+pub struct Builder<C, W> {
+    storage: Option<C>,
     workspace: Option<W>,
     fixi_dir_name: Option<PathBuf>,
     fixi_dir: Option<PathBuf>,
     fs_storage_dir: Option<PathBuf>,
     workspace_name: Option<String>,
 }
-impl<S, W> Default for Builder<S, W> {
+impl<C, W> Default for Builder<C, W> {
     fn default() -> Self {
         Self {
             storage: None,
@@ -79,8 +80,8 @@ impl<S, W> Default for Builder<S, W> {
         }
     }
 }
-impl<S, W> Builder<S, W> {
-    pub fn with_storage(mut self, storage: S) -> Self {
+impl<C, W> Builder<C, W> {
+    pub fn with_storage(mut self, storage: C) -> Self {
         self.storage.replace(storage);
         self
     }
@@ -177,7 +178,7 @@ pub enum InitError {
         source: storage::Error,
     },
 }
-impl<S, W> AsWorkspaceRef for Fixity<S, W>
+impl<C, W> AsWorkspaceRef for Fixity<C, W>
 where
     W: Workspace,
 {
@@ -186,12 +187,12 @@ where
         &self.workspace
     }
 }
-impl<S, W> AsStorageRef for Fixity<S, W>
+impl<C, W> AsCacheRef for Fixity<C, W>
 where
-    S: Storage,
+    C: CacheRead + CacheWrite,
 {
-    type Storage = S;
-    fn as_storage_ref(&self) -> &Self::Storage {
+    type Cache = C;
+    fn as_cache_ref(&self) -> &Self::Cache {
         &self.storage
     }
 }
@@ -209,10 +210,10 @@ pub trait Commit {
 #[async_trait::async_trait]
 impl<T> Commit for T
 where
-    T: AsWorkspaceRef + AsStorageRef + Sync,
+    T: AsWorkspaceRef + AsCacheRef + Sync,
 {
     async fn commit(&self) -> Result<Addr, Error> {
-        let storage = self.as_storage_ref();
+        let storage = self.as_cache_ref();
         let workspace = self.as_workspace_ref();
         let workspace_guard = workspace.lock().await?;
         let (commit_addr, staged_content) = match workspace_guard.status().await? {

@@ -1,24 +1,24 @@
 use {
     crate::{
+        cache::{CacheRead, CacheWrite},
         error::Type as TypeError,
         misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
         path::{Path, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prollytree::refimpl},
-        storage::{StorageRead, StorageWrite},
         value::{Key, Value},
         workspace::{Guard, Status, Workspace},
         Addr, Error,
     },
     std::{collections::HashMap, fmt, mem, ops::Bound},
 };
-pub struct Map<'f, S, W> {
-    storage: &'f S,
+pub struct Map<'f, C, W> {
+    storage: &'f C,
     workspace: &'f W,
     path: Path,
     cache: HashMap<Key, refimpl::Change>,
 }
-impl<'f, S, W> Map<'f, S, W> {
-    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
+impl<'f, C, W> Map<'f, C, W> {
+    pub fn new(storage: &'f C, workspace: &'f W, path: Path) -> Self {
         Self {
             storage,
             workspace,
@@ -81,7 +81,7 @@ impl<'f, S, W> Map<'f, S, W> {
     ) -> Result<Box<dyn Iterator<Item = Result<(Key, Value), Error>>>, Error>
     where
         W: Workspace,
-        S: StorageRead + StorageWrite,
+        C: CacheRead + CacheWrite,
         R: RangeBoundsExt<Key>,
     {
         let content_addr = self
@@ -115,9 +115,9 @@ impl<'f, S, W> Map<'f, S, W> {
         Ok(Box::new(iter))
     }
 }
-impl<'f, S, W> Map<'f, S, W>
+impl<'f, C, W> Map<'f, C, W>
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
     pub fn map<K>(&self, key: K) -> Self
     where
@@ -137,9 +137,9 @@ where
         self
     }
 }
-impl<'f, S, W> Map<'f, S, W>
+impl<'f, C, W> Map<'f, C, W>
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
     W: Workspace,
 {
     pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
@@ -286,11 +286,11 @@ impl fmt::Display for PathSegment {
     }
 }
 #[async_trait::async_trait]
-impl<S> SegmentResolve<S> for PathSegment
+impl<C> SegmentResolve<C> for PathSegment
 where
-    S: StorageRead,
+    C: CacheRead,
 {
-    async fn resolve(&self, storage: &S, self_addr: Addr) -> Result<Option<Addr>, Error> {
+    async fn resolve(&self, storage: &C, self_addr: Addr) -> Result<Option<Addr>, Error> {
         let reader = refimpl::Read::new(storage, self_addr);
         let value = match reader.get(&self.key).await? {
             Some(v) => v,
@@ -310,13 +310,13 @@ where
     }
 }
 #[async_trait::async_trait]
-impl<S> SegmentUpdate<S> for PathSegment
+impl<C> SegmentUpdate<C> for PathSegment
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
     async fn update(
         &self,
-        storage: &S,
+        storage: &C,
         self_addr: Option<Addr>,
         child_addr: Addr,
     ) -> Result<Addr, Error> {

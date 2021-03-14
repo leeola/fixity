@@ -1,32 +1,32 @@
 use {
     crate::{
+        cache::{CacheRead, CacheWrite},
         error::{Internal as InternalError, Type as TypeError},
         primitive::prollylist::refimpl,
-        storage::{StorageRead, StorageWrite},
         value::Value,
         Addr, Error,
     },
     fastcdc::{Chunk, FastCDC},
-    tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite},
+    tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite},
 };
 const CDC_MIN: usize = 1024 * 16;
 const CDC_AVG: usize = 1024 * 32;
 const CDC_MAX: usize = 1024 * 64;
-pub struct Read<'s, S> {
-    storage: &'s S,
+pub struct Read<'s, C> {
+    cache: &'s C,
     addr: Addr,
 }
-impl<'s, S> Read<'s, S> {
-    pub fn new(storage: &'s S, addr: Addr) -> Self {
-        Self { storage, addr }
+impl<'s, C> Read<'s, C> {
+    pub fn new(cache: &'s C, addr: Addr) -> Self {
+        Self { cache, addr }
     }
     pub async fn read<W>(&self, mut w: W) -> Result<u64, Error>
     where
-        S: StorageRead,
+        C: CacheRead,
         W: AsyncWrite + Unpin + Send,
     {
         let values = {
-            let tree = refimpl::Read::new(self.storage, self.addr.clone());
+            let tree = refimpl::Read::new(self.cache, self.addr.clone());
             tree.to_vec().await?
         };
         let mut total_bytes = 0;
@@ -35,21 +35,22 @@ impl<'s, S> Read<'s, S> {
                 at_segment: None,
                 at_addr: None,
             })?;
-            total_bytes += self.storage.read(addr, &mut w).await?;
+            let buf = self.cache.read(addr).await?;
+            total_bytes += io::copy(&mut buf.as_ref(), &mut w).await?;
         }
         Ok(total_bytes)
     }
 }
-pub struct Create<'s, S> {
-    storage: &'s S,
+pub struct Create<'s, C> {
+    cache: &'s C,
     cdc_min: usize,
     cdc_avg: usize,
     cdc_max: usize,
 }
-impl<'s, S> Create<'s, S> {
-    pub fn new(storage: &'s S) -> Self {
+impl<'s, C> Create<'s, C> {
+    pub fn new(cache: &'s C) -> Self {
         Self {
-            storage,
+            cache,
             cdc_min: CDC_MIN,
             cdc_avg: CDC_AVG,
             cdc_max: CDC_MAX,
@@ -57,7 +58,7 @@ impl<'s, S> Create<'s, S> {
     }
     pub async fn write<R>(&self, mut r: R) -> Result<Addr, Error>
     where
-        S: StorageWrite,
+        C: CacheWrite,
         R: AsyncRead + Unpin + Send,
     {
         let addrs = {
@@ -75,12 +76,12 @@ impl<'s, S> Create<'s, S> {
             for Chunk { offset, length } in chunker {
                 let chunk = &b[offset..offset + length];
                 let addr = Addr::hash(chunk);
-                self.storage.write(addr.clone(), chunk).await?;
+                self.cache.write(addr.clone(), chunk).await?;
                 addrs.push(Value::Addr(addr));
             }
             addrs
         };
-        let tree = refimpl::Create::new(self.storage);
+        let tree = refimpl::Create::new(self.cache);
         tree.with_vec(addrs).await
     }
 }

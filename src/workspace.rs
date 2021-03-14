@@ -1,7 +1,7 @@
 mod fs;
 mod memory;
 pub use self::{fs::Fs, memory::Memory};
-use crate::{primitive::CommitLog, storage::StorageRead, Addr};
+use crate::{cache::CacheRead, primitive::CommitLog, Addr};
 #[async_trait::async_trait]
 pub trait Init {
     type Workspace: Workspace;
@@ -74,9 +74,9 @@ impl Status {
     }
     /// Resolve the content address
     // NIT: Not sure where best to put this helper. Not a fan of it on `Status`.
-    pub async fn content_addr<S>(&self, storage: &S) -> Result<Option<Addr>, crate::Error>
+    pub async fn content_addr<C>(&self, storage: &C) -> Result<Option<Addr>, crate::Error>
     where
-        S: StorageRead,
+        C: CacheRead,
     {
         match self {
             Status::Init { .. } => Ok(None),
@@ -223,7 +223,7 @@ pub mod test {
     }
 }
 /// A helper trait to allow a single `T` to return references to both a `Workspace` and
-/// a `Storage`.
+/// a `Cache`.
 ///
 /// See [`Commit`](crate::Commit) for example usage.
 pub trait AsWorkspaceRef {

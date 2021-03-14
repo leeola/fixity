@@ -1,34 +1,34 @@
 use {
     crate::{
+        cache::CacheWrite,
         deser::{Deser, Error as DeserError},
         primitive::prollytree::{
             roller::{Config as RollerConfig, Roller},
             Node, NodeOwned,
         },
-        storage::StorageWrite,
         value::{Key, Value},
         Addr, Error,
     },
     std::{collections::HashMap, mem},
 };
-pub struct Create<'s, S> {
-    storage: &'s S,
+pub struct Create<'s, C> {
+    storage: &'s C,
     roller: Roller,
 }
-impl<'s, S> Create<'s, S> {
-    pub fn new(storage: &'s S) -> Self {
+impl<'s, C> Create<'s, C> {
+    pub fn new(storage: &'s C) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(storage: &'s C, roller_config: RollerConfig) -> Self {
         Self {
             storage,
             roller: Roller::with_config(roller_config),
         }
     }
 }
-impl<'s, S> Create<'s, S>
+impl<'s, C> Create<'s, C>
 where
-    S: StorageWrite,
+    C: CacheWrite,
 {
     /// Constructs a prolly tree based on the given `Key, Value` pairs.
     ///

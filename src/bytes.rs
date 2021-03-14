@@ -1,20 +1,20 @@
 use {
     crate::{
+        cache::{AsCacheRef, CacheRead, CacheWrite},
         path::Path,
         primitive::{BytesCreate, BytesRead},
-        storage::{AsStorageRef, StorageRead, StorageWrite},
         workspace::{AsWorkspaceRef, Guard, Workspace},
         Addr, Error,
     },
     tokio::io::{AsyncRead, AsyncWrite},
 };
-pub struct Bytes<'f, S, W> {
-    storage: &'f S,
+pub struct Bytes<'f, C, W> {
+    storage: &'f C,
     workspace: &'f W,
     path: Path,
 }
-impl<'f, S, W> Bytes<'f, S, W> {
-    pub fn new(storage: &'f S, workspace: &'f W, path: Path) -> Self {
+impl<'f, C, W> Bytes<'f, C, W> {
+    pub fn new(storage: &'f C, workspace: &'f W, path: Path) -> Self {
         Self {
             storage,
             workspace,
@@ -23,7 +23,7 @@ impl<'f, S, W> Bytes<'f, S, W> {
     }
     pub async fn read<Writer>(&self, w: Writer) -> Result<Option<u64>, Error>
     where
-        S: StorageRead,
+        C: CacheRead,
         W: Workspace,
         Writer: AsyncWrite + Unpin + Send,
     {
@@ -47,7 +47,7 @@ impl<'f, S, W> Bytes<'f, S, W> {
     }
     pub async fn stage<R>(&self, r: R) -> Result<Addr, Error>
     where
-        S: StorageRead + StorageWrite,
+        C: CacheRead + CacheWrite,
         W: Workspace,
         R: AsyncRead + Unpin + Send,
     {
@@ -67,7 +67,7 @@ impl<'f, S, W> Bytes<'f, S, W> {
         Ok(new_staged_content)
     }
 }
-impl<S, W> AsWorkspaceRef for Bytes<'_, S, W>
+impl<C, W> AsWorkspaceRef for Bytes<'_, C, W>
 where
     W: Workspace,
 {
@@ -76,12 +76,12 @@ where
         &self.workspace
     }
 }
-impl<S, W> AsStorageRef for Bytes<'_, S, W>
+impl<C, W> AsCacheRef for Bytes<'_, C, W>
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
-    type Storage = S;
-    fn as_storage_ref(&self) -> &Self::Storage {
+    type Cache = C;
+    fn as_cache_ref(&self) -> &Self::Cache {
         &self.storage
     }
 }

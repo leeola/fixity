@@ -1,6 +1,6 @@
 use crate::{
+    cache::{CacheRead, CacheWrite},
     deser::{Deser, Deserialize, Serialize},
-    storage::{StorageRead, StorageWrite},
     Addr, Error,
 };
 pub struct LogContainer<'a, T> {
@@ -16,18 +16,18 @@ pub struct LogNode<T> {
     pub inner: T,
     pub prev: Option<Addr>,
 }
-pub struct AppendLog<'s, S> {
-    storage: &'s S,
+pub struct AppendLog<'s, C> {
+    storage: &'s C,
     addr: Option<Addr>,
 }
-impl<'s, S> AppendLog<'s, S> {
-    pub fn new(storage: &'s S, addr: Option<Addr>) -> Self {
+impl<'s, C> AppendLog<'s, C> {
+    pub fn new(storage: &'s C, addr: Option<Addr>) -> Self {
         Self { storage, addr }
     }
 }
-impl<'s, S> AppendLog<'s, S>
+impl<'s, C> AppendLog<'s, C>
 where
-    S: StorageRead + StorageWrite,
+    C: CacheRead + CacheWrite,
 {
     pub async fn append<T>(&mut self, inner: T) -> Result<Addr, Error>
     where
@@ -46,9 +46,9 @@ where
         Ok(addr)
     }
 }
-impl<'s, S> AppendLog<'s, S>
+impl<'s, C> AppendLog<'s, C>
 where
-    S: StorageRead,
+    C: CacheRead,
 {
     pub async fn first_container<T>(&self) -> Result<Option<LogContainer<'_, LogNode<T>>>, Error>
     where
@@ -58,9 +58,8 @@ where
             None => return Ok(None),
             Some(addr) => addr,
         };
-        let mut buf = Vec::new();
-        self.storage.read(addr.clone(), &mut buf).await?;
-        let node = Deser::default().from_slice(&buf)?;
+        let buf = self.storage.read(addr.clone()).await?;
+        let node = Deser::default().from_slice(buf.as_ref())?;
         Ok(Some(LogContainer { addr, node }))
     }
     pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>

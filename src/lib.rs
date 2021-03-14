@@ -11,12 +11,16 @@
     future_incompatible,
     clippy::complexity,
     clippy::perf,
-    clippy::pedantic
+    // clippy::pedantic
     // clippy::nursery
     // clippy::cargo,
 )]
+// This warning makes less sense with enum-flavored error handling,
+// which this library is using.
+#![allow(clippy::missing_errors_doc)]
 
 pub mod bytes;
+pub mod cache;
 pub mod deser;
 mod dir;
 pub mod error;
@@ -31,6 +35,7 @@ pub mod workspace;
 
 pub use self::{
     bytes::Bytes,
+    cache::{CacheRead, CacheWrite},
     error::{Error, Result},
     fixity::{Commit, Fixity},
     map::Map,

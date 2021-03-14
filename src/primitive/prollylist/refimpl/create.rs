@@ -1,5 +1,6 @@
 use {
     crate::{
+        cache::CacheWrite,
         deser::Deser,
         primitive::{
             prollylist::{Node, NodeOwned},
@@ -8,36 +9,35 @@ use {
                 ONE_LEN_BLOCK_WARNING,
             },
         },
-        storage::StorageWrite,
         value::Value,
         Addr, Error,
     },
     std::mem,
 };
-pub struct Create<'s, S> {
-    storage: &'s S,
+pub struct Create<'s, C> {
+    storage: &'s C,
     roller: Roller,
 }
-impl<'s, S> Create<'s, S> {
-    pub fn new(storage: &'s S) -> Self {
+impl<'s, C> Create<'s, C> {
+    pub fn new(storage: &'s C) -> Self {
         Self::with_roller(storage, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s S, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(storage: &'s C, roller_config: RollerConfig) -> Self {
         Self {
             storage,
             roller: Roller::with_config(roller_config),
         }
     }
 }
-impl<'s, S> Create<'s, S>
+impl<'s, C> Create<'s, C>
 where
-    S: StorageWrite,
+    C: CacheWrite,
 {
     /// Constructs a prolly list based on the given `Value` pairs.
     ///
     /// # Errors
     ///
-    /// Storage writes. No enforcement of sort order or uniqueness is enforced
+    /// Cache writes. No enforcement of sort order or uniqueness is enforced
     /// in Prolly Lists.
     pub async fn with_vec(mut self, items: Vec<Value>) -> Result<Addr, Error> {
         self.recursive_from_items(Node::Leaf(items)).await

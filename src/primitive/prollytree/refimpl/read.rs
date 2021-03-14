@@ -1,31 +1,32 @@
 use crate::{
+    cache::CacheRead,
     primitive::prollytree::{Node, NodeOwned},
-    storage::StorageRead,
     value::{Addr, Key, Value},
     Error,
 };
-pub struct Read<'s, S> {
-    storage: &'s S,
+pub struct Read<'s, C> {
+    storage: &'s C,
     root_addr: Addr,
 }
-impl<'s, S> Read<'s, S> {
+impl<'s, C> Read<'s, C> {
     /// Construct a new Read.
-    pub fn new(storage: &'s S, root_addr: Addr) -> Self {
+    pub fn new(storage: &'s C, root_addr: Addr) -> Self {
         Self { storage, root_addr }
     }
 }
-impl<'s, S> Read<'s, S>
+impl<'s, C> Read<'s, C>
 where
-    S: StorageRead,
+    C: CacheRead,
 {
     pub async fn to_vec(&self) -> Result<Vec<(Key, Value)>, Error> {
         self.recursive_to_vec(self.root_addr.clone()).await
     }
     #[async_recursion::async_recursion]
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<(Key, Value)>, Error> {
-        let mut buf = Vec::new();
-        self.storage.read(addr.clone(), &mut buf).await?;
-        let node = crate::value::deserialize_with_addr::<NodeOwned>(&buf, &addr)?;
+        let node = {
+            let buf = self.storage.read(addr.clone()).await?;
+            crate::value::deserialize_with_addr::<NodeOwned>(buf.as_ref(), &addr)?
+        };
         match node {
             Node::Leaf(v) => Ok(v),
             Node::Branch(v) => {
