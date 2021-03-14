@@ -14,6 +14,7 @@
     // clippy::pedantic
     // clippy::nursery
     // clippy::cargo,
+    clippy::unwrap_used,
 )]
 // This warning makes less sense with enum-flavored error handling,
 // which this library is using.

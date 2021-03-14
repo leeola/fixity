@@ -12,16 +12,16 @@ use {
     std::{collections::HashMap, mem},
 };
 pub struct Create<'s, C> {
-    storage: &'s C,
+    cache: &'s C,
     roller: Roller,
 }
 impl<'s, C> Create<'s, C> {
-    pub fn new(storage: &'s C) -> Self {
-        Self::with_roller(storage, RollerConfig::default())
+    pub fn new(cache: &'s C) -> Self {
+        Self::with_roller(cache, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s C, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(cache: &'s C, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
+            cache,
             roller: Roller::with_config(roller_config),
         }
     }
@@ -34,7 +34,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
     pub async fn with_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
         // Ensure the kvs are sorted - as the trees require sorting.
@@ -54,7 +54,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
     pub async fn with_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
         let mut kvs = kvs.into_iter().collect::<Vec<_>>();
@@ -113,8 +113,7 @@ where
             .expect("first key impossibly missing")
             .clone();
         let node = NodeOwned::from(block_buf);
-        let (node_addr, node_bytes) = node.as_bytes()?;
-        self.storage.write(node_addr.clone(), &*node_bytes).await?;
+        let node_addr = self.cache.write_structured(node).await?;
         Ok((key, node_addr))
     }
 }
@@ -185,6 +184,7 @@ impl From<KeyValues> for NodeOwned {
         }
     }
 }
+#[derive(Debug)]
 enum KeyValue {
     KeyValue((Key, Value)),
     KeyAddr((Key, Addr)),
@@ -209,9 +209,25 @@ impl From<(Key, Addr)> for KeyValue {
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::storage::Memory};
+    use {super::*, crate::Fixity};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
+    #[tokio::test]
+    async fn single_value() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        let cache = Fixity::memory().into_cache();
+        let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
+        let addr = tree
+            .with_vec(vec![(Key::from(1), Value::from(2))])
+            .await
+            .unwrap();
+        dbg!(addr);
+    }
     #[tokio::test]
     async fn create_without_failure() {
         let mut env_builder = env_logger::builder();
@@ -226,8 +242,8 @@ pub mod test {
                 .map(|i| (i, i * 10))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
-            let storage = Memory::new();
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let cache = Fixity::memory().into_cache();
+            let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }

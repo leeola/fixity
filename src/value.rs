@@ -11,12 +11,12 @@ use {
 
 const PRIMARY_ENCODING: Base = Base::Base58Btc;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Addr([u8; 32]);
 impl Addr {
     /// The length in bytes of an [`Addr`].
@@ -55,7 +55,6 @@ impl Addr {
     /// let addr = Addr::decode(encoded);
     /// assert_eq!(addr, None);
     /// ```
-    ///
     pub fn decode<S: AsRef<str>>(s: S) -> Option<Self> {
         let (_, bytes) = multibase::decode(s).ok()?;
         let arr: [u8; 32] = bytes.try_into().ok()?;
@@ -73,6 +72,11 @@ impl Addr {
 impl AsRef<Addr> for Addr {
     fn as_ref(&self) -> &Self {
         self
+    }
+}
+impl From<&Addr> for Addr {
+    fn from(t: &Addr) -> Self {
+        t.clone()
     }
 }
 impl TryFrom<Vec<u8>> for Addr {
@@ -98,12 +102,12 @@ impl fmt::Display for Addr {
         write!(f, "{}", self.long())
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scalar {
     Addr(Addr),
     Uint32(u32),
@@ -136,12 +140,12 @@ impl fmt::Display for Scalar {
 /// Key exists as a very thin layer over a [`Value`] for ease of use and reading.
 ///
 /// Ultimately there is no difference between a Key and a Value.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key(pub Value);
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -164,12 +168,12 @@ where
         Self(t.into())
     }
 }
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Value {
     Addr(Addr),
     Uint32(u32),
@@ -199,15 +203,15 @@ impl Value {
                 // TODO: is there a way we can encode this without allocating? Perhaps into
                 // a different encoding?
                 f.write_str(v.long().as_str())?;
-            }
+            },
             Self::Uint32(v) => {
                 f.write_str("Uint32(")?;
                 write!(f, "{}", v)?;
-            }
+            },
             Self::String(v) => {
                 f.write_str("String(")?;
                 f.write_str(v.as_str())?;
-            }
+            },
             Self::Vec(v) => {
                 f.write_str("Vec([\n")?;
                 let iter = v.iter();
@@ -217,7 +221,7 @@ impl Value {
                     f.write_str(",\n")?;
                 }
                 f.write_str("]")?;
-            }
+            },
         }
         Ok(())
     }

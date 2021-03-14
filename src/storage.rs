@@ -51,7 +51,7 @@ pub enum Error {
     #[error("unhandled error: `{message}`")]
     Unhandled { message: String },
     #[error("hash `{addr}` not found")]
-    NotFound { addr: String },
+    NotFound { addr: Addr },
     #[error("io error: {0}")]
     Io(#[from] io::Error),
     #[error("hash `{hash}` io error: {err}")]
@@ -77,4 +77,26 @@ impl Error {
 pub trait AsStorageRef {
     type Storage: Storage;
     fn as_storage_ref(&self) -> &Self::Storage;
+}
+// A NOOP Storage impl.
+#[async_trait::async_trait]
+impl StorageRead for () {
+    async fn read<A, W>(&self, _: A, _: W) -> Result<u64, Error>
+    where
+        A: AsRef<Addr> + 'static + Send,
+        W: AsyncWrite + Unpin + Send,
+    {
+        Ok(0)
+    }
+}
+// A NOOP Storage impl.
+#[async_trait::async_trait]
+impl StorageWrite for () {
+    async fn write<A, R>(&self, _: A, _: R) -> Result<u64, Error>
+    where
+        A: AsRef<Addr> + 'static + Send,
+        R: AsyncRead + Unpin + Send,
+    {
+        Ok(0)
+    }
 }

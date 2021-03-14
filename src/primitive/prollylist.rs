@@ -11,6 +11,7 @@ pub type NodeOwned = Node<Value, Addr>;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Debug, Clone)]
 pub enum Node<Value, Addr> {
     Branch(Vec<Addr>),
     Leaf(Vec<Value>),

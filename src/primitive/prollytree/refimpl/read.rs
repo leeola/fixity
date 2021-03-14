@@ -1,8 +1,11 @@
-use crate::{
-    cache::CacheRead,
-    primitive::prollytree::{Node, NodeOwned},
-    value::{Addr, Key, Value},
-    Error,
+use {
+    crate::{
+        cache::{CacheRead, OwnedRef},
+        primitive::prollytree::Node,
+        value::{Addr, Key, Value},
+        Error,
+    },
+    std::convert::TryInto,
 };
 pub struct Read<'s, C> {
     storage: &'s C,
@@ -23,14 +26,13 @@ where
     }
     #[async_recursion::async_recursion]
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<(Key, Value)>, Error> {
-        let node = {
-            let buf = self.storage.read(addr.clone()).await?;
-            crate::value::deserialize_with_addr::<NodeOwned>(buf.as_ref(), &addr)?
-        };
+        let owned_ref = self.storage.read_structured(&addr).await?;
+        let node = owned_ref.into_owned_structured().try_into()?;
         match node {
             Node::Leaf(v) => Ok(v),
             Node::Branch(v) => {
                 let mut kvs = Vec::new();
+                //for (_, addr) in v.as_slice() {
                 for (_, addr) in v {
                     kvs.append(&mut self.recursive_to_vec(addr).await?);
                 }
@@ -52,7 +54,7 @@ pub mod test {
         super::*,
         crate::{
             primitive::prollytree::{refimpl::Create, roller::Config as RollerConfig},
-            storage::Memory,
+            Fixity,
         },
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
@@ -71,10 +73,10 @@ pub mod test {
                 .map(|i| (i, i * 10))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
-            let storage = Memory::new();
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let cache = Fixity::memory().into_cache();
+            let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(written_kvs.clone()).await.unwrap();
-            let read_kvs = Read::new(&storage, addr).to_vec().await.unwrap();
+            let read_kvs = Read::new(&cache, addr).to_vec().await.unwrap();
             assert_eq!(
                 written_kvs, read_kvs,
                 "expected read kvs to match written kvs"

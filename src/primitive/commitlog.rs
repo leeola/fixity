@@ -11,7 +11,7 @@ use {
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CommitNode {
     pub timestamp: i64,
     pub content: Addr,

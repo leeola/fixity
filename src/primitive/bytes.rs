@@ -7,7 +7,7 @@ use {
         Addr, Error,
     },
     fastcdc::{Chunk, FastCDC},
-    tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite},
+    tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite},
 };
 const CDC_MIN: usize = 1024 * 16;
 const CDC_AVG: usize = 1024 * 32;
@@ -35,8 +35,7 @@ impl<'s, C> Read<'s, C> {
                 at_segment: None,
                 at_addr: None,
             })?;
-            let buf = self.cache.read(addr).await?;
-            total_bytes += io::copy(&mut buf.as_ref(), &mut w).await?;
+            total_bytes += self.cache.read_unstructured(addr, &mut w).await?;
         }
         Ok(total_bytes)
     }
@@ -75,8 +74,7 @@ impl<'s, C> Create<'s, C> {
             let chunker = FastCDC::new(&b, self.cdc_min, self.cdc_avg, self.cdc_max);
             for Chunk { offset, length } in chunker {
                 let chunk = &b[offset..offset + length];
-                let addr = Addr::hash(chunk);
-                self.cache.write(addr.clone(), chunk).await?;
+                let addr = self.cache.write_unstructured(chunk).await?;
                 addrs.push(Value::Addr(addr));
             }
             addrs

@@ -2,12 +2,13 @@
 use fixi_web::Config as WebConfig;
 use {
     fixity::{
+        cache::DeserCache,
         fixity::Builder,
         path::Path,
         storage,
         value::{Key, Value},
         workspace::{self, Workspace},
-        Commit, Fixity, Storage,
+        CacheRead, CacheWrite, Commit, Fixity,
     },
     std::path::PathBuf,
     structopt::StructOpt,
@@ -53,8 +54,8 @@ enum Command {
         #[structopt(subcommand)]
         subcmd: MapSubcmd,
     },
-    /// A raw bytes interface to Fixity, allowing reading and writing of arbitrary bytes at the provided
-    /// `Path` and deduplicated via content defined chunking.
+    /// A raw bytes interface to Fixity, allowing reading and writing of arbitrary bytes at the
+    /// provided `Path` and deduplicated via content defined chunking.
     Bytes {
         /// The destination to write bytes to.
         #[structopt(short = "p", long = "path", parse(try_from_str = Path::from_cli_str), default_value = "")]
@@ -137,9 +138,9 @@ enum MapSubcmd {
         end: Option<Key>,
     },
 }
-async fn cmd_map<S, W>(fixi: Fixity<S, W>, path: Path, subcmd: MapSubcmd) -> Result<(), Error>
+async fn cmd_map<C, W>(fixi: Fixity<C, W>, path: Path, subcmd: MapSubcmd) -> Result<(), Error>
 where
-    S: Storage,
+    C: CacheRead + CacheWrite,
     W: Workspace,
 {
     match subcmd {
@@ -150,7 +151,7 @@ where
 }
 async fn cmd_map_get<S, W>(fixi: Fixity<S, W>, path: Path, key: Key) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     let map = fixi.map(path);
@@ -166,7 +167,7 @@ async fn cmd_map_put<S, W>(
     value: Value,
 ) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     let mut map = fixi.map(path);
@@ -185,7 +186,7 @@ async fn cmd_map_ls<S, W>(
     end: Option<Key>,
 ) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     let map = fixi.map(path);
@@ -212,7 +213,7 @@ enum BytesSubcmd {
 }
 async fn cmd_bytes<S, W>(fixi: Fixity<S, W>, path: Path, subcmd: BytesSubcmd) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     match subcmd {
@@ -222,7 +223,7 @@ where
 }
 async fn cmd_bytes_get<S, W>(fixi: Fixity<S, W>, path: Path) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     let stdout = tokio::io::stdout();
@@ -232,7 +233,7 @@ where
 }
 async fn cmd_bytes_put<S, W>(fixi: Fixity<S, W>, path: Path, commit: bool) -> Result<(), Error>
 where
-    S: Storage,
+    S: CacheRead + CacheWrite,
     W: Workspace,
 {
     if path.len() == 0 {

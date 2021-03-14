@@ -1,6 +1,6 @@
 use {
     crate::{
-        cache::{AsCacheRef, CacheRead, CacheWrite},
+        cache::{AsCacheRef, CacheRead, CacheWrite, DeserCache},
         primitive::CommitLog,
         storage::{self, fs::Config as FsConfig, Fs},
         workspace::{self, AsWorkspaceRef, Guard, Status, Workspace},
@@ -27,8 +27,14 @@ impl<C, W> Fixity<C, W> {
     pub fn new(storage: C, workspace: W) -> Self {
         Self { storage, workspace }
     }
+    /// Take ownership of the underlying cache.
+    ///
+    /// Useful for interacting directly with underlying [Primitives](create::primitive).
+    pub fn into_cache(self) -> C {
+        self.storage
+    }
 }
-impl Fixity<storage::Memory, workspace::Memory> {
+impl Fixity<DeserCache<()>, workspace::Memory> {
     /// Create a **testing focused** instance of Fixity, with in-memory storage
     /// and workspace.
     ///
@@ -36,9 +42,9 @@ impl Fixity<storage::Memory, workspace::Memory> {
     ///
     /// This instance does not save data. Both the storage and the workspace are
     /// in-memory only, and **will be lost** when this instance is dropped.
-    pub fn memory() -> Fixity<storage::Memory, workspace::Memory> {
+    pub fn memory() -> Self {
         Self {
-            storage: storage::Memory::new(),
+            storage: DeserCache::new(()),
             workspace: workspace::Memory::new("default".to_owned()),
         }
     }
@@ -116,7 +122,7 @@ impl<C, W> Builder<C, W> {
 }
 impl Builder<storage::Fs, workspace::Fs> {
     /// Initialize a new Fixity repository.
-    pub async fn init(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
+    pub async fn init(self) -> Result<Fixity<DeserCache<Fs>, workspace::Fs>, Error> {
         let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
             (_, Some(fixi_dir)) => fixi_dir,
             (fixi_dir_name, None) => fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME)),
@@ -140,9 +146,9 @@ impl Builder<storage::Fs, workspace::Fs> {
                 workspace::Fs::init(fixi_dir.join("workspaces"), workspace_name).await?
             },
         };
-        Ok(Fixity::new(storage, workspace))
+        Ok(Fixity::new(DeserCache::new(storage), workspace))
     }
-    pub async fn open(self) -> Result<Fixity<Fs, workspace::Fs>, Error> {
+    pub async fn open(self) -> Result<Fixity<DeserCache<Fs>, workspace::Fs>, Error> {
         let fixi_dir = match (self.fixi_dir_name, self.fixi_dir) {
             (_, Some(fixi_dir)) => fixi_dir,
             (fixi_dir_name, None) => {
@@ -165,7 +171,7 @@ impl Builder<storage::Fs, workspace::Fs> {
                 workspace::Fs::open(fixi_dir.join("workspaces"), workspace_name).await?
             },
         };
-        Ok(Fixity::new(storage, workspace))
+        Ok(Fixity::new(DeserCache::new(storage), workspace))
     }
 }
 #[derive(Debug, thiserror::Error)]

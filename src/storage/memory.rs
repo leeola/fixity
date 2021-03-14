@@ -37,7 +37,7 @@ impl StorageRead for Memory {
             })?;
             store
                 .get(&addr)
-                .ok_or_else(|| Error::NotFound { addr: addr.long() })?
+                .ok_or(Error::NotFound { addr })?
                 // cloning for simplicity, since this is a test focused storage impl.
                 .clone()
         };
