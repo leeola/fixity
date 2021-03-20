@@ -9,6 +9,7 @@ use {
         value::{Key, Value},
         Addr, Error,
     },
+    rkyv::ser::{serializers::WriteSerializer, Serializer},
     std::{collections::HashMap, mem},
 };
 pub struct Create<'s, C> {
@@ -185,16 +186,21 @@ impl From<KeyValues> for NodeOwned {
         }
     }
 }
+#[derive(Debug)]
 enum KeyValue {
     KeyValue((Key, Value)),
     KeyAddr((Key, Addr)),
 }
 impl KeyValue {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
-        match self {
-            Self::KeyValue(kv) => deser.to_vec(kv),
-            Self::KeyAddr(kv) => deser.to_vec(kv),
+        let mut serializer = WriteSerializer::new(Vec::new());
+        let _pos = match self {
+            Self::KeyValue(kv) => serializer.serialize_value(kv),
+            Self::KeyAddr(kv) => serializer.serialize_value(kv),
         }
+        .unwrap();
+        dbg!(&self);
+        Ok(dbg!(serializer.into_inner()))
     }
 }
 impl From<(Key, Value)> for KeyValue {
@@ -212,6 +218,22 @@ pub mod test {
     use {super::*, crate::storage::Memory};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
+    #[tokio::test]
+    async fn single_value() {
+        let mut env_builder = env_logger::builder();
+        env_builder.is_test(true);
+        if std::env::var("RUST_LOG").is_err() {
+            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
+        }
+        let _ = env_builder.try_init();
+        let storage = Memory::new();
+        let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+        let addr = tree
+            .with_vec(vec![(Key::from(1), Value::from(2))])
+            .await
+            .unwrap();
+        dbg!(addr);
+    }
     #[tokio::test]
     async fn create_without_failure() {
         let mut env_builder = env_logger::builder();
@@ -231,5 +253,42 @@ pub mod test {
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }
+    }
+    #[test]
+    fn bytes_debug() {
+        use rkyv::{
+            archived_value,
+            de::deserializers::AllocDeserializer,
+            ser::{serializers::WriteSerializer, Serializer},
+            Archive, Deserialize, Serialize,
+        };
+
+        #[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
+        struct Test {
+            int: u8,
+            string: String,
+            option: Option<Vec<i32>>,
+        }
+
+        let value = Test {
+            int: 42,
+            string: "hello world".to_string(),
+            option: Some(vec![1, 2, 3, 4]),
+        };
+
+        let mut serializer = WriteSerializer::new(Vec::new());
+        let pos = serializer
+            .serialize_value(&value)
+            .expect("failed to serialize value");
+        let buf_1 = serializer.into_inner();
+
+        let mut serializer = WriteSerializer::new(Vec::new());
+        let pos = serializer
+            .serialize_value(&value)
+            .expect("failed to serialize value");
+        let buf_2 = serializer.into_inner();
+
+        assert_eq!(buf_1, buf_2);
+        dbg!(buf_1.iter().fold(0usize, |acc, &b| acc + b as usize));
     }
 }

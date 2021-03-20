@@ -7,17 +7,17 @@ pub mod roller;
 // cursor_create::CursorCreate,
 // cursor_read::CursorRead,
 // lru_read::LruRead,
-
-pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
-    "writing key & value that exceeds block size, this is highly inefficient";
-
-use crate::{
-    value::{Addr, Key, Value},
-    Error,
-};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
+use {
+    crate::{
+        value::{Addr, Key, Value},
+        Error,
+    },
+    rkyv::Archive,
+};
+pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
+    "writing key & value that exceeds block size, this is highly inefficient";
 /// An alias to a [`Node`] with owned parameters.
 pub type NodeOwned = Node<Key, Value, Addr>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
@@ -26,6 +26,7 @@ pub type NodeOwned = Node<Key, Value, Addr>;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[derive(Debug, Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum Node<Key, Value, Addr> {
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),

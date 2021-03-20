@@ -1577,9 +1577,9 @@ checksum = "e3a8614ee435691de62bcffcf4a66d91b3594bf1428a5722e79103249a095690"
 
 [[package]]
 name = "rkyv"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a6fdbe501948402e00ede914b4dc21d340105b2eff740ed47e3d45ac846f5c"
+checksum = "66835c8faa2fc488c446dda9aa1be243b36d92e130becee37aad485686cfcb56"
 dependencies = [
  "memoffset",
  "ptr_meta",
