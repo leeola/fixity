@@ -280,15 +280,11 @@ pub mod test {
         let pos = serializer
             .serialize_value(&value)
             .expect("failed to serialize value");
-        let buf_1 = serializer.into_inner();
+        let buf = serializer.into_inner();
 
-        let mut serializer = WriteSerializer::new(Vec::new());
-        let pos = serializer
-            .serialize_value(&value)
-            .expect("failed to serialize value");
-        let buf_2 = serializer.into_inner();
-
-        assert_eq!(buf_1, buf_2);
-        dbg!(buf_1.iter().fold(0usize, |acc, &b| acc + b as usize));
+        let archived: &ArchivedTest = unsafe { archived_value::<Test>(buf.as_ref(), pos) };
+        assert_eq!(archived.int, value.int);
+        assert_eq!(archived.string, value.string);
+        assert_eq!(archived.option, value.option);
     }
 }

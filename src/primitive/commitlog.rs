@@ -1,7 +1,10 @@
 use {
     crate::{
         cache::{CacheRead, CacheWrite},
-        primitive::{appendlog::LogContainer, AppendLog},
+        primitive::{
+            appendlog::{LogContainer, LogNode},
+            AppendLog,
+        },
         Addr, Error,
     },
     chrono::Utc,
@@ -11,7 +14,7 @@ use {
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(Debug)]
+#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct CommitNode {
     pub timestamp: i64,
     pub content: Addr,
