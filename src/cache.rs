@@ -27,37 +27,37 @@ pub trait CacheRead: Sync {
     /// This is an associated type to allow implementers to define borrowed and alternate
     /// versions of the [`Structured`] data type. Generally this type should reflect [`Structured`],
     /// but doesn't have to be identical.
-    //
-    // Ideally we'd use GATs here to allow for Owned and Borrowed data,
-    // but i'm trying to stick to stable. :sadpanda:
-    type Structured;
+    type OwnedRef: OwnedRef;
     async fn read_unstructured<A, W>(&self, addr: A, w: W) -> Result<u64, Error>
     where
-        A: AsRef<Addr> + 'static + Send,
+        A: AsRef<Addr> + Send,
         W: AsyncWrite + Unpin + Send;
-    async fn read_structured<A>(&self, addr: A) -> Result<&Self::Structured, Error>
+    async fn read_structured<A>(&self, addr: A) -> Result<Self::OwnedRef, Error>
     where
-        A: AsRef<Addr> + 'static + Send;
+        A: AsRef<Addr> + Send;
+}
+pub trait OwnedRef {
+    // Another lovely place to use GATs, whenever they hit stable, rather than returning a
+    // &Self::Ref, implementers could return a Self::Ref<'a>, which would be neato.
+    // type Ref<'a>;
+    //
+    // The lack of GATs mostly affects Serde-like low-cost deserialization, ie swapping
+    // `Foo<String>` for `Foo<&'a str>`. So until then, Serde-like impls will
+    // have to be less efficient and duplicate memory on first-read, even if using as_ref().
+    type Ref;
+    fn as_ref(&self) -> &Self::Ref;
+    fn into_owned(self) -> Structured;
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
 #[async_trait::async_trait]
 pub trait CacheWrite: Sync {
-    /// The structured data that the cache can store via [`CacheWrite::write_struct`].
-    ///
-    /// This is an associated type to allow implementers to define borrowed and alternate
-    /// versions of the [`Structured`] data type. Generally this type should reflect [`Structured`],
-    /// but doesn't have to be identical.
-    //
-    // Ideally we'd use GATs here to allow for Owned and Borrowed data,
-    // but i'm trying to stick to stable. :sadpanda:
-    type Structured;
     async fn write_unstructured<R>(&self, r: R) -> Result<Addr, Error>
     where
         R: AsyncRead + Unpin + Send;
     async fn write_structured<T>(&self, structured: T) -> Result<Addr, Error>
     where
-        T: Into<Self::Structured>;
+        T: Into<Structured> + Send;
 }
 /// A helper trait to allow a single `T` to return references to both a `Workspace` and
 /// a `Cache`.
