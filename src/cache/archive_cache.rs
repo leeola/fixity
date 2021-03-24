@@ -24,6 +24,14 @@ pub struct ArchiveCache<S> {
     // TODO: use a RwLock here. Or ideally a lock-free data structure.
     cache: Mutex<HashMap<Addr, Arc<Vec<u8>>>>,
 }
+impl<S> ArchiveCache<S> {
+    pub fn new(storage: S) -> Self {
+        Self {
+            storage,
+            cache: Mutex::new(HashMap::new()),
+        }
+    }
+}
 #[async_trait::async_trait]
 impl<S> CacheRead for ArchiveCache<S>
 where

@@ -13,16 +13,16 @@ use {
     std::{collections::HashMap, mem},
 };
 pub struct Create<'s, C> {
-    storage: &'s C,
+    cache: &'s C,
     roller: Roller,
 }
 impl<'s, C> Create<'s, C> {
-    pub fn new(storage: &'s C) -> Self {
-        Self::with_roller(storage, RollerConfig::default())
+    pub fn new(cache: &'s C) -> Self {
+        Self::with_roller(cache, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s C, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(cache: &'s C, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
+            cache,
             roller: Roller::with_config(roller_config),
         }
     }
@@ -35,7 +35,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
     pub async fn with_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
         // Ensure the kvs are sorted - as the trees require sorting.
@@ -55,7 +55,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
     pub async fn with_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
         let mut kvs = kvs.into_iter().collect::<Vec<_>>();
@@ -114,8 +114,7 @@ where
             .expect("first key impossibly missing")
             .clone();
         let node = NodeOwned::from(block_buf);
-        let (node_addr, node_bytes) = node.as_bytes()?;
-        self.storage.write(node_addr.clone(), &*node_bytes).await?;
+        let node_addr = self.cache.write_structured(node).await?;
         Ok((key, node_addr))
     }
 }
@@ -193,14 +192,10 @@ enum KeyValue {
 }
 impl KeyValue {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
-        let mut serializer = WriteSerializer::new(Vec::new());
-        let _pos = match self {
-            Self::KeyValue(kv) => serializer.serialize_value(kv),
-            Self::KeyAddr(kv) => serializer.serialize_value(kv),
+        match self {
+            Self::KeyValue(kv) => deser.to_vec(kv),
+            Self::KeyAddr(kv) => deser.to_vec(kv),
         }
-        .unwrap();
-        dbg!(&self);
-        Ok(dbg!(serializer.into_inner()))
     }
 }
 impl From<(Key, Value)> for KeyValue {
@@ -215,7 +210,10 @@ impl From<(Key, Addr)> for KeyValue {
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::storage::Memory};
+    use {
+        super::*,
+        crate::{cache::ArchiveCache, storage::Memory},
+    };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -226,8 +224,8 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let storage = Memory::new();
-        let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+        let cache = ArchiveCache::new(Memory::new());
+        let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
         let addr = tree
             .with_vec(vec![(Key::from(1), Value::from(2))])
             .await
@@ -248,43 +246,10 @@ pub mod test {
                 .map(|i| (i, i * 10))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
-            let storage = Memory::new();
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let cache = ArchiveCache::new(Memory::new());
+            let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }
-    }
-    #[test]
-    fn bytes_debug() {
-        use rkyv::{
-            archived_value,
-            de::deserializers::AllocDeserializer,
-            ser::{serializers::WriteSerializer, Serializer},
-            Archive, Deserialize, Serialize,
-        };
-
-        #[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
-        struct Test {
-            int: u8,
-            string: String,
-            option: Option<Vec<i32>>,
-        }
-
-        let value = Test {
-            int: 42,
-            string: "hello world".to_string(),
-            option: Some(vec![1, 2, 3, 4]),
-        };
-
-        let mut serializer = WriteSerializer::new(Vec::new());
-        let pos = serializer
-            .serialize_value(&value)
-            .expect("failed to serialize value");
-        let buf = serializer.into_inner();
-
-        let archived: &ArchivedTest = unsafe { archived_value::<Test>(buf.as_ref(), pos) };
-        assert_eq!(archived.int, value.int);
-        assert_eq!(archived.string, value.string);
-        assert_eq!(archived.option, value.option);
     }
 }

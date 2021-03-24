@@ -1,6 +1,6 @@
 use {
     crate::{
-        cache::{AsCacheRef, CacheRead, CacheWrite},
+        cache::{ArchiveCache, AsCacheRef, CacheRead, CacheWrite},
         primitive::CommitLog,
         storage::{self, fs::Config as FsConfig, Fs},
         workspace::{self, AsWorkspaceRef, Guard, Status, Workspace},
@@ -28,7 +28,7 @@ impl<C, W> Fixity<C, W> {
         Self { storage, workspace }
     }
 }
-impl Fixity<storage::Memory, workspace::Memory> {
+impl Fixity<ArchiveCache<storage::Memory>, workspace::Memory> {
     /// Create a **testing focused** instance of Fixity, with in-memory storage
     /// and workspace.
     ///
@@ -36,9 +36,9 @@ impl Fixity<storage::Memory, workspace::Memory> {
     ///
     /// This instance does not save data. Both the storage and the workspace are
     /// in-memory only, and **will be lost** when this instance is dropped.
-    pub fn memory() -> Fixity<storage::Memory, workspace::Memory> {
+    pub fn memory() -> Fixity<ArchiveCache<storage::Memory>, workspace::Memory> {
         Self {
-            storage: storage::Memory::new(),
+            storage: ArchiveCache::new(storage::Memory::new()),
             workspace: workspace::Memory::new("default".to_owned()),
         }
     }

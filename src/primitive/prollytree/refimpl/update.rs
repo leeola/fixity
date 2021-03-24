@@ -16,17 +16,17 @@ pub enum Change {
     Remove,
 }
 pub struct Update<'s, C> {
-    storage: &'s C,
+    cache: &'s C,
     root_addr: Addr,
     roller_config: RollerConfig,
 }
 impl<'s, C> Update<'s, C> {
-    pub fn new(storage: &'s C, root_addr: Addr) -> Self {
-        Self::with_roller(storage, root_addr, RollerConfig::default())
+    pub fn new(cache: &'s C, root_addr: Addr) -> Self {
+        Self::with_roller(cache, root_addr, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s C, root_addr: Addr, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(cache: &'s C, root_addr: Addr, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
+            cache,
             root_addr,
             roller_config,
         }
@@ -43,7 +43,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the provided vec contains non-unique keys or any writes to storage fail
+    /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
     pub async fn with_vec(self, mut changes: Vec<(Key, Change)>) -> Result<Addr, Error> {
         {
@@ -57,7 +57,7 @@ where
                 });
             }
         }
-        let all_kvs = Read::new(self.storage, self.root_addr.clone())
+        let all_kvs = Read::new(self.cache, self.root_addr.clone())
             .to_vec()
             .await?;
         let mut kvs = all_kvs
@@ -88,14 +88,17 @@ where
         // kvs is now the modified vec of keyvalues and can be constructed as an entire
         // new tree. Since each block is deterministic, this effectively mutates the source
         // tree with the least lines of code.
-        Create::with_roller(self.storage, self.roller_config)
+        Create::with_roller(self.cache, self.roller_config)
             .with_hashmap(kvs)
             .await
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::storage::Memory};
+    use {
+        super::*,
+        crate::{cache::ArchiveCache, storage::Memory},
+    };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -123,9 +126,9 @@ pub mod test {
                 .flatten()
                 .map(|i| (Key::from(i), Value::from(i)))
                 .collect::<Vec<_>>();
-            let storage = Memory::new();
+            let cache = ArchiveCache::new(Memory::new());
             let source_addr = {
-                let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+                let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
                 let source_kvs = source_kvs
                     .map(|i| (i, i))
                     .map(|(k, v)| (Key::from(k), Value::from(v)))
@@ -134,7 +137,7 @@ pub mod test {
             };
             let got_addr = {
                 Update::with_roller(
-                    &storage,
+                    &cache,
                     source_addr,
                     RollerConfig::with_pattern(TEST_PATTERN),
                 )
@@ -150,13 +153,10 @@ pub mod test {
                 .await
                 .unwrap()
             };
-            let got_kvs = Read::new(&storage, got_addr.clone())
-                .to_vec()
-                .await
-                .unwrap();
+            let got_kvs = Read::new(&cache, got_addr.clone()).to_vec().await.unwrap();
             assert_eq!(expected_kvs, got_kvs);
             let expected_addr = {
-                Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN))
+                Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN))
                     .with_vec(expected_kvs)
                     .await
                     .unwrap()

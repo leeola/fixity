@@ -15,16 +15,16 @@ use {
     std::mem,
 };
 pub struct Create<'s, C> {
-    storage: &'s C,
+    cache: &'s C,
     roller: Roller,
 }
 impl<'s, C> Create<'s, C> {
-    pub fn new(storage: &'s C) -> Self {
-        Self::with_roller(storage, RollerConfig::default())
+    pub fn new(cache: &'s C) -> Self {
+        Self::with_roller(cache, RollerConfig::default())
     }
-    pub fn with_roller(storage: &'s C, roller_config: RollerConfig) -> Self {
+    pub fn with_roller(cache: &'s C, roller_config: RollerConfig) -> Self {
         Self {
-            storage,
+            cache,
             roller: Roller::with_config(roller_config),
         }
     }
@@ -91,15 +91,16 @@ where
         }
     }
     async fn write_node(&self, node: NodeOwned) -> Result<Addr, Error> {
-        let node_bytes = Deser::default().to_vec(&node)?;
-        let node_addr = Addr::hash(&node_bytes);
-        self.storage.write(node_addr.clone(), &*node_bytes).await?;
+        let node_addr = self.cache.write_structured(node).await?;
         Ok(node_addr)
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::storage::Memory};
+    use {
+        super::*,
+        crate::{cache::ArchiveCache, storage::Memory},
+    };
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -113,8 +114,8 @@ pub mod test {
         let contents = vec![(0u32..20), (0..200), (0..2_000)];
         for content in contents {
             let content = content.map(Value::from).collect::<Vec<_>>();
-            let storage = Memory::new();
-            let tree = Create::with_roller(&storage, RollerConfig::with_pattern(TEST_PATTERN));
+            let cache = ArchiveCache::new(Memory::new());
+            let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
         }

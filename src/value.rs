@@ -76,6 +76,11 @@ impl AsRef<Addr> for Addr {
         self
     }
 }
+impl From<&Addr> for Addr {
+    fn from(t: &Addr) -> Self {
+        t.clone()
+    }
+}
 impl TryFrom<Vec<u8>> for Addr {
     type Error = Vec<u8>;
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
