@@ -9,7 +9,7 @@ use {
     rkyv::{
         archived_value,
         de::deserializers::AllocDeserializer,
-        ser::{serializers::WriteSerializer, Serializer},
+        ser::{serializers::WriteSerializer, SeekSerializer, Serializer},
         std_impl::{ArchivedString, ArchivedVec},
         Archive, Deserialize, Serialize,
     },
@@ -153,17 +153,18 @@ where
             let deser_buf = Deser::default().to_vec(&structured).unwrap();
             Addr::hash(&deser_buf)
         };
-        let mut serializer = WriteSerializer::new(Vec::new());
-        dbg!(&structured);
-        dbg!(serializer.pos());
-        let pos: usize =
-            serializer
-                .serialize_value(&structured)
-                .map_err(|err| Error::Unhandled {
-                    message: format!("Archive serialization: {}", err),
-                })?;
-        dbg!(pos);
-        let buf = serializer.into_inner();
+        let mut serializer = WriteSerializer::new(std::io::Cursor::new(Vec::new()));
+        let pos: usize = serializer
+            .archive_root(&structured)
+            .map_err(|err| Error::Unhandled {
+                message: format!("Archive serialization: {}", err),
+            })?;
+        if pos != 0 {
+            return Err(Error::Unhandled {
+                message: "archive position unexpectedly not zero".to_owned(),
+            });
+        }
+        let buf = serializer.into_inner().into_inner();
         self.write_buf(&addr, buf).await?;
         Ok(addr)
     }

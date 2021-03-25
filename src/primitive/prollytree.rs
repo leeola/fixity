@@ -26,7 +26,7 @@ pub type NodeOwned = Node<Key, Value, Addr>;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(Debug, Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Debug, Archive, rkyv::Serialize, rkyv::Deserialize, Eq, PartialEq)]
 pub enum Node<Key, Value, Addr> {
     Branch(Vec<(Key, Addr)>),
     Leaf(Vec<(Key, Value)>),
