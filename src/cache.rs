@@ -15,6 +15,11 @@ use {
 /// enum.
 ///
 /// Primarily used with [`CacheRead`] and [`CacheWrite`].
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum Structured {
     ProllyTreeNode(prollytree::NodeOwned),
@@ -83,6 +88,7 @@ impl From<prollylist::NodeOwned> for Structured {
 impl TryFrom<Structured> for prollytree::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
+        dbg!(&t);
         match t {
             Structured::ProllyTreeNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
@@ -95,6 +101,7 @@ impl TryFrom<Structured> for prollytree::NodeOwned {
 impl TryFrom<Structured> for prollylist::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
+        dbg!(&t);
         match t {
             Structured::ProllyListNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
@@ -107,6 +114,7 @@ impl TryFrom<Structured> for prollylist::NodeOwned {
 impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
+        dbg!(&t);
         match t {
             Structured::CommitLogNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?

@@ -51,7 +51,7 @@ pub enum Error {
     #[error("unhandled error: `{message}`")]
     Unhandled { message: String },
     #[error("hash `{addr}` not found")]
-    NotFound { addr: String },
+    NotFound { addr: Addr },
     #[error("io error: {0}")]
     Io(#[from] io::Error),
     #[error("hash `{hash}` io error: {err}")]
