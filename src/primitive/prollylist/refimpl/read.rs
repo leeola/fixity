@@ -66,7 +66,7 @@ pub mod test {
         let contents = vec![(0u32..20), (0..200), (0..2_000)];
         for content in contents {
             let written_values = content.map(|v| Value::from(v)).collect::<Vec<_>>();
-            let cache = ArchiveCache::new(Memory::new());
+            let cache = ArchiveCache::new(());
             let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(written_values.clone()).await.unwrap();
             let read_values = Read::new(&cache, addr).to_vec().await.unwrap();

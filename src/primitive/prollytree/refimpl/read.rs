@@ -56,7 +56,6 @@ pub mod test {
         crate::{
             cache::ArchiveCache,
             primitive::prollytree::{refimpl::Create, roller::Config as RollerConfig},
-            storage::Memory,
         },
     };
     /// A smaller value to use with the roller, producing smaller average block sizes.
@@ -75,7 +74,7 @@ pub mod test {
                 .map(|i| (i, i * 10))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
-            let cache = ArchiveCache::new(Memory::new());
+            let cache = ArchiveCache::new(());
             let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(written_kvs.clone()).await.unwrap();
             let read_kvs = Read::new(&cache, addr).to_vec().await.unwrap();

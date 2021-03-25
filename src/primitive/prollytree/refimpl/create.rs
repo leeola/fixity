@@ -9,7 +9,6 @@ use {
         value::{Key, Value},
         Addr, Error,
     },
-    rkyv::ser::{serializers::WriteSerializer, Serializer},
     std::{collections::HashMap, mem},
 };
 pub struct Create<'s, C> {
@@ -210,10 +209,7 @@ impl From<(Key, Addr)> for KeyValue {
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::{cache::ArchiveCache, storage::Memory},
-    };
+    use {super::*, crate::cache::ArchiveCache};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -224,7 +220,7 @@ pub mod test {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
         let _ = env_builder.try_init();
-        let cache = ArchiveCache::new(Memory::new());
+        let cache = ArchiveCache::new(());
         let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
         let addr = tree
             .with_vec(vec![(Key::from(1), Value::from(2))])
@@ -246,7 +242,7 @@ pub mod test {
                 .map(|i| (i, i * 10))
                 .map(|(k, v)| (Key::from(k), Value::from(v)))
                 .collect::<Vec<_>>();
-            let cache = ArchiveCache::new(Memory::new());
+            let cache = ArchiveCache::new(());
             let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);

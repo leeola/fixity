@@ -97,10 +97,7 @@ where
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::{cache::ArchiveCache, storage::Memory},
-    };
+    use {super::*, crate::cache::ArchiveCache};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]
@@ -114,7 +111,7 @@ pub mod test {
         let contents = vec![(0u32..20), (0..200), (0..2_000)];
         for content in contents {
             let content = content.map(Value::from).collect::<Vec<_>>();
-            let cache = ArchiveCache::new(Memory::new());
+            let cache = ArchiveCache::new(());
             let tree = Create::with_roller(&cache, RollerConfig::with_pattern(TEST_PATTERN));
             let addr = tree.with_vec(content).await.unwrap();
             dbg!(addr);
