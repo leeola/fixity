@@ -9,7 +9,7 @@ use {
     },
 };
 pub use {
-    addr::{Addr, ArchivedAddr},
+    addr::Addr,
     scalar::{Scalar, ScalarRef},
 };
 /// Key exists as a very thin layer over a [`Value`] for ease of use and reading.

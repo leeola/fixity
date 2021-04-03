@@ -1,32 +1,9 @@
-use super::{Addr, ArchivedAddr};
+use super::Addr;
 use std::fmt;
 
-pub mod zomg {
-    use super::Addr;
+pub type Scalar = ScalarRef<Addr, String>;
 
-    #[derive(
-        rkyv::Archive,
-        rkyv::Serialize,
-        rkyv::Deserialize,
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-    )]
-    pub enum Scalar {
-        Addr(Addr),
-        Uint32(u32),
-        String(String),
-    }
-}
-
-pub type Scalar = ScalarRef<Addr, u32, String>;
-
-pub type ArchivedScalar =
-    ScalarRef<rkyv::Archived<Addr>, rkyv::Archived<u32>, rkyv::Archived<String>>;
+pub type ArchivedScalar = ScalarRef<rkyv::Archived<Addr>, rkyv::Archived<String>>;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
@@ -34,30 +11,34 @@ pub type ArchivedScalar =
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ScalarRef<A, U32, S> {
+pub enum ScalarRef<A, S> {
     Addr(A),
-    Uint32(U32),
+    Uint32(u32),
     String(S),
 }
-impl<A, S> From<u32> for ScalarRef<A, u32, S> {
+impl<A, S> From<u32> for ScalarRef<A, S> {
     fn from(t: u32) -> Self {
         Self::Uint32(t)
     }
 }
-impl<A, U32> From<&str> for ScalarRef<A, U32, String> {
+impl<A> From<&str> for ScalarRef<A, String> {
     fn from(t: &str) -> Self {
         Self::String(t.to_owned())
     }
 }
-impl<U32, S> From<Addr> for ScalarRef<Addr, U32, S> {
+impl<A> From<String> for ScalarRef<A, String> {
+    fn from(t: String) -> Self {
+        Self::String(t)
+    }
+}
+impl<S> From<Addr> for ScalarRef<Addr, S> {
     fn from(t: Addr) -> Self {
         Self::Addr(t)
     }
 }
-impl<A, U32, S> fmt::Display for ScalarRef<A, U32, S>
+impl<A, S> fmt::Display for ScalarRef<A, S>
 where
     A: fmt::Display,
-    U32: fmt::Display,
     S: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -68,7 +49,6 @@ where
         }
     }
 }
-
 mod derived_rkyv {
     use super::*;
     pub enum ScalarResolver
@@ -168,7 +148,7 @@ mod derived_rkyv {
             }
         };
     const _: () = {
-        use rkyv::{Archive, Fallible, Serialize};
+        use rkyv::{Fallible, Serialize};
         impl<__S: Fallible + ?Sized> Serialize<__S> for Scalar
         where
             Addr: rkyv::Serialize<__S>,
@@ -210,39 +190,44 @@ mod derived_rkyv {
             }
         }
     };
-}
-
-#[cfg(test)]
-fn print_scalar<A, U32, S>(scalar: &ScalarRef<A, U32, S>)
-where
-    U32: Copy + Into<u32>,
-    S: AsRef<str>,
-{
-    match scalar {
-        ScalarRef::Addr(_) => unimplemented!(),
-        &ScalarRef::Uint32(i) => println!("got int, {}", i.into()),
-        ScalarRef::String(s) => println!("got string, {:?}", s.as_ref()),
+    #[cfg(test)]
+    fn print_scalar<A, S>(scalar: &ScalarRef<A, S>)
+    where
+        A: AsRef<Addr>,
+        S: AsRef<str>,
+    {
+        match scalar {
+            ScalarRef::Addr(a) => println!("addr, {}", a.as_ref()),
+            ScalarRef::Uint32(i) => println!("got int, {}", i),
+            ScalarRef::String(s) => println!("got string, {:?}", s.as_ref()),
+        }
     }
-}
-#[test]
-fn rkyv_deser() {
-    use {
-        rkyv::{
+    #[test]
+    fn rkyv_deser() {
+        use rkyv::{
             archived_value,
             de::deserializers::AllocDeserializer,
             ser::{serializers::WriteSerializer, Serializer},
             Deserialize,
-        },
-    };
-    let owned = Scalar::String(String::from("foo"));
-    let mut serializer = WriteSerializer::new(Vec::new());
-    let pos = serializer
-        .serialize_value(&owned)
-        .expect("failed to serialize value");
-    let buf = serializer.into_inner();
-    let archived = unsafe { archived_value::<Scalar>(buf.as_ref(), pos) };
-    let deserialized = archived.deserialize(&mut AllocDeserializer).unwrap();
-    assert_eq!(owned, deserialized);
-    print_scalar(archived);
-    print_scalar(&owned);
+        };
+        // TODO: use a proptest.
+        let values = vec![
+            Scalar::String(String::from("foo")),
+            Scalar::Addr(Addr::hash("foo")),
+            Scalar::Uint32(42),
+            Scalar::String(String::from("foo bar baz")),
+        ];
+        for owned in values {
+            let mut serializer = WriteSerializer::new(Vec::new());
+            let pos = serializer
+                .serialize_value(&owned)
+                .expect("failed to serialize value");
+            let buf = serializer.into_inner();
+            let archived = unsafe { archived_value::<Scalar>(buf.as_ref(), pos) };
+            let deserialized = archived.deserialize(&mut AllocDeserializer).unwrap();
+            assert_eq!(owned, deserialized);
+            print_scalar(archived);
+            print_scalar(&owned);
+        }
+    }
 }

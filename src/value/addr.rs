@@ -12,9 +12,7 @@ const PRIMARY_ENCODING: Base = Base::Base58Btc;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(
-    Clone, PartialEq, Eq, PartialOrd, Ord, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Addr([u8; 32]);
 impl Addr {
     /// The length in bytes of an [`Addr`].
@@ -98,5 +96,77 @@ impl fmt::Display for Addr {
         // TODO: is there a way we can encode this without allocating? Perhaps into
         // a different encoding?
         write!(f, "{}", self.long())
+    }
+}
+mod rkyv {
+    use super::Addr;
+    pub struct AddrResolver(rkyv::Resolver<[u8; 32]>)
+    where
+        [u8; 32]: rkyv::Archive;
+    const _: () = {
+        use core::marker::PhantomData;
+        use rkyv::{offset_of, Archive};
+        impl Archive for Addr
+        where
+            [u8; 32]: rkyv::Archive,
+        {
+            type Archived = Addr;
+            type Resolver = AddrResolver;
+            fn resolve(&self, pos: usize, resolver: Self::Resolver) -> Self::Archived {
+                Addr(self.0.resolve(pos + offset_of!(Addr, 0), resolver.0))
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Fallible, Serialize};
+        impl<__S: Fallible + ?Sized> Serialize<__S> for Addr
+        where
+            [u8; 32]: rkyv::Serialize<__S>,
+        {
+            fn serialize(&self, serializer: &mut __S) -> Result<Self::Resolver, __S::Error> {
+                Ok(AddrResolver(Serialize::<__S>::serialize(
+                    &self.0, serializer,
+                )?))
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Archive, Archived, Deserialize, Fallible};
+        impl<__D: Fallible + ?Sized> Deserialize<Addr, __D> for Archived<Addr>
+        where
+            [u8; 32]: Archive,
+            Archived<[u8; 32]>: Deserialize<[u8; 32], __D>,
+        {
+            fn deserialize(&self, deserializer: &mut __D) -> Result<Addr, __D::Error> {
+                Ok(Self(self.0.deserialize(deserializer)?))
+            }
+        }
+    };
+    #[cfg(test)]
+    fn print_addr(addr: &Addr) {
+        println!("addr, {:?}", addr);
+    }
+    #[test]
+    fn rkyv_deser() {
+        use rkyv::{
+            archived_value,
+            de::deserializers::AllocDeserializer,
+            ser::{serializers::WriteSerializer, Serializer},
+            Deserialize,
+        };
+        // TODO: use a proptest.
+        let values = vec![Addr::hash("foo"), Addr::hash("bar"), Addr::hash("baz")];
+        for owned in values {
+            let mut serializer = WriteSerializer::new(Vec::new());
+            let pos = serializer
+                .serialize_value(&owned)
+                .expect("failed to serialize value");
+            let buf = serializer.into_inner();
+            let archived = unsafe { archived_value::<Addr>(buf.as_ref(), pos) };
+            let deserialized = archived.deserialize(&mut AllocDeserializer).unwrap();
+            assert_eq!(owned, deserialized);
+            print_addr(archived);
+            print_addr(&owned);
+        }
     }
 }
