@@ -1,6 +1,6 @@
 use {
     crate::{
-        cache::{ArchivedStructured, CacheRead, CacheWrite, OwnedRef, Structured},
+        cache::{CacheRead, CacheWrite, OwnedRef, Structured},
         deser::Deser,
         storage::{Error, StorageRead, StorageWrite},
         Addr,
@@ -112,21 +112,23 @@ where
 }
 pub struct ArchiveBytes(Arc<Vec<u8>>);
 impl OwnedRef for ArchiveBytes {
-    type Ref = ArchivedStructured;
+    type Ref = Structured;
     fn as_ref(&self) -> &Self::Ref {
-        unsafe {
-            archived_value::<Structured>(
-                self.0.as_slice(),
-                // we're only serializing to the beginning of the buf.
-                0,
-            )
-        }
+        todo!("archive_cache as_ref")
+        // unsafe {
+        //     archived_value::<Structured>(
+        //         self.0.as_slice(),
+        //         // we're only serializing to the beginning of the buf.
+        //         0,
+        //     )
+        // }
     }
     fn into_owned(self) -> Structured {
-        let archived = self.as_ref();
-        let mut deserializer = AllocDeserializer;
-        let deserialized = archived.deserialize(&mut deserializer).unwrap();
-        deserialized
+        todo!("archive_cache into_owned")
+        // let archived = self.as_ref();
+        // let mut deserializer = AllocDeserializer;
+        // let deserialized = archived.deserialize(&mut deserializer).unwrap();
+        // deserialized
     }
 }
 #[async_trait::async_trait]
@@ -148,24 +150,25 @@ where
     where
         T: Into<Structured> + Send,
     {
-        let structured = structured.into();
-        let addr = {
-            let deser_buf = Deser::default().to_vec(&structured).unwrap();
-            Addr::hash(&deser_buf)
-        };
-        let mut serializer = WriteSerializer::new(std::io::Cursor::new(Vec::new()));
-        let pos: usize = serializer
-            .archive_root(&structured)
-            .map_err(|err| Error::Unhandled {
-                message: format!("Archive serialization: {}", err),
-            })?;
-        if pos != 0 {
-            return Err(Error::Unhandled {
-                message: "archive position unexpectedly not zero".to_owned(),
-            });
-        }
-        let buf = serializer.into_inner().into_inner();
-        self.write_buf(&addr, buf).await?;
-        Ok(addr)
+        todo!("archive_cache write_structured")
+        // let structured = structured.into();
+        // let addr = {
+        //     let deser_buf = Deser::default().to_vec(&structured).unwrap();
+        //     Addr::hash(&deser_buf)
+        // };
+        // let mut serializer = WriteSerializer::new(std::io::Cursor::new(Vec::new()));
+        // let pos: usize = serializer
+        //     .archive_root(&structured)
+        //     .map_err(|err| Error::Unhandled {
+        //         message: format!("Archive serialization: {}", err),
+        //     })?;
+        // if pos != 0 {
+        //     return Err(Error::Unhandled {
+        //         message: "archive position unexpectedly not zero".to_owned(),
+        //     });
+        // }
+        // let buf = serializer.into_inner().into_inner();
+        // self.write_buf(&addr, buf).await?;
+        // Ok(addr)
     }
 }

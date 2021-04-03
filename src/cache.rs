@@ -20,7 +20,7 @@ use {
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Debug)]
 pub enum Structured {
     ProllyTreeNode(prollytree::NodeOwned),
     ProllyListNode(prollylist::NodeOwned),
@@ -55,6 +55,10 @@ pub trait OwnedRef {
     type Ref;
     fn as_ref(&self) -> &Self::Ref;
     fn into_owned(self) -> Structured;
+    // Add some helpers to get the concrete Ts back, to avoid
+    // having to match the enums outside.
+    // fn as_ref<T>(self) -> Result<&T, CacheError>;
+    // fn into_owned<T>(self) -> Result<T, CacheError>;
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
