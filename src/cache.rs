@@ -35,7 +35,7 @@ pub trait CacheRead: Sync {
     /// This is an associated type to allow implementers to define borrowed and alternate
     /// versions of the [`Structured`] data type. Generally this type should reflect [`Structured`],
     /// but doesn't have to be identical.
-    type OwnedRef: OwnedRef;
+    type OwnedRef: OwnedRef + Send;
     async fn read_unstructured<A, W>(&self, addr: A, w: W) -> Result<u64, Error>
     where
         A: AsRef<Addr> + Into<Addr> + Send,
@@ -45,15 +45,7 @@ pub trait CacheRead: Sync {
         A: AsRef<Addr> + Into<Addr> + Send;
 }
 pub trait OwnedRef {
-    // Another lovely place to use GATs, whenever they hit stable, rather than returning a
-    // &Self::Ref, implementers could return a Self::Ref<'a>, which would be neato.
-    // type Ref<'a>;
-    //
-    // The lack of GATs mostly affects Serde-like low-cost deserialization, ie swapping
-    // `Foo<String>` for `Foo<&'a str>`. So until then, Serde-like impls will
-    // have to be less efficient and duplicate memory on first-read, even if using as_ref().
-    type Ref;
-    fn as_ref(&self) -> &Self::Ref;
+    fn as_ref(&self) -> &ArchivedStructured;
     fn into_owned(self) -> Structured;
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
@@ -88,9 +80,20 @@ impl From<prollylist::NodeOwned> for Structured {
 impl TryFrom<Structured> for prollytree::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
-        dbg!(&t);
         match t {
             Structured::ProllyTreeNode(t) => Ok(t),
+            // TODO: this deserves a unique error variant. Possibly a cache-specific error?
+            _ => Err(Error::Unhandled {
+                message: "misaligned cache types".to_owned(),
+            }),
+        }
+    }
+}
+impl<'a> TryFrom<&'a ArchivedStructured> for &'a prollytree::ArchivedNodeOwned {
+    type Error = Error;
+    fn try_from(t: &'a ArchivedStructured) -> Result<Self, Error> {
+        match t {
+            ArchivedStructured::ProllyTreeNode(t) => Ok(&t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
             _ => Err(Error::Unhandled {
                 message: "misaligned cache types".to_owned(),
@@ -101,7 +104,6 @@ impl TryFrom<Structured> for prollytree::NodeOwned {
 impl TryFrom<Structured> for prollylist::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
-        dbg!(&t);
         match t {
             Structured::ProllyListNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
@@ -114,7 +116,6 @@ impl TryFrom<Structured> for prollylist::NodeOwned {
 impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
-        dbg!(&t);
         match t {
             Structured::CommitLogNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?

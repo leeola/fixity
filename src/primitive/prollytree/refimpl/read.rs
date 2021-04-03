@@ -1,10 +1,11 @@
 use {
     crate::{
-        cache::{CacheRead, OwnedRef},
-        primitive::prollytree::{Node, NodeOwned},
+        cache::{ArchivedStructured, CacheRead, OwnedRef},
+        primitive::prollytree::{ArchivedNode, Node, NodeOwned},
         value::{Addr, Key, Value},
         Error,
     },
+    rkyv::{de::deserializers::AllocDeserializer, Archive, Deserialize, Serialize},
     std::convert::TryInto,
 };
 pub struct Read<'s, C> {
@@ -26,15 +27,24 @@ where
     }
     #[async_recursion::async_recursion]
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<(Key, Value)>, Error> {
-        let node = {
-            let owned_ref = self.storage.read_structured(&addr).await?;
-            owned_ref.into_owned().try_into()?
+        let owned_ref = self.storage.read_structured(&addr).await?;
+        let node = match owned_ref.as_ref() {
+            ArchivedStructured::ProllyTreeNode(node) => node,
+            _ => todo!(),
         };
         match node {
-            Node::Leaf(v) => Ok(v),
-            Node::Branch(v) => {
+            ArchivedNode::Leaf(v) => {
+                let mut deserializer = AllocDeserializer;
+                let v = v.deserialize(&mut deserializer).unwrap();
+                Ok(v)
+            },
+            ArchivedNode::Branch(v) => {
                 let mut kvs = Vec::new();
-                for (_, addr) in v {
+                for (_, addr) in v.as_slice() {
+                    let addr = {
+                        let mut deserializer = AllocDeserializer;
+                        addr.deserialize(&mut deserializer).unwrap()
+                    };
                     kvs.append(&mut self.recursive_to_vec(addr).await?);
                 }
                 Ok(kvs)

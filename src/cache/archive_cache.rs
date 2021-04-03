@@ -112,8 +112,7 @@ where
 }
 pub struct ArchiveBytes(Arc<Vec<u8>>);
 impl OwnedRef for ArchiveBytes {
-    type Ref = ArchivedStructured;
-    fn as_ref(&self) -> &Self::Ref {
+    fn as_ref(&self) -> &ArchivedStructured {
         unsafe {
             archived_value::<Structured>(
                 self.0.as_slice(),
