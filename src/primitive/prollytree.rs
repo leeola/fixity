@@ -19,7 +19,7 @@ use {
 pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
     "writing key & value that exceeds block size, this is highly inefficient";
 /// An alias to a [`Node`] with owned parameters.
-pub type NodeOwned = Node<KeyOwned, ValueOwned, Addr>;
+pub type NodeOwned = Node<Vec<(KeyOwned, Addr)>, Vec<(ValueOwned, Addr)>>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
@@ -27,45 +27,26 @@ pub type NodeOwned = Node<KeyOwned, ValueOwned, Addr>;
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 #[derive(Debug, Archive, rkyv::Serialize, rkyv::Deserialize, Eq, PartialEq)]
-pub enum Node<Key, Value, Addr> {
-    Branch(Vec<(Key, Addr)>),
-    Leaf(Vec<(Key, Value)>),
+pub enum Node<B, L> {
+    Branch(B),
+    Leaf(L),
 }
-impl<K, V, A> Node<K, V, A> {
+/*
+use std::ops::Deref;
+pub enum NodeBL<B, L> {
+    Branch(B),
+    Leaf(L),
+}
+impl<B, L> NodeBL<B, L> {
     /// Return the key for this whole node, aka the first element's key.
-    pub fn key(&self) -> Option<&K> {
+    pub fn key<'a, K: 'a, V: 'a, A: 'a>(&'a self) -> Option<&K>
+    where
+        B: Deref<Target = [(K, V)]>,
+        L: Deref<Target = [(K, A)]>,
+    {
         match self {
             Self::Branch(v) => v.get(0).map(|(k, _)| k),
             Self::Leaf(v) => v.get(0).map(|(k, _)| k),
-        }
-    }
-    /// Consume self and return the key for this whole node, aka the first element's key.
-    pub fn into_key(self) -> Option<K> {
-        match self {
-            Self::Branch(mut v) => {
-                if v.is_empty() {
-                    None
-                } else {
-                    Some(v.swap_remove(0).0)
-                }
-            },
-            Self::Leaf(mut v) => {
-                if v.is_empty() {
-                    None
-                } else {
-                    Some(v.swap_remove(0).0)
-                }
-            },
-        }
-    }
-    /// Like [`Self::into_key`], but panics if called on an empty node.
-    ///
-    /// # Panics
-    /// Panics if called on empty Node.
-    pub fn into_key_unchecked(self) -> K {
-        match self {
-            Self::Branch(mut v) => v.swap_remove(0).0,
-            Self::Leaf(mut v) => v.swap_remove(0).0,
         }
     }
     /// Len of the underlying vec.
@@ -83,17 +64,26 @@ impl<K, V, A> Node<K, V, A> {
         }
     }
 }
-#[cfg(feature = "borsh")]
-impl<K, V, A> Node<K, V, A>
-where
-    K: borsh::BorshSerialize,
-    V: borsh::BorshSerialize,
-    A: borsh::BorshSerialize,
-{
-    /// Serialize and hash the Node, returning the `Addr` and bytes.
-    pub fn as_bytes(&self) -> Result<(Addr, Vec<u8>), Error> {
-        let bytes = crate::value::serialize(self)?;
-        let addr = Addr::hash(&bytes);
-        Ok((addr, bytes))
-    }
-}
+*/
+// Disabled for compat while sussing.
+// impl NodeOwned {
+//     /// Consume self and return the key for this whole node, aka the first element's key.
+//     pub fn into_key(self) -> Option<KeyOwned> {
+//         match self {
+//             Self::Branch(mut v) => {
+//                 if v.is_empty() {
+//                     None
+//                 } else {
+//                     Some(v.swap_remove(0).0)
+//                 }
+//             },
+//             Self::Leaf(mut v) => {
+//                 if v.is_empty() {
+//                     None
+//                 } else {
+//                     Some(v.swap_remove(0).0)
+//                 }
+//             },
+//         }
+//     }
+// }

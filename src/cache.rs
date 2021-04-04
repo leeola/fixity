@@ -130,3 +130,13 @@ impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
     }
 }
 */
+mod cache_rkyv_impl {
+    use {
+        super::prollytree,
+        crate::value::{Key, Value},
+    };
+    //#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+    //pub enum Structured<A, S, V> {
+    //    ProllyTreeNode(prollytree::Node<Key<A, S, V>, Value<A, S, V>, A>),
+    //}
+}
