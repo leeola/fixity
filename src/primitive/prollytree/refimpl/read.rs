@@ -2,7 +2,7 @@ use {
     crate::{
         cache::{CacheRead, OwnedRef},
         primitive::prollytree::{Node, NodeOwned},
-        value::{Addr, Key, Value},
+        value::{Addr, KeyOwned as Key, ValueOwned as Value},
         Error,
     },
     std::convert::TryInto,

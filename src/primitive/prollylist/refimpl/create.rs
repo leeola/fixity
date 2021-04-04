@@ -9,7 +9,7 @@ use {
                 ONE_LEN_BLOCK_WARNING,
             },
         },
-        value::Value,
+        value::ValueOwned as Value,
         Addr, Error,
     },
     std::mem,

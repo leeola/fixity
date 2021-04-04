@@ -5,7 +5,7 @@ use {
         misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
         path::{Path, SegmentResolve, SegmentUpdate},
         primitive::{commitlog::CommitLog, prollytree::refimpl},
-        value::{Key, Value},
+        value::{KeyOwned as Key, ValueOwned as Value},
         workspace::{Guard, Status, Workspace},
         Addr, Error,
     },

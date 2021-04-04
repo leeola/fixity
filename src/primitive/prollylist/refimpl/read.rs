@@ -3,7 +3,7 @@ use {
         cache::{CacheRead, OwnedRef},
         deser::Deser,
         primitive::prollylist::{Node, NodeOwned},
-        value::{Addr, Value},
+        value::{Addr, ValueOwned as Value},
         Error,
     },
     std::convert::TryInto,

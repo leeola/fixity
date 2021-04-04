@@ -1,7 +1,7 @@
 pub mod refimpl;
 use crate::{
     deser::{Deser, Error as DeserError, Serialize},
-    value::{Addr, Value},
+    value::{Addr, ValueOwned as Value},
 };
 /// An alias to a [`Node`] with owned parameters.
 pub type NodeOwned = Node<Value, Addr>;

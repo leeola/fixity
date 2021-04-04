@@ -1,5 +1,5 @@
 use {
-    super::{Addr, Key, Scalar, Value},
+    super::{Addr, KeyOwned as Key, ScalarOwned as Scalar, ValueOwned as Value},
     crate::{
         map::PathSegment as MapSegment,
         path::{Path, Segment},

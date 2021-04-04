@@ -11,7 +11,7 @@ pub mod roller;
 use serde::{Deserialize, Serialize};
 use {
     crate::{
-        value::{Addr, Key, Value},
+        value::{Addr, KeyOwned, ValueOwned},
         Error,
     },
     rkyv::Archive,
@@ -19,7 +19,7 @@ use {
 pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
     "writing key & value that exceeds block size, this is highly inefficient";
 /// An alias to a [`Node`] with owned parameters.
-pub type NodeOwned = Node<Key, Value, Addr>;
+pub type NodeOwned = Node<KeyOwned, ValueOwned, Addr>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(

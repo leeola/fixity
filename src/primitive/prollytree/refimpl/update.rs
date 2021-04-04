@@ -5,7 +5,7 @@ use {
             refimpl::{Create, Read},
             roller::Config as RollerConfig,
         },
-        value::{Key, Value},
+        value::{KeyOwned as Key, ValueOwned as Value},
         Addr, Error,
     },
     std::collections::HashMap,

@@ -6,7 +6,7 @@ use {
             roller::{Config as RollerConfig, Roller},
             Node, NodeOwned,
         },
-        value::{Key, Value},
+        value::{Key, KeyOwned, Value, ValueOwned},
         Addr, Error,
     },
     std::{collections::HashMap, mem},
@@ -36,7 +36,7 @@ where
     ///
     /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
-    pub async fn with_vec(mut self, mut kvs: Vec<(Key, Value)>) -> Result<Addr, Error> {
+    pub async fn with_vec(mut self, mut kvs: Vec<(KeyOwned, ValueOwned)>) -> Result<Addr, Error> {
         // Ensure the kvs are sorted - as the trees require sorting.
         // unstable should be fine, since the keys will (soon) be unique.
         kvs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -56,7 +56,7 @@ where
     ///
     /// If the provided vec contains non-unique keys or any writes to cache fail
     /// an error is returned.
-    pub async fn with_hashmap(mut self, kvs: HashMap<Key, Value>) -> Result<Addr, Error> {
+    pub async fn with_hashmap(mut self, kvs: HashMap<KeyOwned, ValueOwned>) -> Result<Addr, Error> {
         let mut kvs = kvs.into_iter().collect::<Vec<_>>();
         // Ensure the kvs are sorted - as the trees require sorting.
         // unstable should be fine, since the keys will (soon) be unique.
@@ -107,7 +107,7 @@ where
             self.recursive_from_kvs(KeyValues::from(block_addrs)).await
         }
     }
-    async fn write_block(&self, block_buf: KeyValues) -> Result<(Key, Addr), Error> {
+    async fn write_block(&self, block_buf: KeyValues) -> Result<(KeyOwned, Addr), Error> {
         let key = block_buf
             .first_key()
             .expect("first key impossibly missing")
@@ -118,8 +118,8 @@ where
     }
 }
 enum KeyValues {
-    KeyValues(Vec<(Key, Value)>),
-    KeyAddrs(Vec<(Key, Addr)>),
+    KeyValues(Vec<(KeyOwned, ValueOwned)>),
+    KeyAddrs(Vec<(KeyOwned, Addr)>),
 }
 impl KeyValues {
     pub fn new_of_same_variant(same_as: &KeyValues) -> Self {
@@ -128,7 +128,7 @@ impl KeyValues {
             Self::KeyAddrs(_) => Self::KeyAddrs(Vec::new()),
         }
     }
-    pub fn first_key(&self) -> Option<&Key> {
+    pub fn first_key(&self) -> Option<&KeyOwned> {
         match self {
             Self::KeyValues(v) => v.first().map(|(k, _)| k),
             Self::KeyAddrs(v) => v.first().map(|(k, _)| k),
@@ -166,13 +166,13 @@ impl KeyValues {
         }
     }
 }
-impl From<Vec<(Key, Value)>> for KeyValues {
-    fn from(kvs: Vec<(Key, Value)>) -> Self {
+impl From<Vec<(KeyOwned, ValueOwned)>> for KeyValues {
+    fn from(kvs: Vec<(KeyOwned, ValueOwned)>) -> Self {
         Self::KeyValues(kvs)
     }
 }
-impl From<Vec<(Key, Addr)>> for KeyValues {
-    fn from(kvs: Vec<(Key, Addr)>) -> Self {
+impl From<Vec<(KeyOwned, Addr)>> for KeyValues {
+    fn from(kvs: Vec<(KeyOwned, Addr)>) -> Self {
         Self::KeyAddrs(kvs)
     }
 }
@@ -186,8 +186,8 @@ impl From<KeyValues> for NodeOwned {
 }
 #[derive(Debug)]
 enum KeyValue {
-    KeyValue((Key, Value)),
-    KeyAddr((Key, Addr)),
+    KeyValue((KeyOwned, ValueOwned)),
+    KeyAddr((KeyOwned, Addr)),
 }
 impl KeyValue {
     pub fn serialize_inner(&self, deser: &Deser) -> Result<Vec<u8>, DeserError> {
@@ -197,13 +197,13 @@ impl KeyValue {
         }
     }
 }
-impl From<(Key, Value)> for KeyValue {
-    fn from(kv: (Key, Value)) -> Self {
+impl From<(KeyOwned, ValueOwned)> for KeyValue {
+    fn from(kv: (KeyOwned, ValueOwned)) -> Self {
         Self::KeyValue(kv)
     }
 }
-impl From<(Key, Addr)> for KeyValue {
-    fn from(kv: (Key, Addr)) -> Self {
+impl From<(KeyOwned, Addr)> for KeyValue {
+    fn from(kv: (KeyOwned, Addr)) -> Self {
         Self::KeyAddr(kv)
     }
 }

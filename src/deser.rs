@@ -35,7 +35,7 @@ impl Deser {
                     // mapping because it's actually a `std::io::Error`, so ?
                     // would convert the wrong type.
                     .map_err(Error::Borsh)?)
-            }
+            },
             #[cfg(feature = "deser_json")]
             Self::Json => Ok(serde_json::from_slice(bytes)?),
         }
@@ -51,7 +51,7 @@ impl Deser {
                     // mapping because it's actually a `std::io::Error`, so ?
                     // would convert the wrong type.
                     .map_err(Error::Borsh)?)
-            }
+            },
             #[cfg(feature = "deser_json")]
             Self::Json => Ok(cjson::to_vec(t)?),
         }
@@ -94,7 +94,7 @@ impl From<cjson::Error> for Error {
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::value::Value};
+    use {super::*, crate::value::ValueOwned};
     #[cfg(feature = "deser_borsh")]
     #[tokio::test]
     async fn borsh() {
@@ -103,9 +103,9 @@ pub mod test {
         if std::env::var("RUST_LOG").is_err() {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
-        let expected = Value::from(1);
+        let expected = ValueOwned::from(1);
         let bytes = Deser::to_vec(&Deser::Borsh, &expected).unwrap();
-        let got = Deser::from_slice::<Value>(&Deser::Borsh, &bytes).unwrap();
+        let got = Deser::from_slice::<ValueOwned>(&Deser::Borsh, &bytes).unwrap();
         assert_eq!(expected, got);
     }
     #[cfg(feature = "deser_json")]
@@ -116,9 +116,9 @@ pub mod test {
         if std::env::var("RUST_LOG").is_err() {
             env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
         }
-        let expected = Value::from(1);
+        let expected = ValueOwned::from(1);
         let bytes = Deser::to_vec(&Deser::Json, &expected).unwrap();
-        let got = Deser::from_slice::<Value>(&Deser::Json, &bytes).unwrap();
+        let got = Deser::from_slice::<ValueOwned>(&Deser::Json, &bytes).unwrap();
         assert_eq!(expected, got);
     }
 }
