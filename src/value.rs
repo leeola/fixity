@@ -1,109 +1,88 @@
 mod addr;
 pub mod from_cli_str;
+mod key;
 mod scalar;
-use {
-    crate::Error,
-    std::{
-        convert::{TryFrom, TryInto},
-        fmt,
-    },
-};
+use {crate::Error, std::fmt};
 pub use {
     addr::Addr,
+    key::Key,
     scalar::{Scalar, ScalarRef},
 };
-/// Key exists as a very thin layer over a [`Value`] for ease of use and reading.
-///
-/// Ultimately there is no difference between a Key and a Value.
+pub type Value = ValueRef<Addr, String, Vec<Scalar>>;
+pub type ArchivedValue =
+    ValueRef<rkyv::Archived<Addr>, rkyv::Archived<String>, rkyv::Archived<Vec<Scalar>>>;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Key(pub Value);
-impl fmt::Display for Key {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-// NIT: maybe make this debug fmt to `Key::Addr`/etc?
-impl fmt::Debug for Key {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Key::")?;
-        self.0.fmt_variant(f)?;
-        f.write_str(")")
-    }
-}
-impl<T> From<T> for Key
-where
-    T: Into<Value>,
-{
-    fn from(t: T) -> Self {
-        Self(t.into())
-    }
-}
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "borsh",
-    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
-)]
-#[derive(
-    Clone, PartialEq, Eq, PartialOrd, Ord, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum Value {
-    Addr(Addr),
+#[repr(u8)]
+pub enum ValueRef<A, S, V> {
+    Addr(A),
     Uint32(u32),
-    String(String),
-    Vec(Vec<Scalar>),
+    String(S),
+    Vec(V),
 }
-impl Value {
+impl<A, S, V> ValueRef<A, S, V> {
     /// Return the underlying `Addr` if the variant is an `Addr`, `None` otherwise.
-    pub fn addr(&self) -> Option<&Addr> {
+    pub fn addr(&self) -> Option<&Addr>
+    where
+        A: AsRef<Addr>,
+    {
         match self {
-            Self::Addr(addr) => Some(addr),
+            Self::Addr(addr) => Some(addr.as_ref()),
             _ => None,
         }
     }
     /// Return the underlying `Addr` if the variant is an `Addr`, `None` otherwise.
-    pub fn into_addr(self) -> Option<Addr> {
+    pub fn into_addr(self) -> Option<Addr>
+    where
+        A: Into<Addr>,
+    {
         match self {
-            Self::Addr(addr) => Some(addr),
+            Self::Addr(addr) => Some(addr.into()),
             _ => None,
         }
     }
-    fn fmt_variant(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt_variant(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    where
+        A: fmt::Debug,
+        S: fmt::Debug,
+        V: AsRef<[ScalarRef<A, S>]>,
+    {
         use fmt::Debug;
         match self {
             Self::Addr(v) => {
-                f.write_str("Addr(")?;
-                // TODO: is there a way we can encode this without allocating? Perhaps into
-                // a different encoding?
-                f.write_str(v.long().as_str())?;
+                v.fmt(f)?;
             },
             Self::Uint32(v) => {
                 f.write_str("Uint32(")?;
-                write!(f, "{}", v)?;
+                write!(f, "{})", v)?;
             },
             Self::String(v) => {
-                f.write_str("String(")?;
-                f.write_str(v.as_str())?;
+                v.fmt(f)?;
             },
             Self::Vec(v) => {
                 f.write_str("Vec([\n")?;
-                let iter = v.iter();
+                let iter = v.as_ref();
                 for elm in iter {
                     f.write_str("    ")?;
                     elm.fmt(f)?;
                     f.write_str(",\n")?;
                 }
-                f.write_str("]")?;
+                f.write_str("])")?;
             },
         }
         Ok(())
     }
 }
-impl fmt::Display for Value {
+impl<A, S, V> fmt::Display for ValueRef<A, S, V>
+where
+    A: fmt::Display,
+    S: fmt::Display,
+    V: AsRef<[ScalarRef<A, S>]>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Addr(v) => write!(f, "{}", v),
@@ -112,7 +91,8 @@ impl fmt::Display for Value {
             Self::Vec(v) => write!(
                 f,
                 "{}",
-                v.iter()
+                v.as_ref()
+                    .iter()
                     .map(|v| v.to_string())
                     .collect::<Vec<_>>()
                     .join(",")
@@ -120,11 +100,15 @@ impl fmt::Display for Value {
         }
     }
 }
-impl fmt::Debug for Value {
+impl<A, S, V> fmt::Debug for ValueRef<A, S, V>
+where
+    A: fmt::Debug,
+    S: fmt::Debug,
+    V: AsRef<[ScalarRef<A, S>]>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Value::")?;
-        self.fmt_variant(f)?;
-        f.write_str(")")
+        self.fmt_variant(f)
     }
 }
 /// A helper to centralize serialization logic for a potential future
@@ -206,18 +190,7 @@ where
     }
 }
 mod rkyv_impl {
-    use super::{Addr, Scalar};
-    pub type Value = ValueRef<Addr, String, Vec<Scalar>>;
-    pub type ArchivedValue =
-        ValueRef<rkyv::Archived<Addr>, rkyv::Archived<String>, rkyv::Archived<Vec<Scalar>>>;
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    #[repr(u8)]
-    pub enum ValueRef<A, S, V> {
-        Addr(A),
-        Uint32(u32),
-        String(S),
-        Vec(V),
-    }
+    use super::{Addr, ArchivedValue, Scalar, Value};
     pub enum ValueResolver
     where
         Addr: rkyv::Archive,
@@ -394,7 +367,7 @@ mod rkyv_impl {
     };
     #[cfg(test)]
     use {
-        super::ScalarRef,
+        super::{ScalarRef, ValueRef},
         std::{fmt::Debug, ops::Deref},
     };
     #[cfg(test)]

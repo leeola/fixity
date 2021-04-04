@@ -1,5 +1,4 @@
 use {
-    crate::Error,
     multibase::Base,
     std::{
         convert::{TryFrom, TryInto},
