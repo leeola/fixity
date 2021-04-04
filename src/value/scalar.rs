@@ -2,7 +2,6 @@ use super::Addr;
 use std::fmt;
 
 pub type Scalar = ScalarRef<Addr, String>;
-
 pub type ArchivedScalar = ScalarRef<rkyv::Archived<Addr>, rkyv::Archived<String>>;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -11,6 +10,7 @@ pub type ArchivedScalar = ScalarRef<rkyv::Archived<Addr>, rkyv::Archived<String>
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
 pub enum ScalarRef<A, S> {
     Addr(A),
     Uint32(u32),
@@ -49,7 +49,7 @@ where
         }
     }
 }
-mod derived_rkyv {
+mod rkyv_impl {
     use super::*;
     pub enum ScalarResolver
     where

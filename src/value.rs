@@ -48,7 +48,9 @@ where
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, PartialEq, Eq, PartialOrd, Ord, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
 pub enum Value {
     Addr(Addr),
     Uint32(u32),
@@ -200,6 +202,257 @@ where
             Scalar::Addr(v) => Self::Addr(v),
             Scalar::Uint32(v) => Self::Uint32(v),
             Scalar::String(v) => Self::String(v),
+        }
+    }
+}
+mod rkyv_impl {
+    use super::{Addr, Scalar};
+    pub type Value = ValueRef<Addr, String, Vec<Scalar>>;
+    pub type ArchivedValue =
+        ValueRef<rkyv::Archived<Addr>, rkyv::Archived<String>, rkyv::Archived<Vec<Scalar>>>;
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[repr(u8)]
+    pub enum ValueRef<A, S, V> {
+        Addr(A),
+        Uint32(u32),
+        String(S),
+        Vec(V),
+    }
+    pub enum ValueResolver
+    where
+        Addr: rkyv::Archive,
+        u32: rkyv::Archive,
+        String: rkyv::Archive,
+        Vec<Scalar>: rkyv::Archive,
+    {
+        Addr(rkyv::Resolver<Addr>),
+        Uint32(rkyv::Resolver<u32>),
+        String(rkyv::Resolver<String>),
+        Vec(rkyv::Resolver<Vec<Scalar>>),
+    }
+    const _: () = {
+        use core::marker::PhantomData;
+        use rkyv::{offset_of, Archive};
+        #[repr(u8)]
+        enum ArchivedTag {
+            Addr,
+            Uint32,
+            String,
+            Vec,
+        }
+        #[repr(C)]
+        struct ArchivedVariantAddr(ArchivedTag, rkyv::Archived<Addr>, PhantomData<()>)
+        where
+            Addr: rkyv::Archive,
+            u32: rkyv::Archive,
+            String: rkyv::Archive,
+            Vec<Scalar>: rkyv::Archive;
+        #[repr(C)]
+        struct ArchivedVariantUint32(ArchivedTag, rkyv::Archived<u32>, PhantomData<()>)
+        where
+            Addr: rkyv::Archive,
+            u32: rkyv::Archive,
+            String: rkyv::Archive,
+            Vec<Scalar>: rkyv::Archive;
+        #[repr(C)]
+        struct ArchivedVariantString(ArchivedTag, rkyv::Archived<String>, PhantomData<()>)
+        where
+            Addr: rkyv::Archive,
+            u32: rkyv::Archive,
+            String: rkyv::Archive,
+            Vec<Scalar>: rkyv::Archive;
+        #[repr(C)]
+        struct ArchivedVariantVec(ArchivedTag, rkyv::Archived<Vec<Scalar>>, PhantomData<()>)
+        where
+            Addr: rkyv::Archive,
+            u32: rkyv::Archive,
+            String: rkyv::Archive,
+            Vec<Scalar>: rkyv::Archive;
+        impl Archive for Value
+        where
+            Addr: rkyv::Archive,
+            u32: rkyv::Archive,
+            String: rkyv::Archive,
+            Vec<Scalar>: rkyv::Archive,
+        {
+            type Archived = ArchivedValue;
+            type Resolver = ValueResolver;
+            fn resolve(&self, pos: usize, resolver: Self::Resolver) -> Self::Archived {
+                match resolver {
+                    ValueResolver::Addr(resolver_0) => {
+                        if let Value::Addr(self_0) = self {
+                            ArchivedValue::Addr(
+                                self_0
+                                    .resolve(pos + offset_of!(ArchivedVariantAddr, 1), resolver_0),
+                            )
+                        } else {
+                            {
+                                // I'm unfamiliar with begin_panic.. disabling.. :sus:
+                                //::std::rt::begin_panic(
+                                panic!("enum resolver variant does not match value variant",)
+                            }
+                        }
+                    },
+                    ValueResolver::Uint32(resolver_0) => {
+                        if let Value::Uint32(self_0) = self {
+                            ArchivedValue::Uint32(
+                                self_0.resolve(
+                                    pos + offset_of!(ArchivedVariantUint32, 1),
+                                    resolver_0,
+                                ),
+                            )
+                        } else {
+                            {
+                                // I'm unfamiliar with begin_panic.. disabling.. :sus:
+                                //::std::rt::begin_panic(
+                                panic!("enum resolver variant does not match value variant",)
+                            }
+                        }
+                    },
+                    ValueResolver::String(resolver_0) => {
+                        if let Value::String(self_0) = self {
+                            ArchivedValue::String(
+                                self_0.resolve(
+                                    pos + offset_of!(ArchivedVariantString, 1),
+                                    resolver_0,
+                                ),
+                            )
+                        } else {
+                            {
+                                // I'm unfamiliar with begin_panic.. disabling.. :sus:
+                                //::std::rt::begin_panic(
+                                panic!("enum resolver variant does not match value variant",)
+                            }
+                        }
+                    },
+                    ValueResolver::Vec(resolver_0) => {
+                        if let Value::Vec(self_0) = self {
+                            ArchivedValue::Vec(
+                                self_0.resolve(pos + offset_of!(ArchivedVariantVec, 1), resolver_0),
+                            )
+                        } else {
+                            {
+                                // I'm unfamiliar with begin_panic.. disabling.. :sus:
+                                //::std::rt::begin_panic(
+                                panic!("enum resolver variant does not match value variant",)
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Fallible, Serialize};
+        impl<__S: Fallible + ?Sized> Serialize<__S> for Value
+        where
+            Addr: rkyv::Serialize<__S>,
+            u32: rkyv::Serialize<__S>,
+            String: rkyv::Serialize<__S>,
+            Vec<Scalar>: rkyv::Serialize<__S>,
+        {
+            fn serialize(&self, serializer: &mut __S) -> Result<Self::Resolver, __S::Error> {
+                Ok(match self {
+                    Self::Addr(_0) => {
+                        ValueResolver::Addr(Serialize::<__S>::serialize(_0, serializer)?)
+                    },
+                    Self::Uint32(_0) => {
+                        ValueResolver::Uint32(Serialize::<__S>::serialize(_0, serializer)?)
+                    },
+                    Self::String(_0) => {
+                        ValueResolver::String(Serialize::<__S>::serialize(_0, serializer)?)
+                    },
+                    Self::Vec(_0) => {
+                        ValueResolver::Vec(Serialize::<__S>::serialize(_0, serializer)?)
+                    },
+                })
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Archive, Archived, Deserialize, Fallible};
+        impl<__D: Fallible + ?Sized> Deserialize<Value, __D> for Archived<Value>
+        where
+            Addr: Archive,
+            Archived<Addr>: Deserialize<Addr, __D>,
+            u32: Archive,
+            Archived<u32>: Deserialize<u32, __D>,
+            String: Archive,
+            Archived<String>: Deserialize<String, __D>,
+            Vec<Scalar>: Archive,
+            Archived<Vec<Scalar>>: Deserialize<Vec<Scalar>, __D>,
+        {
+            fn deserialize(&self, deserializer: &mut __D) -> Result<Value, __D::Error> {
+                Ok(match self {
+                    Self::Addr(_0) => Value::Addr(_0.deserialize(deserializer)?),
+                    Self::Uint32(_0) => Value::Uint32(_0.deserialize(deserializer)?),
+                    Self::String(_0) => Value::String(_0.deserialize(deserializer)?),
+                    Self::Vec(_0) => Value::Vec(_0.deserialize(deserializer)?),
+                })
+            }
+        }
+    };
+    #[cfg(test)]
+    use {
+        super::ScalarRef,
+        std::{fmt::Debug, ops::Deref},
+    };
+    #[cfg(test)]
+    fn print_value<A, S, V>(value: &ValueRef<A, S, V>)
+    where
+        A: Debug + AsRef<Addr>,
+        S: Debug + AsRef<str>,
+        V: Deref<Target = [ScalarRef<A, S>]>,
+    {
+        match value {
+            ValueRef::Addr(a) => println!("addr, {}", a.as_ref()),
+            ValueRef::Uint32(i) => println!("got int, {}", i),
+            ValueRef::String(s) => println!("got string, {:?}", s.as_ref()),
+            ValueRef::Vec(v) => {
+                let s = v.as_ref();
+                println!("got vec, len:{}", s.len());
+                for (idx, elm) in s.iter().enumerate() {
+                    match elm {
+                        ScalarRef::Addr(a) => println!("i:{}, addr, {}", idx, a.as_ref()),
+                        ScalarRef::Uint32(i) => println!("i:{}, got int, {}", idx, i),
+                        ScalarRef::String(s) => println!("i:{}, got string, {:?}", idx, s.as_ref()),
+                    }
+                }
+            },
+        }
+    }
+    #[test]
+    fn rkyv_deser() {
+        use rkyv::{
+            archived_value,
+            de::deserializers::AllocDeserializer,
+            ser::{serializers::WriteSerializer, Serializer},
+            Deserialize,
+        };
+        // TODO: use a proptest.
+        let values = vec![
+            Value::String(String::from("foo")),
+            Value::Addr(Addr::hash("foo")),
+            Value::Uint32(42),
+            Value::String(String::from("foo bar baz")),
+            Value::Vec(vec![
+                Scalar::String(String::from("foo")),
+                Scalar::Addr(Addr::hash("foo")),
+                Scalar::Uint32(42),
+                Scalar::String(String::from("foo bar baz")),
+            ]),
+        ];
+        for owned in values {
+            let mut serializer = WriteSerializer::new(Vec::new());
+            let pos = serializer
+                .serialize_value(&owned)
+                .expect("failed to serialize value");
+            let buf = serializer.into_inner();
+            let archived = unsafe { archived_value::<Value>(buf.as_ref(), pos) };
+            let deserialized = archived.deserialize(&mut AllocDeserializer).unwrap();
+            assert_eq!(owned, deserialized);
+            print_value(archived);
+            print_value(&owned);
         }
     }
 }
