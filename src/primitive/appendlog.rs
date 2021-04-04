@@ -41,7 +41,8 @@ where
         let LogNode { inner, prev } = log_node;
         // single variant for now, idiomatic..
         let LogInnerType::Commit(inner) = inner.into();
-        Structured::CommitLogNode(LogNode { inner, prev })
+        todo!("structured ref")
+        // Structured::CommitLogNode(LogNode { inner, prev })
     }
 }
 pub trait LogNodeFrom<T>: Sized {
@@ -49,11 +50,12 @@ pub trait LogNodeFrom<T>: Sized {
 }
 impl LogNodeFrom<Structured> for commitlog::CommitNode {
     fn log_node_from(t: Structured) -> Option<LogNode<Self>> {
-        if let Structured::CommitLogNode(node) = t {
-            Some(node)
-        } else {
-            None
-        }
+        todo!("structured ref")
+        // if let Structured::CommitLogNode(node) = t {
+        //     Some(node)
+        // } else {
+        //     None
+        // }
     }
 }
 pub struct AppendLog<'s, C> {

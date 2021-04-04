@@ -91,8 +91,9 @@ where
         }
     }
     async fn write_node(&self, node: NodeOwned) -> Result<Addr, Error> {
-        let node_addr = self.cache.write_structured(node).await?;
-        Ok(node_addr)
+        todo!("write prollylist node cache")
+        // let node_addr = self.cache.write_structured(node).await?;
+        // Ok(node_addr)
     }
 }
 #[cfg(test)]

@@ -29,7 +29,8 @@ where
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<Value>, Error> {
         let node = {
             let owned_ref = self.storage.read_structured(&addr).await?;
-            owned_ref.into_owned().try_into()?
+            todo!("try into prollylist node")
+            // owned_ref.into_owned().try_into()?
         };
         match node {
             Node::Leaf(v) => Ok(v),

@@ -23,8 +23,8 @@ use {
 #[derive(Debug)]
 pub enum Structured {
     ProllyTreeNode(prollytree::NodeOwned),
-    ProllyListNode(prollylist::NodeOwned),
-    CommitLogNode(appendlog::LogNode<commitlog::CommitNode>),
+    /* ProllyListNode(prollylist::NodeOwned),
+     * CommitLogNode(appendlog::LogNode<commitlog::CommitNode>), */
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
@@ -84,11 +84,11 @@ impl From<prollytree::NodeOwned> for Structured {
         Self::ProllyTreeNode(t)
     }
 }
-impl From<prollylist::NodeOwned> for Structured {
-    fn from(t: prollylist::NodeOwned) -> Self {
-        Self::ProllyListNode(t)
-    }
-}
+// impl From<prollylist::NodeOwned> for Structured {
+//     fn from(t: prollylist::NodeOwned) -> Self {
+//         Self::ProllyListNode(t)
+//     }
+// }
 impl TryFrom<Structured> for prollytree::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
@@ -102,6 +102,7 @@ impl TryFrom<Structured> for prollytree::NodeOwned {
         }
     }
 }
+/*
 impl TryFrom<Structured> for prollylist::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
@@ -128,3 +129,4 @@ impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
         }
     }
 }
+*/
