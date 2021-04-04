@@ -1,5 +1,5 @@
 use {
-    super::{Addr, ArchivedValue, Scalar, Value, ValueRef},
+    super::{Addr, Scalar, Value, ValueRef},
     std::fmt,
 };
 
@@ -10,10 +10,6 @@ pub type ArchivedKey =
 ///
 /// Ultimately there is no difference between a Key and a Value.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "borsh",
-    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
-)]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyRef<A, S, V>(pub ValueRef<A, S, V>);
 impl fmt::Display for Key {
@@ -38,12 +34,11 @@ where
     }
 }
 mod rkyv_impl {
-    use super::{Addr, ArchivedKey, Key, KeyRef, Scalar, Value, ValueRef};
+    use super::{ArchivedKey, Key, KeyRef, Value};
     pub struct KeyResolver(rkyv::Resolver<Value>)
     where
         Value: rkyv::Archive;
     const _: () = {
-        use core::marker::PhantomData;
         use rkyv::{offset_of, Archive};
         impl Archive for Key
         where
@@ -77,7 +72,7 @@ mod rkyv_impl {
         }
     };
     const _: () = {
-        use rkyv::{Archive, Fallible, Serialize};
+        use rkyv::{Fallible, Serialize};
         impl<__S: Fallible + ?Sized> Serialize<__S> for Key
         where
             Value: rkyv::Serialize<__S>,
@@ -103,7 +98,7 @@ mod rkyv_impl {
     };
     #[cfg(test)]
     use {
-        super::super::ScalarRef,
+        super::super::{Addr, Scalar, ScalarRef, ValueRef},
         std::{fmt::Debug, ops::Deref},
     };
     #[cfg(test)]
@@ -162,6 +157,36 @@ mod rkyv_impl {
             assert_eq!(owned, deserialized);
             print_key(archived);
             print_key(&owned);
+        }
+    }
+}
+#[cfg(feature = "borsh")]
+mod borsh_impl {
+    use super::KeyRef;
+    impl<A, S, V> borsh::ser::BorshSerialize for KeyRef<A, S, V>
+    where
+        A: borsh::ser::BorshSerialize,
+        S: borsh::ser::BorshSerialize,
+        V: borsh::ser::BorshSerialize,
+    {
+        fn serialize<W: borsh::maybestd::io::Write>(
+            &self,
+            writer: &mut W,
+        ) -> ::core::result::Result<(), borsh::maybestd::io::Error> {
+            borsh::BorshSerialize::serialize(&self.0, writer)?;
+            Ok(())
+        }
+    }
+    impl<A, S, V> borsh::de::BorshDeserialize for KeyRef<A, S, V>
+    where
+        A: borsh::de::BorshDeserialize,
+        S: borsh::de::BorshDeserialize,
+        V: borsh::de::BorshDeserialize,
+    {
+        fn deserialize(
+            buf: &mut &[u8],
+        ) -> ::core::result::Result<Self, borsh::maybestd::io::Error> {
+            Ok(Self(borsh::BorshDeserialize::deserialize(buf)?))
         }
     }
 }
