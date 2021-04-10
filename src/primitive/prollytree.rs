@@ -15,11 +15,12 @@ use {
         Error,
     },
     rkyv::Archive,
+    std::ops::Deref,
 };
 pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
     "writing key & value that exceeds block size, this is highly inefficient";
 /// An alias to a [`Node`] with owned parameters.
-pub type NodeOwned = Node<Vec<(KeyOwned, Addr)>, Vec<(ValueOwned, Addr)>>;
+pub type NodeOwned = Node<Vec<(KeyOwned, Addr)>, Vec<(KeyOwned, ValueOwned)>>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
@@ -32,7 +33,6 @@ pub enum Node<B, L> {
     Leaf(L),
 }
 /*
-use std::ops::Deref;
 pub enum NodeBL<B, L> {
     Branch(B),
     Leaf(L),
@@ -65,25 +65,24 @@ impl<B, L> NodeBL<B, L> {
     }
 }
 */
-// Disabled for compat while sussing.
-// impl NodeOwned {
-//     /// Consume self and return the key for this whole node, aka the first element's key.
-//     pub fn into_key(self) -> Option<KeyOwned> {
-//         match self {
-//             Self::Branch(mut v) => {
-//                 if v.is_empty() {
-//                     None
-//                 } else {
-//                     Some(v.swap_remove(0).0)
-//                 }
-//             },
-//             Self::Leaf(mut v) => {
-//                 if v.is_empty() {
-//                     None
-//                 } else {
-//                     Some(v.swap_remove(0).0)
-//                 }
-//             },
-//         }
-//     }
-// }
+impl NodeOwned {
+    /// Consume self and return the key for this whole node, aka the first element's key.
+    pub fn into_key(self) -> Option<KeyOwned> {
+        match self {
+            Self::Branch(mut v) => {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.swap_remove(0).0)
+                }
+            },
+            Self::Leaf(mut v) => {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.swap_remove(0).0)
+                }
+            },
+        }
+    }
+}

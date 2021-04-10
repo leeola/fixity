@@ -1,6 +1,6 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite, OwnedRef, Structured},
+        cache::{CacheRead, CacheWrite, OwnedFrom, OwnedRef, RefFrom, Structured},
         deser::Deser,
         storage::{Error, StorageRead, StorageWrite},
         Addr,
@@ -112,8 +112,13 @@ where
 }
 pub struct ArchiveBytes(Arc<Vec<u8>>);
 impl OwnedRef for ArchiveBytes {
+    type Owned = Structured;
     type Ref = Structured;
-    fn as_ref(&self) -> &Self::Ref {
+    fn as_ref<T>(&self) -> Result<&<Self::Ref as RefFrom<T>>::Ref, Error>
+    where
+        Self::Ref: RefFrom<T>,
+        //fn as_ref(&self) -> &Self::Ref {
+    {
         todo!("archive_cache as_ref")
         // unsafe {
         //     archived_value::<Structured>(
@@ -123,7 +128,11 @@ impl OwnedRef for ArchiveBytes {
         //     )
         // }
     }
-    fn into_owned(self) -> Structured {
+    fn into_owned<T>(self) -> Result<T, Error>
+    where
+        Self::Owned: OwnedFrom<T>,
+    {
+        //fn into_owned(self) -> Structured {
         todo!("archive_cache into_owned")
         // let archived = self.as_ref();
         // let mut deserializer = AllocDeserializer;

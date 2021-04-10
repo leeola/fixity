@@ -44,6 +44,7 @@ pub trait CacheRead: Sync {
     where
         A: AsRef<Addr> + Into<Addr> + Send;
 }
+/*
 pub trait OwnedRef {
     // Another lovely place to use GATs, whenever they hit stable, rather than returning a
     // &Self::Ref, implementers could return a Self::Ref<'a>, which would be neato.
@@ -57,8 +58,39 @@ pub trait OwnedRef {
     fn into_owned(self) -> Structured;
     // Add some helpers to get the concrete Ts back, to avoid
     // having to match the enums outside.
-    // fn as_ref<T>(self) -> Result<&T, CacheError>;
+    // fn as_ref<T>(self) -> Result<&T::Variant, CacheError>
+    // where T: VariantTo,
+    // Self::Ref: VariantOf<T>;
     // fn into_owned<T>(self) -> Result<T, CacheError>;
+}
+*/
+pub trait OwnedRef {
+    type Owned;
+    type Ref;
+    fn as_ref<T>(&self) -> Result<&<Self::Ref as RefFrom<T>>::Ref, Error>
+    where
+        Self::Ref: RefFrom<T>;
+    fn into_owned<T>(self) -> Result<T, Error>
+    where
+        Self::Owned: OwnedFrom<T>;
+}
+pub trait RefFrom<T> {
+    type Ref;
+    fn ref_from(&self) -> Result<&Self::Ref, Error>;
+}
+pub trait OwnedFrom<T> {
+    fn owned_from(self) -> Result<T, Error>;
+}
+impl OwnedFrom<prollytree::NodeOwned> for Structured {
+    fn owned_from(self) -> Result<prollytree::NodeOwned, Error> {
+        match self {
+            Structured::ProllyTreeNode(t) => Ok(t),
+            // TODO: this deserves a unique error variant. Possibly a cache-specific error?
+            _ => Err(Error::Unhandled {
+                message: "misaligned cache types".to_owned(),
+            }),
+        }
+    }
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]

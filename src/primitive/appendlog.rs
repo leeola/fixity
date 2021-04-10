@@ -97,16 +97,17 @@ where
             Some(addr) => addr,
             None => return Ok(None),
         };
-        let owned_ref = self.cache.read_structured(addr).await?;
-        // TODO: the design of AppendLog makes using OwnedRef::Ref really awkward,
-        // and needs to be redesigned. However appendlog is not heavily used currently,
-        // only commits, so it's a low perf impact to just own the value immediately.
-        let node = T::log_node_from(owned_ref.into_owned())
-            // TODO: this deserves a unique error variant. Possibly a cache-specific error?
-            // Also, this is going to likely be a CacheError in the future?
-            .ok_or_else(|| StorageError::Unhandled {
-                message: "misaligned cache types".to_owned(),
-            })?;
+        // let owned_ref = self.cache.read_structured(addr).await?;
+        // // TODO: the design of AppendLog makes using OwnedRef::Ref really awkward,
+        // // and needs to be redesigned. However appendlog is not heavily used currently,
+        // // only commits, so it's a low perf impact to just own the value immediately.
+        // let node = T::log_node_from(owned_ref.into_owned())
+        //     // TODO: this deserves a unique error variant. Possibly a cache-specific error?
+        //     // Also, this is going to likely be a CacheError in the future?
+        //     .ok_or_else(|| StorageError::Unhandled {
+        //         message: "misaligned cache types".to_owned(),
+        //     })?;
+        let node = todo!();
         Ok(Some(LogContainer { addr, node }))
     }
     pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>
