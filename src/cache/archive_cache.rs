@@ -1,8 +1,10 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite, OwnedFrom, OwnedRef, RefFrom, Structured},
+        cache::{CacheRead, CacheWrite, OwnedFrom, OwnedRef, RefFrom, Structured, StructuredOwned},
         deser::Deser,
+        primitive::prollytree,
         storage::{Error, StorageRead, StorageWrite},
+        value::{Key, Scalar, Value},
         Addr,
     },
     log::warn,
@@ -110,15 +112,23 @@ where
         Ok(ArchiveBytes(buf))
     }
 }
+//pub type NodeOwned = Node<Vec<(KeyOwned, Addr)>, Vec<(KeyOwned, ValueOwned)>>;
 pub struct ArchiveBytes(Arc<Vec<u8>>);
 impl OwnedRef for ArchiveBytes {
-    type Owned = Structured;
-    type Ref = Structured;
-    fn as_ref<T>(&self) -> Result<&<Self::Ref as RefFrom<T>>::Ref, Error>
-    where
-        Self::Ref: RefFrom<T>,
-        //fn as_ref(&self) -> &Self::Ref {
-    {
+    type AddrRef = Addr;
+    type StringRef = ArchivedString;
+    type ScalarVecRef = ArchivedVec<Scalar<Self::AddrRef, Self::StringRef>>;
+    type ProllyTreeNodeBranchRef = ArchivedVec<(
+        Key<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+        Self::AddrRef,
+    )>;
+    type ProllyTreeNodeLeafRef = ArchivedVec<(
+        Key<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+        Value<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+    )>;
+    fn as_ref_structured(
+        &self,
+    ) -> Result<Structured<Self::ProllyTreeNodeBranchRef, Self::ProllyTreeNodeLeafRef>, Error> {
         todo!("archive_cache as_ref")
         // unsafe {
         //     archived_value::<Structured>(
@@ -128,16 +138,11 @@ impl OwnedRef for ArchiveBytes {
         //     )
         // }
     }
-    fn into_owned<T>(self) -> Result<T, Error>
-    where
-        Self::Owned: OwnedFrom<T>,
-    {
-        //fn into_owned(self) -> Structured {
-        todo!("archive_cache into_owned")
-        // let archived = self.as_ref();
-        // let mut deserializer = AllocDeserializer;
-        // let deserialized = archived.deserialize(&mut deserializer).unwrap();
-        // deserialized
+    fn into_structured(&self) -> Result<StructuredOwned, Error> {
+        let archived = self.as_ref_structured().unwrap();
+        let mut deserializer = AllocDeserializer;
+        let deserialized = archived.deserialize(&mut deserializer).unwrap();
+        deserialized
     }
 }
 #[async_trait::async_trait]
@@ -157,7 +162,7 @@ where
     }
     async fn write_structured<T>(&self, structured: T) -> Result<Addr, Error>
     where
-        T: Into<Structured> + Send,
+        T: Into<StructuredOwned> + Send,
     {
         todo!("archive_cache write_structured")
         // let structured = structured.into();

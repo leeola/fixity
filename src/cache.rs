@@ -4,6 +4,7 @@ use {
     crate::{
         primitive::{appendlog, commitlog, prollylist, prollytree},
         storage::{Error, StorageRead, StorageWrite},
+        value::{Key, KeyOwned, Scalar, Value, ValueOwned},
         Addr,
     },
     std::convert::TryFrom,
@@ -21,11 +22,13 @@ use {
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 #[derive(Debug)]
-pub enum Structured {
-    ProllyTreeNode(prollytree::NodeOwned),
+#[repr(u8)]
+pub enum Structured<B, L> {
+    ProllyTreeNode(prollytree::Node<B, L>),
     /* ProllyListNode(prollylist::NodeOwned),
      * CommitLogNode(appendlog::LogNode<commitlog::CommitNode>), */
 }
+pub type StructuredOwned = Structured<Vec<(KeyOwned, Addr)>, Vec<(KeyOwned, ValueOwned)>>;
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
 #[async_trait::async_trait]
@@ -64,15 +67,33 @@ pub trait OwnedRef {
     // fn into_owned<T>(self) -> Result<T, CacheError>;
 }
 */
+use std::ops::Deref;
 pub trait OwnedRef {
-    type Owned;
-    type Ref;
-    fn as_ref<T>(&self) -> Result<&<Self::Ref as RefFrom<T>>::Ref, Error>
-    where
-        Self::Ref: RefFrom<T>;
-    fn into_owned<T>(self) -> Result<T, Error>
-    where
-        Self::Owned: OwnedFrom<T>;
+    type AddrRef: AsRef<Addr>;
+    type StringRef: AsRef<str>;
+    type ScalarVecRef: Deref<Target = [Scalar<Self::AddrRef, Self::StringRef>]>;
+    type ProllyTreeNodeBranchRef: Deref<
+        Target = [(
+            Key<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+            Self::AddrRef,
+        )],
+    >;
+    type ProllyTreeNodeLeafRef: Deref<
+        Target = [(
+            Key<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+            Value<Self::AddrRef, Self::StringRef, Self::ScalarVecRef>,
+        )],
+    >;
+    fn as_ref_structured(
+        &self,
+    ) -> Result<Structured<Self::ProllyTreeNodeBranchRef, Self::ProllyTreeNodeLeafRef>, Error>;
+    fn into_structured(&self) -> Result<StructuredOwned, Error>;
+    //  fn as_ref<T>(&self) -> Result<&<Self::Ref as RefFrom<T>>::Ref, Error>
+    //  where
+    //      Self::Ref: RefFrom<T>;
+    //  fn into_owned<T>(self) -> Result<T, Error>
+    //  where
+    //      Self::Owned: OwnedFrom<T>;
 }
 pub trait RefFrom<T> {
     type Ref;
@@ -81,7 +102,7 @@ pub trait RefFrom<T> {
 pub trait OwnedFrom<T> {
     fn owned_from(self) -> Result<T, Error>;
 }
-impl OwnedFrom<prollytree::NodeOwned> for Structured {
+impl OwnedFrom<prollytree::NodeOwned> for StructuredOwned {
     fn owned_from(self) -> Result<prollytree::NodeOwned, Error> {
         match self {
             Structured::ProllyTreeNode(t) => Ok(t),
@@ -101,7 +122,7 @@ pub trait CacheWrite: Sync {
         R: AsyncRead + Unpin + Send;
     async fn write_structured<T>(&self, structured: T) -> Result<Addr, Error>
     where
-        T: Into<Structured> + Send;
+        T: Into<StructuredOwned> + Send;
 }
 /// A helper trait to allow a single `T` to return references to both a `Workspace` and
 /// a `Cache`.
@@ -111,7 +132,7 @@ pub trait AsCacheRef {
     type Cache: CacheRead + CacheWrite;
     fn as_cache_ref(&self) -> &Self::Cache;
 }
-impl From<prollytree::NodeOwned> for Structured {
+impl From<prollytree::NodeOwned> for StructuredOwned {
     fn from(t: prollytree::NodeOwned) -> Self {
         Self::ProllyTreeNode(t)
     }
@@ -121,10 +142,9 @@ impl From<prollytree::NodeOwned> for Structured {
 //         Self::ProllyListNode(t)
 //     }
 // }
-impl TryFrom<Structured> for prollytree::NodeOwned {
+impl<B, L> TryFrom<Structured<B, L>> for prollytree::Node<B, L> {
     type Error = Error;
-    fn try_from(t: Structured) -> Result<Self, Error> {
-        dbg!(&t);
+    fn try_from(t: Structured<B, L>) -> Result<Self, Error> {
         match t {
             Structured::ProllyTreeNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
@@ -162,13 +182,119 @@ impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
     }
 }
 */
+/*
 mod cache_rkyv_impl {
     use {
-        super::prollytree,
+        super::{prollytree, Structured},
         crate::value::{Key, Value},
     };
-    //#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-    //pub enum Structured<A, S, V> {
-    //    ProllyTreeNode(prollytree::Node<Key<A, S, V>, Value<A, S, V>, A>),
-    //}
+    pub enum Structured<B, L> {
+        ProllyTreeNode(prollytree::Node<B, L>),
+    }
+    #[repr(u8)]
+    pub enum ArchivedStructured<B, L>
+    where
+        prollytree::Node<B, L>: rkyv::Archive,
+    {
+        ProllyTreeNode(rkyv::Archived<prollytree::Node<B, L>>),
+    }
+    pub enum StructuredResolver<B, L>
+    where
+        prollytree::Node<B, L>: rkyv::Archive,
+    {
+        ProllyTreeNode(rkyv::Resolver<prollytree::Node<B, L>>),
+    }
+    const _: () = {
+        use core::marker::PhantomData;
+        use rkyv::{offset_of, Archive};
+        #[repr(u8)]
+        enum ArchivedTag {
+            ProllyTreeNode,
+        }
+        #[repr(C)]
+        struct ArchivedVariantProllyTreeNode<B, L>(
+            ArchivedTag,
+            rkyv::Archived<prollytree::Node<B, L>>,
+            PhantomData<(B, L)>,
+        )
+        where
+            prollytree::Node<B, L>: rkyv::Archive;
+        impl<B, L> Archive for Structured<B, L>
+        where
+            prollytree::Node<B, L>: rkyv::Archive,
+        {
+            type Archived = ArchivedStructured<B, L>;
+            type Resolver = StructuredResolver<B, L>;
+            fn resolve(&self, pos: usize, resolver: Self::Resolver) -> Self::Archived {
+                match resolver {
+                    StructuredResolver::ProllyTreeNode(resolver_0) => {
+                        if let Structured::ProllyTreeNode(self_0) = self {
+                            ArchivedStructured::ProllyTreeNode(self_0.resolve(
+                                pos + {
+                                    let uninit = ::memoffset::__priv::mem::MaybeUninit::<
+                                        ArchivedVariantProllyTreeNode<B, L>,
+                                    >::uninit();
+                                    let base_ptr: *const ArchivedVariantProllyTreeNode<B, L> =
+                                        uninit.as_ptr();
+                                    let field_ptr = {
+                                        #[allow(clippy::unneeded_field_pattern)]
+                                        let ArchivedVariantProllyTreeNode::<B, L> { 1: _, .. };
+                                        let base = base_ptr;
+                                        #[allow(unused_unsafe)]
+                                        unsafe {
+                                            {
+                                                &raw const (*(base
+                                                    as *const ArchivedVariantProllyTreeNode<B, L>))
+                                                    .1
+                                            }
+                                        }
+                                    };
+                                    (field_ptr as usize) - (base_ptr as usize)
+                                },
+                                resolver_0,
+                            ))
+                        } else {
+                            {
+                                ::std::rt::begin_panic(
+                                    "enum resolver variant does not match value variant",
+                                )
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Archive, Fallible, Serialize};
+        impl<__S: Fallible + ?Sized, B, L> Serialize<__S> for Structured<B, L>
+        where
+            prollytree::Node<B, L>: rkyv::Serialize<__S>,
+        {
+            fn serialize(&self, serializer: &mut __S) -> Result<Self::Resolver, __S::Error> {
+                Ok(match self {
+                    Self::ProllyTreeNode(_0) => StructuredResolver::ProllyTreeNode(
+                        Serialize::<__S>::serialize(_0, serializer)?,
+                    ),
+                })
+            }
+        }
+    };
+    const _: () = {
+        use rkyv::{Archive, Archived, Deserialize, Fallible};
+        impl<__D: Fallible + ?Sized, B, L> Deserialize<Structured<B, L>, __D> for Archived<Structured<B, L>>
+        where
+            prollytree::Node<B, L>: Archive,
+            Archived<prollytree::Node<B, L>>: Deserialize<prollytree::Node<B, L>, __D>,
+        {
+            fn deserialize(&self, deserializer: &mut __D) -> Result<Structured<B, L>, __D::Error> {
+                Ok(match self {
+                    Self::ProllyTreeNode(_0) => {
+                        Structured::<B, L>::ProllyTreeNode(_0.deserialize(deserializer)?)
+                    },
+                })
+            }
+        }
+    };
 }
+*/

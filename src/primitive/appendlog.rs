@@ -1,5 +1,5 @@
 use crate::{
-    cache::{CacheRead, CacheWrite, OwnedRef, Structured},
+    cache::{CacheRead, CacheWrite, OwnedRef, StructuredOwned},
     deser::{Deser, Deserialize, Serialize},
     primitive::commitlog,
     storage::Error as StorageError,
@@ -33,7 +33,7 @@ impl From<commitlog::CommitNode> for LogInnerType {
         LogInnerType::Commit(n)
     }
 }
-impl<T> From<LogNode<T>> for Structured
+impl<T> From<LogNode<T>> for StructuredOwned
 where
     T: Into<LogInnerType>,
 {
@@ -48,8 +48,8 @@ where
 pub trait LogNodeFrom<T>: Sized {
     fn log_node_from(t: T) -> Option<LogNode<Self>>;
 }
-impl LogNodeFrom<Structured> for commitlog::CommitNode {
-    fn log_node_from(t: Structured) -> Option<LogNode<Self>> {
+impl LogNodeFrom<StructuredOwned> for commitlog::CommitNode {
+    fn log_node_from(t: StructuredOwned) -> Option<LogNode<Self>> {
         todo!("structured ref")
         // if let Structured::CommitLogNode(node) = t {
         //     Some(node)
@@ -91,7 +91,7 @@ where
 {
     pub async fn first_container<T>(&self) -> Result<Option<LogContainer<'_, LogNode<T>>>, Error>
     where
-        T: LogNodeFrom<Structured>,
+        T: LogNodeFrom<StructuredOwned>,
     {
         let addr = match self.addr.as_ref() {
             Some(addr) => addr,
@@ -112,7 +112,7 @@ where
     }
     pub async fn first<T>(&self) -> Result<Option<LogNode<T>>, Error>
     where
-        T: LogNodeFrom<Structured>,
+        T: LogNodeFrom<StructuredOwned>,
     {
         let container = self.first_container().await?;
         Ok(container.map(|LogContainer { node, .. }| node))

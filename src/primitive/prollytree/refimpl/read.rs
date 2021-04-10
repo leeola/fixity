@@ -1,6 +1,6 @@
 use {
     crate::{
-        cache::{CacheRead, OwnedFrom, OwnedRef},
+        cache::{CacheRead, OwnedFrom, OwnedRef, Structured},
         primitive::prollytree::{Node, NodeOwned},
         value::{Addr, KeyOwned as Key, ValueOwned as Value},
         Error,
@@ -26,9 +26,13 @@ where
     }
     #[async_recursion::async_recursion]
     async fn recursive_to_vec(&self, addr: Addr) -> Result<Vec<(Key, Value)>, Error> {
-        let node = {
+        let node: NodeOwned = {
             let owned_ref = self.storage.read_structured(&addr).await?;
-            owned_ref.into_owned::<NodeOwned>().unwrap()
+            // owned_ref.into_structured().unwrap().try_into().unwrap()
+            match owned_ref.into_structured().unwrap() {
+                Structured::ProllyTreeNode(t) => t,
+                _ => panic!("eegads"),
+            }
         };
         match node {
             Node::Leaf(v) => Ok(v),
