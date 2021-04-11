@@ -153,7 +153,7 @@ impl Builder<storage::Fs, workspace::Fs> {
             (_, Some(fixi_dir)) => fixi_dir,
             (fixi_dir_name, None) => {
                 let fixi_dir_name = fixi_dir_name.unwrap_or_else(|| PathBuf::from(FIXI_DIR_NAME));
-                crate::dir::resolve(fixi_dir_name, PathBuf::from("."))
+                crate::core::dir::resolve(fixi_dir_name, PathBuf::from("."))
                     .ok_or(Error::RepositoryNotFound)?
             },
         };

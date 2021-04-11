@@ -66,7 +66,7 @@ pub enum Error {
     Path(String),
 }
 fn parse_uint32(input: &str) -> IResult<&str, u32> {
-    map_res(all_consuming(digit1), |s| u32::from_str_radix(s, 10))(input)
+    map_res(all_consuming(digit1), str::parse::<u32>)(input)
 }
 // allowing, because this is the Nom pattern, imo.
 #[allow(clippy::unnecessary_wraps)]
