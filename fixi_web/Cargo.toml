@@ -10,7 +10,7 @@ edition = "2018"
 structopt = { optional = true, version = "0.3" }
 log = "0.4"
 thiserror = "1.0"
-tokio = "0.2"
+tokio = "1.4"
 # using master to get async.
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }
 rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }
