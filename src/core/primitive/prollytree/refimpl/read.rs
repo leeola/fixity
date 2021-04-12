@@ -1,9 +1,10 @@
 use {
     crate::{
-        cache::{CacheRead, OwnedRef},
-        primitive::prollytree::Node,
-        value::{Addr, Key, Value},
-        Error,
+        core::{
+            cache::{CacheRead, OwnedRef},
+            primitive::prollytree::Node,
+        },
+        Addr, Error, Key, Value,
     },
     std::convert::TryInto,
 };
@@ -52,7 +53,7 @@ where
 pub mod test {
     use {
         super::*,
-        crate::{
+        crate::core::{
             primitive::prollytree::{refimpl::Create, roller::Config as RollerConfig},
             Fixity,
         },

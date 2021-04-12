@@ -6,8 +6,10 @@ pub mod commitlog;
 pub mod prollylist;
 pub mod prollytree;
 pub use {
-    crate::cache::Structured as Object,
-    appendlog::AppendLog,
-    bytes::{Create as BytesCreate, Read as BytesRead},
-    commitlog::CommitLog,
+    self::{
+        appendlog::AppendLog,
+        bytes::{Create as BytesCreate, Read as BytesRead},
+        commitlog::CommitLog,
+    },
+    crate::core::cache::Structured as Object,
 };

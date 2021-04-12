@@ -1,13 +1,14 @@
 use {
     crate::{
-        cache::CacheWrite,
-        deser::{Deser, Error as DeserError},
-        primitive::prollytree::{
-            roller::{Config as RollerConfig, Roller},
-            Node, NodeOwned,
+        core::{
+            cache::CacheWrite,
+            deser::{Deser, Error as DeserError},
+            primitive::prollytree::{
+                roller::{Config as RollerConfig, Roller},
+                Node, NodeOwned,
+            },
         },
-        value::{Key, Value},
-        Addr, Error,
+        Addr, Error, Key, Value,
     },
     std::{collections::HashMap, mem},
 };
@@ -209,7 +210,7 @@ impl From<(Key, Addr)> for KeyValue {
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::Fixity};
+    use {super::*, crate::core::Fixity};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]

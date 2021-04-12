@@ -1,23 +1,139 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite},
-        error::Type as TypeError,
-        misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
-        path::{Path, SegmentResolve, SegmentUpdate},
-        primitive::{commitlog::CommitLog, prollytree::refimpl},
-        value::{Key, Value},
-        workspace::{Guard, Status, Workspace},
-        Addr, Error,
+        core::{
+            cache::{AsCacheRef, CacheRead, CacheWrite},
+            misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
+            primitive::{commitlog::CommitLog, prollytree::refimpl},
+            workspace::{AsWorkspaceRef, Guard, Status, Workspace},
+        },
+        path::{MapSegment, Path},
+        Addr, Error, Key, Value,
     },
-    std::{collections::HashMap, fmt, mem, ops::Bound},
+    std::{collections::HashMap, mem, ops::Bound},
 };
 pub struct Map<'f, C, W> {
     storage: &'f C,
     workspace: &'f W,
     path: Path,
-    cache: HashMap<Key, refimpl::Change>,
 }
 impl<'f, C, W> Map<'f, C, W> {
+    pub fn new(storage: &'f C, workspace: &'f W, path: Path) -> Self {
+        Self {
+            storage,
+            workspace,
+            path,
+        }
+    }
+    pub fn batch(&self) -> BatchMap<'f, C, W> {
+        BatchMap::new(self.storage, self.workspace, self.path.clone())
+    }
+    /// The core implementation of [`insert`](crate::Map::insert).
+    pub async fn insert<K, V>(&self, key: K, value: V) -> Result<Addr, Error>
+    where
+        K: Into<Key>,
+        V: Into<Value>,
+        C: CacheRead + CacheWrite,
+        W: Workspace,
+    {
+        let workspace_guard = self.workspace.lock().await?;
+        let root_content_addr = workspace_guard
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let resolved_path = self
+            .path
+            .resolve(self.storage, root_content_addr.clone())
+            .await?;
+        let old_self_addr = resolved_path
+            .last()
+            .cloned()
+            .expect("resolved Path has zero len");
+        let new_self_addr = if let Some(self_addr) = old_self_addr {
+            refimpl::Update::new(self.storage, self_addr)
+                .with_vec(vec![(key.into(), refimpl::Change::Insert(value.into()))])
+                .await?
+        } else {
+            refimpl::Create::new(self.storage)
+                .with_vec(vec![(key.into(), value.into())])
+                .await?
+        };
+        let new_staged_content = self
+            .path
+            .update(self.storage, resolved_path, new_self_addr)
+            .await?;
+        workspace_guard.stage(new_staged_content.clone()).await?;
+        Ok(new_staged_content)
+    }
+    /// The core implementation of [`get`](crate::Map::get).
+    pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
+    where
+        K: Into<Key>,
+        C: CacheRead + CacheWrite,
+        W: Workspace,
+    {
+        let key = key.into();
+        let content_addr = self
+            .workspace
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
+        } else {
+            return Ok(None);
+        };
+        reader.get(&key).await
+    }
+    pub async fn iter<R>(
+        &self,
+        range: R,
+    ) -> Result<Box<dyn Iterator<Item = Result<(Key, Value), Error>>>, Error>
+    where
+        W: Workspace,
+        C: CacheRead + CacheWrite,
+        R: RangeBoundsExt<Key>,
+    {
+        let content_addr = self
+            .workspace
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
+        } else {
+            return Ok(Box::new(Vec::new().into_iter()));
+        };
+        let OwnedRangeBounds { start, end } = range.into_bounds();
+        let iter = reader
+            .to_vec()
+            .await?
+            .into_iter()
+            .filter(move |(k, _)| match &start {
+                Bound::Included(start) => k >= start,
+                Bound::Excluded(start) => k > start,
+                Bound::Unbounded => true,
+            })
+            .take_while(move |(k, _)| match &end {
+                Bound::Included(end) => k >= end,
+                Bound::Excluded(end) => k > end,
+                Bound::Unbounded => true,
+            })
+            .map(Ok);
+        Ok(Box::new(iter))
+    }
+}
+pub struct BatchMap<'f, C, W> {
+    storage: &'f C,
+    workspace: &'f W,
+    path: Path,
+    cache: HashMap<Key, refimpl::Change>,
+}
+impl<'f, C, W> BatchMap<'f, C, W> {
     pub fn new(storage: &'f C, workspace: &'f W, path: Path) -> Self {
         Self {
             storage,
@@ -26,52 +142,18 @@ impl<'f, C, W> Map<'f, C, W> {
             cache: HashMap::new(),
         }
     }
-    /// Drop the internal change cache that has not yet been staged or committed to storage.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # use fixity::{Fixity,Map,path::Path};
-    /// let f = Fixity::memory();
-    /// let mut m = f.map(Path::new());
-    /// m.insert("foo", "bar");
-    /// m.clear();
-    /// assert!(m.get("foo").await.unwrap().is_none());
-    /// # }
-    /// ```
+    /// The core implementation of [`clear`](crate::BatchMap::clear).
     pub fn clear(&mut self) {
         self.cache.clear();
     }
-    /// Insert a value into the map to later be staged or committed.
-    ///
-    /// This value is not written to the store until [`Self::stage`] or [`Self::commit`]
-    /// is called, but it can be retrived from the internal cache.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # use fixity::{Fixity,Map,path::Path};
-    /// let f = Fixity::memory();
-    /// let mut m_1 = f.map(Path::new());
-    /// let m_2 = f.map(Path::new());
-    /// m_1.insert("foo", "bar");
-    /// // get pulls from in-memory cache, awaiting stage/commit.
-    /// assert_eq!(m_1.get("foo").await.unwrap(), Some("bar".into()));
-    /// // not yet written to storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// # }
-    /// ```
+    /// The core implementation of [`insert`](crate::BatchMap::insert).
     pub fn insert<K, V>(&mut self, key: K, value: V)
     where
         K: Into<Key>,
         V: Into<Value>,
     {
         // TODO: move multi-stepped-insertion behavior to its own struct, such that
-        // `Map` becomes an always-clean interface.
+        // `BatchMap` becomes an always-clean interface.
         self.cache
             .insert(key.into(), refimpl::Change::Insert(value.into()));
     }
@@ -115,7 +197,7 @@ impl<'f, C, W> Map<'f, C, W> {
         Ok(Box::new(iter))
     }
 }
-impl<'f, C, W> Map<'f, C, W>
+impl<'f, C, W> BatchMap<'f, C, W>
 where
     C: CacheRead + CacheWrite,
 {
@@ -126,18 +208,18 @@ where
         Self::new(
             &self.storage,
             &self.workspace,
-            self.path.clone().into_map(PathSegment { key: key.into() }),
+            self.path.clone().into_map(MapSegment { key: key.into() }),
         )
     }
     pub fn into_map<K>(mut self, key: K) -> Self
     where
         K: Into<Key>,
     {
-        self.path.push_map(PathSegment { key: key.into() });
+        self.path.push_map(MapSegment { key: key.into() });
         self
     }
 }
-impl<'f, C, W> Map<'f, C, W>
+impl<'f, C, W> BatchMap<'f, C, W>
 where
     C: CacheRead + CacheWrite,
     W: Workspace,
@@ -164,24 +246,7 @@ where
         };
         reader.get(&key).await
     }
-    /// Write any changes to storage, staging them for a later commit.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # use fixity::{Fixity,Map,path::Path};
-    /// let f = Fixity::memory();
-    /// let mut m_1 = f.map(Path::new());
-    /// let m_2 = f.map(Path::new());
-    /// m_1.insert("foo", "bar");
-    /// // not yet written to storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// let _staged_addr = m_1.stage().await.unwrap();
-    /// // now in storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
-    /// # }
+    /// The core implementation of [`stage`](crate::BatchMap::stage).
     pub async fn stage(&mut self) -> Result<Addr, Error> {
         if self.cache.is_empty() {
             return Err(Error::NoChangesToWrite);
@@ -223,25 +288,7 @@ where
         workspace_guard.stage(new_staged_content.clone()).await?;
         Ok(new_staged_content)
     }
-    /// Write any [staged](Self::stage) changes at the current [`Path`] into the workspace.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # use fixity::{Fixity,Map,path::Path};
-    /// let f = Fixity::memory();
-    /// let mut m_1 = f.map(Path::new());
-    /// let m_2 = f.map(Path::new());
-    /// m_1.insert("foo", "bar");
-    /// // not yet written to storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), None);
-    /// m_1.stage().await.unwrap();
-    /// m_1.commit().await.unwrap();
-    /// // now in storage.
-    /// assert_eq!(m_2.get("foo").await.unwrap(), Some("bar".into()));
-    /// # }
+    /// The core implementation of [`stage`](crate::BatchMap::stage).
     pub async fn commit(&mut self) -> Result<Addr, Error> {
         let workspace_guard = self.workspace.lock().await?;
         let (commit_addr, staged_addr) = match workspace_guard.status().await? {
@@ -262,92 +309,32 @@ where
         Ok(commit_addr)
     }
 }
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PathSegment {
-    pub key: Key,
-}
-impl PathSegment {
-    pub fn new<T: Into<Key>>(t: T) -> Self {
-        Self { key: t.into() }
-    }
-}
-impl fmt::Debug for PathSegment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Map(")?;
-        self.key.fmt(f)?;
-        f.write_str(")")
-    }
-}
-impl fmt::Display for PathSegment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Map(")?;
-        self.key.fmt(f)?;
-        f.write_str(")")
-    }
-}
-#[async_trait::async_trait]
-impl<C> SegmentResolve<C> for PathSegment
+impl<C, W> AsWorkspaceRef for Map<'_, C, W>
 where
-    C: CacheRead,
+    W: Workspace,
 {
-    async fn resolve(&self, storage: &C, self_addr: Addr) -> Result<Option<Addr>, Error> {
-        let reader = refimpl::Read::new(storage, self_addr);
-        let value = match reader.get(&self.key).await? {
-            Some(v) => v,
-            None => return Ok(None),
-        };
-        let addr = match value {
-            Value::Addr(addr) => addr,
-            _ => {
-                return Err(Error::Type(TypeError::UnexpectedValueVariant {
-                    at_segment: Some(self.key.to_string()),
-                    // addr moved, not sure it's worth prematurely cloning for the failure state.
-                    at_addr: None,
-                }));
-            },
-        };
-        Ok(Some(addr))
+    type Workspace = W;
+    fn as_workspace_ref(&self) -> &Self::Workspace {
+        &self.workspace
     }
 }
-#[async_trait::async_trait]
-impl<C> SegmentUpdate<C> for PathSegment
+impl<C, W> AsCacheRef for Map<'_, C, W>
 where
     C: CacheRead + CacheWrite,
 {
-    async fn update(
-        &self,
-        storage: &C,
-        self_addr: Option<Addr>,
-        child_addr: Addr,
-    ) -> Result<Addr, Error> {
-        if let Some(self_addr) = self_addr {
-            let kvs = vec![(
-                self.key.clone(),
-                refimpl::Change::Insert(Value::Addr(child_addr)),
-            )];
-            refimpl::Update::new(storage, self_addr).with_vec(kvs).await
-        } else {
-            let kvs = vec![(self.key.clone(), Value::Addr(child_addr))];
-            refimpl::Create::new(storage).with_vec(kvs).await
-        }
-    }
-}
-impl<T> From<T> for PathSegment
-where
-    T: Into<Key>,
-{
-    fn from(t: T) -> Self {
-        Self { key: t.into() }
+    type Cache = C;
+    fn as_cache_ref(&self) -> &Self::Cache {
+        &self.storage
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::Fixity};
+    use {super::*, crate::core::Fixity};
     #[tokio::test]
     async fn write_to_root() {
         let f = Fixity::memory();
-        let mut m_1 = f.map(Path::new());
-        let m_2 = f.map(Path::new());
+        let mut m_1 = f.map(Path::new()).batch();
+        let m_2 = f.map(Path::new()).batch();
         m_1.insert("foo", "bar");
         assert_eq!(m_2.get("foo").await.unwrap(), None);
         m_1.stage().await.unwrap();
@@ -357,11 +344,11 @@ pub mod test {
     #[tokio::test]
     async fn write_to_path_single() {
         let f = Fixity::memory();
-        let mut m_1 = f.map(Path::from_map("foo"));
+        let mut m_1 = f.map(Path::from_map("foo")).batch();
         m_1.insert("bang", "boom");
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
-        let m_2 = f.map(Path::new());
+        let m_2 = f.map(Path::new()).batch();
         let foo_value = m_2.get("foo").await.unwrap().unwrap();
         assert!(matches!(foo_value, Value::Addr(_)));
         assert_eq!(
@@ -372,11 +359,11 @@ pub mod test {
     #[tokio::test]
     async fn write_to_path_double() {
         let f = Fixity::memory();
-        let mut m_1 = f.map(Path::new()).into_map("foo").into_map("bar");
+        let mut m_1 = f.map(Path::new()).batch().into_map("foo").into_map("bar");
         m_1.insert("bang", "boom");
         m_1.stage().await.unwrap();
         m_1.commit().await.unwrap();
-        let m_2 = f.map(Path::new());
+        let m_2 = f.map(Path::new()).batch();
         println!("{:?}", m_2.get("foo").await.unwrap());
         println!("{:?}", m_2.get("bar").await.unwrap());
         let foo_value = m_2.get("foo").await.unwrap().unwrap();
@@ -391,7 +378,7 @@ pub mod test {
     #[tokio::test]
     async fn multi_value() {
         let f = Fixity::memory();
-        let mut m = f.map(Path::new());
+        let mut m = f.map(Path::new()).batch();
         m.insert("foo", "fooval");
         assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
         m.stage().await.unwrap();
@@ -406,7 +393,7 @@ pub mod test {
     #[tokio::test]
     async fn nested_multi_value() {
         let f = Fixity::memory();
-        let mut m = f.map(Path::new());
+        let mut m = f.map(Path::new()).batch();
         m.insert("foo", "fooval");
         assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));
         m.stage().await.unwrap();
@@ -442,7 +429,7 @@ pub mod test {
     #[tokio::test]
     async fn isolated_nested_multi_value() {
         let f = Fixity::memory();
-        let mut m = f.map(Path::new());
+        let mut m = f.map(Path::new()).batch();
         m.insert("foo", "fooval");
         m.stage().await.unwrap();
         assert_eq!(m.get("foo").await.unwrap(), Some("fooval".into()));

@@ -2,13 +2,10 @@
 use fixi_web::Config as WebConfig;
 use {
     fixity::{
-        cache::DeserCache,
         fixity::Builder,
         path::Path,
-        storage,
         value::{Key, Value},
-        workspace::{self, Workspace},
-        CacheRead, CacheWrite, Commit, Fixity,
+        Config, Fixity,
     },
     std::path::PathBuf,
     structopt::StructOpt,
@@ -33,12 +30,10 @@ struct FixiOpt {
     // pub global_fixi_dir: Option<PathBuf>,
     #[structopt(long, env = "FIXI_DIR_NAME")]
     pub fixi_dir_name: Option<PathBuf>,
-    #[structopt(long, env = "FIXI_DIR")]
-    pub fixi_dir: Option<PathBuf>,
+    #[structopt(long, env = "FIXI_BASE_PATH")]
+    pub base_path: Option<PathBuf>,
     #[structopt(long, env = "FIXI_WORKSPACE", default_value = "default")]
     pub workspace: String,
-    #[structopt(long, env = "FIXI_STORAGE_DIR")]
-    pub storage_dir: Option<PathBuf>,
 }
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -73,7 +68,7 @@ pub enum Error {
     #[error("fixity error: {0}")]
     Fixity(#[from] fixity::Error),
     #[error("fixity storage error: {0}")]
-    StorageError(#[from] fixity::storage::Error),
+    StorageError(#[from] fixity::core::storage::Error),
 }
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -83,17 +78,18 @@ async fn main() -> Result<(), Error> {
     let fixi = {
         let FixiOpt {
             fixi_dir_name,
-            fixi_dir,
+            base_path,
             workspace,
-            storage_dir,
         } = opt.fixi_opt;
-        let builder = fixity::Fixity::<storage::Fs, workspace::Fs>::builder()
-            .fixi_dir_name(fixi_dir_name)
-            .fixi_dir(fixi_dir)
-            .with_workspace_name(workspace)
-            .fs_storage_dir(storage_dir);
+        let config = Config::builder()
+            .with_fixi_dir_name(fixi_dir_name)
+            .with_base_path(base_path)
+            .with_workspace_name(Some(workspace));
+        let builder = Fixity::builder().with_config(config.clone());
         match opt.subcmd {
-            Command::Init => return cmd_init(builder).await,
+            Command::Init => {
+                return cmd_init(builder).await;
+            },
             _ => builder.open().await?,
         }
     };
@@ -107,8 +103,12 @@ async fn main() -> Result<(), Error> {
         // Command::Web(c) => fixi_web::serve(c).await,
     }
 }
-async fn cmd_init(b: Builder<storage::Fs, workspace::Fs>) -> Result<(), Error> {
-    b.init().await?;
+async fn cmd_init(builder: Builder) -> Result<(), Error> {
+    let (_, config) = builder.init_config().await?;
+    println!(
+        "created Fixity repository at: {}",
+        config.fixi_dir_path.to_string_lossy()
+    );
     Ok(())
 }
 #[derive(Debug, StructOpt)]
@@ -138,57 +138,40 @@ enum MapSubcmd {
         end: Option<Key>,
     },
 }
-async fn cmd_map<C, W>(fixi: Fixity<C, W>, path: Path, subcmd: MapSubcmd) -> Result<(), Error>
-where
-    C: CacheRead + CacheWrite,
-    W: Workspace,
-{
+async fn cmd_map(fixi: Fixity, path: Path, subcmd: MapSubcmd) -> Result<(), Error> {
     match subcmd {
         MapSubcmd::Get { key } => cmd_map_get(fixi, path, key).await,
         MapSubcmd::Put { commit, key, value } => cmd_map_put(fixi, path, commit, key, value).await,
         MapSubcmd::Ls { start, end } => cmd_map_ls(fixi, path, start, end).await,
     }
 }
-async fn cmd_map_get<S, W>(fixi: Fixity<S, W>, path: Path, key: Key) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+async fn cmd_map_get(fixi: Fixity, path: Path, key: Key) -> Result<(), Error> {
     let map = fixi.map(path);
     let v = map.get(key).await?;
     println!("{:?}", v);
     Ok(())
 }
-async fn cmd_map_put<S, W>(
-    fixi: Fixity<S, W>,
+async fn cmd_map_put(
+    fixi: Fixity,
     path: Path,
     commit: bool,
     key: Key,
     value: Value,
-) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+) -> Result<(), Error> {
     let mut map = fixi.map(path);
-    map.insert(key, value);
-    map.stage().await?;
+    map.insert(key, value).await?;
     if commit {
         let addr = map.commit().await?;
         println!("{:?}", addr);
     }
     Ok(())
 }
-async fn cmd_map_ls<S, W>(
-    fixi: Fixity<S, W>,
+async fn cmd_map_ls(
+    fixi: Fixity,
     path: Path,
     start: Option<Key>,
     end: Option<Key>,
-) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+) -> Result<(), Error> {
     let map = fixi.map(path);
     let mut iter = match (start, end) {
         (Some(start), Some(end)) => map.iter(start..end).await?,
@@ -211,31 +194,19 @@ enum BytesSubcmd {
         commit: bool,
     },
 }
-async fn cmd_bytes<S, W>(fixi: Fixity<S, W>, path: Path, subcmd: BytesSubcmd) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+async fn cmd_bytes(fixi: Fixity, path: Path, subcmd: BytesSubcmd) -> Result<(), Error> {
     match subcmd {
         BytesSubcmd::Get => cmd_bytes_get(fixi, path).await,
         BytesSubcmd::Put { commit } => cmd_bytes_put(fixi, path, commit).await,
     }
 }
-async fn cmd_bytes_get<S, W>(fixi: Fixity<S, W>, path: Path) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+async fn cmd_bytes_get(fixi: Fixity, path: Path) -> Result<(), Error> {
     let stdout = tokio::io::stdout();
     let bytes = fixi.bytes(path)?;
     let _ = bytes.read(stdout).await?;
     Ok(())
 }
-async fn cmd_bytes_put<S, W>(fixi: Fixity<S, W>, path: Path, commit: bool) -> Result<(), Error>
-where
-    S: CacheRead + CacheWrite,
-    W: Workspace,
-{
+async fn cmd_bytes_put(fixi: Fixity, path: Path, commit: bool) -> Result<(), Error> {
     if path.len() == 0 {
         return Err(Error::User(
             "cannot get/put bytes to root of fixity repository".to_owned(),
@@ -257,7 +228,7 @@ where
     // [1]: https://docs.rs/tokio/1.2.0/tokio/io/struct.Stdin.html
     let stdin = tokio::io::stdin();
     let bytes = fixi.bytes(path)?;
-    let _ = bytes.stage(stdin).await?;
+    let _ = bytes.write(stdin).await?;
     if commit {
         let addr = bytes.commit().await?;
         println!("{:?}", addr);

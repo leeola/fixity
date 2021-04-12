@@ -1,16 +1,17 @@
 use {
     crate::{
-        cache::CacheWrite,
-        deser::Deser,
-        primitive::{
-            prollylist::{Node, NodeOwned},
-            prollytree::{
-                roller::{Config as RollerConfig, Roller},
-                ONE_LEN_BLOCK_WARNING,
+        core::{
+            cache::CacheWrite,
+            deser::Deser,
+            primitive::{
+                prollylist::{Node, NodeOwned},
+                prollytree::{
+                    roller::{Config as RollerConfig, Roller},
+                    ONE_LEN_BLOCK_WARNING,
+                },
             },
         },
-        value::Value,
-        Addr, Error,
+        Addr, Error, Value,
     },
     std::mem,
 };
@@ -97,7 +98,7 @@ where
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::Fixity};
+    use {super::*, crate::core::Fixity};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]

@@ -1,6 +1,6 @@
 pub mod refimpl;
 use crate::{
-    deser::{Deser, Error as DeserError, Serialize},
+    core::deser::{Deser, Error as DeserError, Serialize},
     value::{Addr, Value},
 };
 /// An alias to a [`Node`] with owned parameters.

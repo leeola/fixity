@@ -1,7 +1,9 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite},
-        primitive::{appendlog::LogContainer, AppendLog},
+        core::{
+            cache::{CacheRead, CacheWrite},
+            primitive::{appendlog::LogContainer, AppendLog},
+        },
         Addr, Error,
     },
     chrono::Utc,

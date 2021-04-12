@@ -1,7 +1,9 @@
 use crate::{
-    cache::{CacheRead, CacheWrite, OwnedRef, Structured},
-    primitive::commitlog,
-    storage::Error as StorageError,
+    core::{
+        cache::{CacheRead, CacheWrite, OwnedRef, Structured},
+        primitive::commitlog,
+        storage::Error as StorageError,
+    },
     Addr, Error,
 };
 pub struct LogContainer<'a, T> {

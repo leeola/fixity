@@ -1,5 +1,8 @@
 use {
-    crate::{deser, fixity, storage, value::Addr, workspace},
+    crate::{
+        core::{self, deser, storage, workspace},
+        Addr,
+    },
     std::io,
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -85,7 +88,7 @@ pub enum Internal {
     #[error("fixity failed to initialize a new repository: {source}")]
     Init {
         #[from]
-        source: fixity::InitError,
+        source: core::fixity::InitError,
     },
     #[error("head: `{source}`")]
     Workspace {
@@ -111,8 +114,8 @@ impl From<workspace::Error> for Error {
         Self::Internal { source: err.into() }
     }
 }
-impl From<fixity::InitError> for Error {
-    fn from(err: fixity::InitError) -> Self {
+impl From<core::fixity::InitError> for Error {
+    fn from(err: core::fixity::InitError) -> Self {
         Self::Internal { source: err.into() }
     }
 }

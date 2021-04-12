@@ -1,9 +1,11 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite, OwnedRef},
-        deser::Deser,
-        primitive::Object,
-        storage::{Error, StorageRead, StorageWrite},
+        core::{
+            cache::{CacheRead, CacheWrite, OwnedRef},
+            deser::Deser,
+            primitive::Object,
+            storage::{Error, StorageRead, StorageWrite},
+        },
         Addr,
     },
     log::debug,

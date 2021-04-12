@@ -1,12 +1,13 @@
 use {
     crate::{
-        cache::{CacheRead, CacheWrite},
-        primitive::prollytree::{
-            refimpl::{Create, Read},
-            roller::Config as RollerConfig,
+        core::{
+            cache::{CacheRead, CacheWrite},
+            primitive::prollytree::{
+                refimpl::{Create, Read},
+                roller::Config as RollerConfig,
+            },
         },
-        value::{Key, Value},
-        Addr, Error,
+        Addr, Error, Key, Value,
     },
     std::collections::HashMap,
 };
@@ -95,7 +96,7 @@ where
 }
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::Fixity};
+    use {super::*, crate::core::Fixity};
     /// A smaller value to use with the roller, producing smaller average block sizes.
     const TEST_PATTERN: u32 = (1 << 8) - 1;
     #[tokio::test]

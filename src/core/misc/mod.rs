@@ -26,6 +26,11 @@ pub mod range_ext {
             Bound::Unbounded => Bound::Unbounded,
         }
     }
+    impl<T> RangeBoundsExt<T> for OwnedRangeBounds<T> {
+        fn into_bounds(self) -> OwnedRangeBounds<T> {
+            self
+        }
+    }
     impl<T> RangeBoundsExt<T> for Range<T> {
         fn into_bounds(self) -> OwnedRangeBounds<T> {
             OwnedRangeBounds {

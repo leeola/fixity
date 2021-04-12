@@ -20,6 +20,20 @@
 // which this library is using.
 #![allow(clippy::missing_errors_doc)]
 
+pub mod bytes;
+pub mod config;
 pub mod core;
-
-pub use self::core::*;
+pub mod error;
+pub mod fixity;
+pub mod map;
+pub mod path;
+pub mod value;
+pub use self::{
+    bytes::Bytes,
+    config::Config,
+    error::{Error, Result},
+    fixity::Fixity,
+    map::Map,
+    path::Path,
+    value::{Addr, Key, Scalar, Value},
+};

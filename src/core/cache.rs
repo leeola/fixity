@@ -2,8 +2,10 @@ pub mod deser_cache;
 pub use deser_cache::DeserCache;
 use {
     crate::{
-        primitive::{appendlog, commitlog, prollylist, prollytree},
-        storage::Error,
+        core::{
+            primitive::{appendlog, commitlog, prollylist, prollytree},
+            storage::Error,
+        },
         Addr,
     },
     std::{convert::TryFrom, ops::Deref},

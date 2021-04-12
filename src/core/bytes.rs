@@ -1,10 +1,11 @@
 use {
     crate::{
-        cache::{AsCacheRef, CacheRead, CacheWrite},
-        path::Path,
-        primitive::{BytesCreate, BytesRead},
-        workspace::{AsWorkspaceRef, Guard, Workspace},
-        Addr, Error,
+        core::{
+            cache::{AsCacheRef, CacheRead, CacheWrite},
+            primitive::{BytesCreate, BytesRead},
+            workspace::{AsWorkspaceRef, Guard, Workspace},
+        },
+        Addr, Error, Path,
     },
     tokio::io::{AsyncRead, AsyncWrite},
 };

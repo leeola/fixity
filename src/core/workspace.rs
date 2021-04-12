@@ -1,7 +1,10 @@
 mod fs;
 mod memory;
 pub use self::{fs::Fs, memory::Memory};
-use crate::{cache::CacheRead, primitive::CommitLog, Addr};
+use crate::{
+    core::{cache::CacheRead, primitive::CommitLog},
+    Addr,
+};
 #[async_trait::async_trait]
 pub trait Init {
     type Workspace: Workspace;
