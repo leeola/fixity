@@ -27,7 +27,13 @@ impl<C, W> Fixity<C, W> {
     ///
     /// Useful for interacting directly with underlying [Primitives](crate::core::primitive).
     pub fn into_cache(self) -> C {
-        self.storage
+        self.into_cw().0
+    }
+    /// Take ownership of the underlying cache/workspace.
+    ///
+    /// Useful for interacting directly with underlying [Primitives](crate::core::primitive).
+    pub fn into_cw(self) -> (C, W) {
+        (self.storage, self.workspace)
     }
 }
 impl Fixity<DeserCache<()>, workspace::Memory> {
