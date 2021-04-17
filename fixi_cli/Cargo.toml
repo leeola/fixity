@@ -10,11 +10,9 @@ path = "src/bin/fixi.rs"
 
 [features]
 default = []
-web = ["fixi_web", "fixi_web/structopt"]
 
 [dependencies]
 fixity = { path = "..", features = ["structopt"] }
-fixi_web = { optional = true, path = "../fixi_web" }
 structopt = "0.3"
 env_logger = "0.7"
 tokio = { version = "1.4.0", features = ["rt-multi-thread", "macros", "io-std"] }

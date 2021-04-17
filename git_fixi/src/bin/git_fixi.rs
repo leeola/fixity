@@ -1,15 +1,4 @@
-use {
-    fixity::{
-        fixity::Builder,
-        path::Path,
-        storage,
-        value::{Key, Value},
-        workspace::{self, Workspace},
-        Fixity, Storage,
-    },
-    std::path::PathBuf,
-    structopt::StructOpt,
-};
+use {std::path::PathBuf, structopt::StructOpt};
 /// An temporary config setting up Fixi with the limited in-dev options
 /// it has at the moment.
 ///
@@ -41,6 +30,7 @@ enum Command {
     Clean,
     Smudge,
 }
+/*
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("error: {0}")]
@@ -50,11 +40,13 @@ pub enum Error {
     #[error("fixity storage error: {0}")]
     StorageError(#[from] fixity::storage::Error),
 }
+*/
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), String> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("error")).init();
     let opt = Opt::from_args();
 
+    /*
     let fixi = {
         let FixiOpt {
             fixi_dir_name,
@@ -70,6 +62,7 @@ async fn main() -> Result<(), Error> {
             .open()
             .await?
     };
+    */
 
     println!("stdout print");
     eprintln!("stderr print");

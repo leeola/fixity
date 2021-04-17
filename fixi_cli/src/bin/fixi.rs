@@ -1,5 +1,3 @@
-#[cfg(feature = "web")]
-use fixi_web::Config as WebConfig;
 use {
     fixity::{
         fixity::Builder,
@@ -58,8 +56,6 @@ enum Command {
         #[structopt(subcommand)]
         subcmd: BytesSubcmd,
     },
-    #[cfg(feature = "web")]
-    Web(WebConfig),
 }
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -98,9 +94,6 @@ async fn main() -> Result<(), Error> {
         Command::Init => unreachable!("matched above"),
         Command::Map { path, subcmd } => cmd_map(fixi, path, subcmd).await,
         Command::Bytes { path, subcmd } => cmd_bytes(fixi, path, subcmd).await,
-        #[cfg(feature = "web")]
-        Command::Web(c) => unimplemented!("web serve"),
-        // Command::Web(c) => fixi_web::serve(c).await,
     }
 }
 async fn cmd_init(builder: Builder) -> Result<(), Error> {

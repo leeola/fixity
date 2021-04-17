@@ -69,7 +69,6 @@ criterion = { version = "0.3.4", features = ["async_tokio"] }
 [workspace]
 members = [
   "fixi_cli",
-  "fixi_web",
   "fbuzhash",
   "git_fixi",
 ]
