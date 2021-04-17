@@ -57,7 +57,7 @@ where
         self.read(w).await
     }
     async fn inner_write(&self, r: &mut (dyn AsyncRead + Unpin + Send)) -> Result<Addr, Error> {
-        self.stage(r).await
+        self.write(r).await
     }
     async fn inner_commit(&self) -> Result<Addr, Error> {
         self.commit().await

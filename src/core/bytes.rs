@@ -46,11 +46,11 @@ impl<'f, C, W> Bytes<'f, C, W> {
         let n = reader.read(w).await?;
         Ok(Some(n))
     }
-    pub async fn stage<R>(&self, r: R) -> Result<Addr, Error>
+    pub async fn write<Reader>(&self, r: Reader) -> Result<Addr, Error>
     where
         C: CacheRead + CacheWrite,
         W: Workspace,
-        R: AsyncRead + Unpin + Send,
+        Reader: AsyncRead + Unpin + Send,
     {
         let workspace_guard = self.workspace.lock().await?;
         let root_content_addr = workspace_guard
