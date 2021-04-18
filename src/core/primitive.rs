@@ -3,6 +3,7 @@
 pub mod appendlog;
 pub mod bytes;
 pub mod commitlog;
+pub mod hash_set;
 pub mod prollylist;
 pub mod prollytree;
 pub use {

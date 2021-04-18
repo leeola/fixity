@@ -483,7 +483,7 @@ dependencies = [
 
 [[package]]
 name = "fixi_cli"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "env_logger 0.7.1",
  "fixity",
@@ -621,7 +621,7 @@ dependencies = [
 
 [[package]]
 name = "git_fixi"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "env_logger 0.7.1",
  "fixity",

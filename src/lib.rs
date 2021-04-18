@@ -19,6 +19,7 @@
 // This warning makes less sense with enum-flavored error handling,
 // which this library is using.
 #![allow(clippy::missing_errors_doc)]
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 pub mod bytes;
 pub mod config;

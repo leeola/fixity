@@ -10,14 +10,14 @@ use {
     tokio::io::{AsyncRead, AsyncWrite},
 };
 pub struct Bytes<'f, C, W> {
-    storage: &'f C,
+    cache: &'f C,
     workspace: &'f W,
     path: Path,
 }
 impl<'f, C, W> Bytes<'f, C, W> {
-    pub fn new(storage: &'f C, workspace: &'f W, path: Path) -> Self {
+    pub fn new(cache: &'f C, workspace: &'f W, path: Path) -> Self {
         Self {
-            storage,
+            cache,
             workspace,
             path,
         }
@@ -32,14 +32,14 @@ impl<'f, C, W> Bytes<'f, C, W> {
         let root_content_addr = workspace_guard
             .status()
             .await?
-            .content_addr(self.storage)
+            .content_addr(self.cache)
             .await?;
         let content_addr = self
             .path
-            .resolve_last(self.storage, root_content_addr)
+            .resolve_last(self.cache, root_content_addr)
             .await?;
         let reader = if let Some(content_addr) = content_addr {
-            BytesRead::new(self.storage, content_addr)
+            BytesRead::new(self.cache, content_addr)
         } else {
             return Ok(None);
         };
@@ -56,13 +56,13 @@ impl<'f, C, W> Bytes<'f, C, W> {
         let root_content_addr = workspace_guard
             .status()
             .await?
-            .content_addr(self.storage)
+            .content_addr(self.cache)
             .await?;
-        let resolved_path = self.path.resolve(self.storage, root_content_addr).await?;
-        let new_self_addr = BytesCreate::new(self.storage).write(r).await?;
+        let resolved_path = self.path.resolve(self.cache, root_content_addr).await?;
+        let new_self_addr = BytesCreate::new(self.cache).write(r).await?;
         let new_staged_content = self
             .path
-            .update(self.storage, resolved_path, new_self_addr)
+            .update(self.cache, resolved_path, new_self_addr)
             .await?;
         workspace_guard.stage(new_staged_content.clone()).await?;
         Ok(new_staged_content)
@@ -83,6 +83,6 @@ where
 {
     type Cache = C;
     fn as_cache_ref(&self) -> &Self::Cache {
-        &self.storage
+        &self.cache
     }
 }

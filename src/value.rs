@@ -26,6 +26,10 @@ impl Addr {
         let h: [u8; 32] = <[u8; 32]>::from(blake3::hash(bytes.as_ref()));
         Self(h)
     }
+    /// Return the underlying hashed bytes for this `Addr`.
+    pub fn into_inner(self) -> [u8; 32] {
+        self.0
+    }
     /// Create an `Addr` from a string of encoded bytes.
     ///
     /// If the decoded bytes length does not match `Addr::LEN`, `None` is returned.
@@ -67,6 +71,14 @@ impl Addr {
     /// Convert the underlying String into a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0[..]
+    }
+    /// Generate a `proptest` random `Addr`.
+    #[cfg(test)]
+    pub fn prop() -> impl proptest::prelude::Strategy<Value = Addr> {
+        use proptest::prelude::Strategy;
+        proptest::prelude::prop::collection::vec(0u8..u8::MAX, Addr::LEN)
+            .prop_map(|bytes| Addr::try_from(bytes).expect("invalid Addr"))
+            .no_shrink()
     }
 }
 impl AsRef<Addr> for Addr {

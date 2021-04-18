@@ -3,7 +3,7 @@ pub use deser_cache::DeserCache;
 use {
     crate::{
         core::{
-            primitive::{appendlog, commitlog, prollylist, prollytree},
+            primitive::{appendlog, commitlog, hash_set, prollylist, prollytree},
             storage::Error,
         },
         Addr,
@@ -27,6 +27,7 @@ pub enum Structured {
     ProllyTreeNode(prollytree::NodeOwned),
     ProllyListNode(prollylist::NodeOwned),
     CommitLogNode(appendlog::LogNode<commitlog::CommitNode>),
+    HashSetNode(hash_set::Node),
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
@@ -86,6 +87,11 @@ impl From<prollytree::NodeOwned> for Structured {
 impl From<prollylist::NodeOwned> for Structured {
     fn from(t: prollylist::NodeOwned) -> Self {
         Self::ProllyListNode(t)
+    }
+}
+impl From<hash_set::Node> for Structured {
+    fn from(t: hash_set::Node) -> Self {
+        Self::HashSetNode(t)
     }
 }
 impl TryFrom<Structured> for prollytree::NodeOwned {
