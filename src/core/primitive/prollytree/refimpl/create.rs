@@ -74,16 +74,6 @@ where
                 .roll_bytes(&kv.serialize_inner(&Deser::default())?);
             block_buf.push(kv);
             if boundary {
-                // Check for a case where a single key:value pair is equal to or exceeds
-                // the bytes of an individual block. This typically indicates that the average
-                // block size is too small or that the value being stored would be better
-                // represented as a chunked byte array.
-                let one_len_block = block_buf.len() == 1 && block_addrs.is_empty();
-                if one_len_block {
-                    log::warn!(
-                        "writing key & value that exceeds block size, this is highly inefficient"
-                    );
-                }
                 let (block_key, block_addr) = {
                     let new_block_buf = KeyValues::new_of_same_variant(&block_buf);
                     self.write_block(mem::replace(&mut block_buf, new_block_buf))
@@ -139,12 +129,6 @@ impl KeyValues {
         match self {
             Self::KeyValues(v) => v.is_empty(),
             Self::KeyAddrs(v) => v.is_empty(),
-        }
-    }
-    pub fn len(&self) -> usize {
-        match self {
-            Self::KeyValues(v) => v.len(),
-            Self::KeyAddrs(v) => v.len(),
         }
     }
     /// Push the given `KeyValue` into the `KeyValues`.

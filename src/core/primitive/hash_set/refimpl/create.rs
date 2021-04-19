@@ -69,17 +69,6 @@ impl<'s, C> Create<'s, C> {
             let boundary = self.roller.roll_bytes(&item.serialize_inner(&self.deser)?);
             block_buf.push(item);
             if boundary {
-                // Check for a case where a single key:value pair is equal to or exceeds
-                // the bytes of an individual block. This typically indicates that the average
-                // block size is too small or that the value being stored would be better
-                // represented as a chunked byte array.
-                let one_len_block = block_buf.len() == 1 && node_addrs.is_empty();
-                if one_len_block {
-                    log::warn!(
-                        "{}",
-                        crate::core::primitive::prollytree::ONE_LEN_BLOCK_WARNING
-                    );
-                }
                 let node_kv = {
                     let node = {
                         let new_block_buf = match block_buf {
