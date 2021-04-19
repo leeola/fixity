@@ -109,23 +109,10 @@ impl<'s, C> Create<'s, C> {
 #[cfg(test)]
 pub mod test {
     use {super::*, crate::core::Fixity, proptest::prelude::*, tokio::runtime::Runtime};
-    #[tokio::test]
-    async fn single_value() {
-        let mut env_builder = env_logger::builder();
-        env_builder.is_test(true);
-        if std::env::var("RUST_LOG").is_err() {
-            env_builder.filter(Some("fixity"), log::LevelFilter::Debug);
-        }
-        let _ = env_builder.try_init();
-        let cache = Fixity::memory().into_cache();
-        let tree = Create::with_roller(&cache, Deser::default(), RollerConfig::default());
-        let addr = tree.with_vec(vec![Value::from(1)]).await.unwrap();
-        dbg!(addr);
-    }
     proptest! {
         #[test]
-        fn inputs(
-            values in prop::collection::vec(Addr::prop().prop_map(Value::from), 1..100)
+        fn create_without_failure(
+            values in prop::collection::vec(any::<Value>(), 1..5)
         ) {
             let mut env_builder = env_logger::builder();
             env_builder.is_test(true);
@@ -134,11 +121,11 @@ pub mod test {
             }
             let _ = env_builder.try_init();
             Runtime::new().unwrap().block_on(async {
-                test_inputs(values).await
+                create_without_failure_impl(values).await
             });
         }
     }
-    async fn test_inputs(values: Vec<Value>) {
+    async fn create_without_failure_impl(values: Vec<Value>) {
         let cache = Fixity::memory().into_cache();
         let tree = Create::with_roller(&cache, Deser::default(), RollerConfig::default());
         let _addr = tree.with_vec(values).await.unwrap();
