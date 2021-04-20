@@ -2,15 +2,11 @@ use {
     crate::{
         core::{
             cache::{CacheRead, OwnedRef},
-            deser::Deser,
-            primitive::{
-                hash_set::{HashKey, Node},
-                prollytree::roller::{Config as RollerConfig, Roller},
-            },
+            primitive::hash_set::Node,
         },
         Addr, Error, Value,
     },
-    std::{convert::TryInto, mem},
+    std::convert::TryInto,
 };
 pub struct Read<'s, C> {
     cache: &'s C,
@@ -37,7 +33,6 @@ impl<'s, C> Read<'s, C> {
             Node::Leaf(v) => Ok(v.into_iter().map(|(_, v)| v).collect::<Vec<_>>()),
             Node::Branch(v) => {
                 let mut kvs = Vec::new();
-                //for (_, addr) in v.as_slice() {
                 for (_, addr) in v {
                     kvs.append(&mut self.recursive_to_vec(addr).await?);
                 }
@@ -50,7 +45,7 @@ impl<'s, C> Read<'s, C> {
 pub mod test {
     use {
         super::{super::Create, *},
-        crate::core::Fixity,
+        crate::core::{primitive::prollytree::roller::Config as RollerConfig, Deser, Fixity},
         proptest::prelude::*,
         tokio::runtime::Runtime,
     };

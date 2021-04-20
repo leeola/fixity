@@ -1,3 +1,4 @@
 pub mod create;
 pub mod read;
-pub use {create::Create, read::Read};
+pub mod update;
+pub use {create::Create, read::Read, update::Update};

@@ -12,6 +12,7 @@ pub mod workspace;
 pub use self::{
     bytes::Bytes,
     cache::{CacheRead, CacheWrite},
+    deser::Deser,
     fixity::{Commit, Fixity},
     map::Map,
     storage::{Storage, StorageRead, StorageWrite},

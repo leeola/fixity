@@ -86,9 +86,9 @@ where
             .for_each(|(k, v)| {
                 kvs.insert(k, v);
             });
-        // kvs is now the modified vec of keyvalues and can be constructed as an entire
+        // kvs is now the modified vec of keyvalues and can be constructed as an entirely
         // new tree. Since each block is deterministic, this effectively mutates the source
-        // tree with the least lines of code.
+        // tree with the least lines of code for this reference impl.
         Create::with_roller(self.cache, self.roller_config)
             .with_hashmap(kvs)
             .await
