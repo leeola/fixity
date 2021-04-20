@@ -47,6 +47,7 @@ pub mod test {
         super::{super::Create, *},
         crate::core::{primitive::prollytree::roller::Config as RollerConfig, Deser, Fixity},
         proptest::prelude::*,
+        std::collections::BTreeSet,
         tokio::runtime::Runtime,
     };
     proptest! {
@@ -70,14 +71,10 @@ pub mod test {
         let tree = Create::with_roller(&cache, Deser::default(), RollerConfig::default());
         let addr = tree.with_vec(values.clone()).await.unwrap();
         let read_values = Read::new(&cache, addr).to_vec().await.unwrap();
-        // read values likely won't be the same order, and will be deduplicated.
-        // So rather than compare directly, we need to ensure there's no item missing
-        // from the other, in either list.
-        for read_value in read_values.iter() {
-            assert!(values.contains(read_value));
-        }
-        for value in values.iter() {
-            assert!(read_values.contains(value));
-        }
+        // sort and dedupe the values for easy equality
+        assert_eq!(
+            values.into_iter().collect::<BTreeSet<_>>(),
+            read_values.into_iter().collect::<BTreeSet<_>>()
+        );
     }
 }
