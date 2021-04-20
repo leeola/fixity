@@ -142,3 +142,15 @@ impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
         }
     }
 }
+impl TryFrom<Structured> for hash_set::Node {
+    type Error = Error;
+    fn try_from(t: Structured) -> Result<Self, Error> {
+        match t {
+            Structured::HashSetNode(t) => Ok(t),
+            // TODO: this deserves a unique error variant. Possibly a cache-specific error?
+            _ => Err(Error::Unhandled {
+                message: "misaligned cache types".to_owned(),
+            }),
+        }
+    }
+}

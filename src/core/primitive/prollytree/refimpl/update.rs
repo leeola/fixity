@@ -40,7 +40,7 @@ where
     /// Applies the given changes to the Prolly tree being updated.
     ///
     /// For safety a key can only be modified once in the given changes vec. This ensures
-    /// multiple changes are not applied to the source tree in an unexpected order.
+    /// multiple changes are not applied to the source tree in an unexpected order after sorting.
     ///
     /// # Errors
     ///
