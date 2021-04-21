@@ -1,6 +1,6 @@
 # fbuzhash
 
-**NOTE: This crate is a port of https://github.com/silvasur/buzhash and will focus on a subset of parity
+**NOTE**: This crate is a port of https://github.com/silvasur/buzhash and will focus on a subset of parity
 and correctness. The only addition i expect to make are some golden-master tests to ensure parity of
 ported code. Anything else is out of scope.
 
