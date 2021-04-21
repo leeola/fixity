@@ -570,7 +570,7 @@ checksum = "5afa29be46b12c8c380b997def8d1ac77c2665da93eb0a768fab0bf4db79333f"
 
 [[package]]
 name = "fbuzhash"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "env_logger 0.7.1",
  "log",
@@ -617,7 +617,7 @@ dependencies = [
 
 [[package]]
 name = "fixity"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-recursion",
  "async-trait",
