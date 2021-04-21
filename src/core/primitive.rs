@@ -13,4 +13,5 @@ pub use {
         commitlog::CommitLog,
     },
     crate::core::cache::Structured as Object,
+    prollytree as map,
 };

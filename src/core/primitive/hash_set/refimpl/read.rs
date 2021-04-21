@@ -40,6 +40,16 @@ impl<'s, C> Read<'s, C> {
             },
         }
     }
+    pub async fn contains(&self, value: &Value) -> Result<bool, Error>
+    where
+        C: CacheRead,
+    {
+        // TODO: This is perhaps ignoring performance too excessively - even for a refimpl -
+        // might want to tweak this. It could be the same LOC as `to_vec` and `recursive_to_vec`,
+        // me thinks.
+        let v = self.to_vec().await?;
+        Ok(v.into_iter().any(|rhs| value == &rhs))
+    }
 }
 #[cfg(test)]
 pub mod test {

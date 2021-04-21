@@ -140,7 +140,12 @@ impl From<u32> for Scalar {
 }
 impl From<&str> for Scalar {
     fn from(t: &str) -> Self {
-        Self::String(t.to_owned())
+        Self::from(t.to_owned())
+    }
+}
+impl From<String> for Scalar {
+    fn from(t: String) -> Self {
+        Self::String(t)
     }
 }
 impl From<Addr> for Scalar {

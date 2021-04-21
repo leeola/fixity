@@ -16,9 +16,8 @@ default = [
   # reason.
   "debug_checks",
 ]
-# Whether or not to enable moderately costly runtime safety checks of
-# store content, tree structure integrity checks, etc.
-debug_checks = []
+# Include LFS focused data structures / dependencies.
+git_lfs = ["sha256"]
 # An eventual series of alternate serialize for performance options.
 #
 # WARN: All of the canonical json libraries i've seen so far are in
@@ -26,16 +25,22 @@ debug_checks = []
 # can fork and establish some trust.
 deser_json = ["serde", "cjson", "serde_json"]
 deser_borsh = ["borsh"]
+# Whether or not to enable moderately costly runtime safety checks of
+# store content, tree structure integrity checks, etc.
+debug_checks = []
 
 [[bench]]
 name = "memory"
 harness = false
 
 [dependencies]
+# feature: git_lfs
+# Used for parity with git-lfs hashed data.
+sha256 = { version = "1.0", optional = true }
 # feature: deser_borsh
 borsh = { version = "0.9", optional = true }
 # feature: deser_json
-cjson= { version = "0.1", optional = true }
+cjson = { version = "0.1", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
 # optionally include structopt on config structures for CLI lib users.
