@@ -1,7 +1,10 @@
 pub use crate::map::PathSegment as MapSegment;
 use {
     crate::{
-        core::cache::{CacheRead, CacheWrite},
+        core::{
+            cache::{CacheRead, CacheWrite},
+            path::SegmentReplace,
+        },
         Addr, Error,
     },
     std::fmt,
@@ -144,6 +147,34 @@ impl Path {
         }
         Ok(new_addr_cursor)
     }
+    pub async fn replace<C>(
+        self,
+        storage: &C,
+        resolved_addrs: Vec<Option<Addr>>,
+        new_last_segment_addr: Addr,
+    ) -> Result<(Path, Addr), Error>
+    where
+        C: CacheRead + CacheWrite,
+    {
+        let mut new_segments = Vec::new();
+        let mut new_addr_cursor = new_last_segment_addr;
+        for (seg_addr, seg) in resolved_addrs
+            .into_iter()
+            .rev()
+            .skip(1)
+            .zip(self.segments.into_iter().rev())
+        {
+            let (new_addr, new_segment) = seg.replace(storage, seg_addr, new_addr_cursor).await?;
+            new_addr_cursor = new_addr;
+            new_segments.push(Segment::from(new_segment));
+        }
+        // Due to the reverse list above, the segments were pushed into the Vec in reverse order,
+        // so we need to reverse it back. This could be weighed against insert(0, new_segment),
+        // but Path sizes are not likely to be a hotpath.. and i suspect this is faster in
+        // the common case (not tiny length paths) anyway.
+        new_segments.reverse();
+        Ok((Self::from_segments(new_segments), new_addr_cursor))
+    }
 }
 impl<T> From<Vec<T>> for Path
 where
@@ -246,6 +277,25 @@ where
     ) -> Result<Addr, Error> {
         match self {
             Self::Map(seg) => seg.update(storage, self_addr, child_addr).await,
+        }
+    }
+}
+#[async_trait::async_trait]
+impl<C> SegmentReplace<C> for Segment
+where
+    C: CacheRead + CacheWrite,
+{
+    async fn replace(
+        self,
+        storage: &C,
+        self_addr: Option<Addr>,
+        child_addr: Addr,
+    ) -> Result<(Self, Addr), Error> {
+        match self {
+            Self::Map(seg) => {
+                let addr = seg.update(storage, self_addr, child_addr).await?;
+                (Self::from(seg), addr)
+            },
         }
     }
 }

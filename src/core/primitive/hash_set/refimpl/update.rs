@@ -8,7 +8,7 @@ use {
         },
         Addr, Error, Value,
     },
-    std::collections::BTreeSet,
+    std::collections::HashSet,
 };
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -48,7 +48,7 @@ impl<'s, C> Update<'s, C> {
             .to_vec()
             .await?
             .into_iter()
-            .collect::<BTreeSet<_>>();
+            .collect::<HashSet<_>>();
         for (value, change) in changes {
             match change {
                 Change::Remove => {
@@ -77,6 +77,7 @@ pub mod test {
         },
         crate::core::{Deser, Fixity},
         proptest::prelude::*,
+        std::collections::BTreeSet,
         tokio::runtime::Runtime,
     };
     proptest! {
@@ -108,12 +109,28 @@ pub mod test {
             .unwrap();
         let read_values = Read::new(&cache, addr).to_vec().await.unwrap();
         // sort and dedupe the values for easy equality
-        let mut values = changes
-            .into_iter()
-            .filter(|(_, change)| matches!(change, Change::Insert))
-            .map(|(value, _)| value)
-            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            values_with_changes(start_value, changes),
+            read_values.into_iter().collect::<BTreeSet<_>>()
+        );
+    }
+    /// A helper to construct values from changes.
+    pub fn values_with_changes(
+        start_value: Value,
+        changes: Vec<(Value, Change)>,
+    ) -> BTreeSet<Value> {
+        let mut values = BTreeSet::new();
         values.insert(start_value);
-        assert_eq!(values, read_values.into_iter().collect::<BTreeSet<_>>());
+        for (value, change) in changes {
+            match change {
+                Change::Remove => {
+                    values.remove(&value);
+                },
+                Change::Insert => {
+                    values.insert(value);
+                },
+            }
+        }
+        values
     }
 }
