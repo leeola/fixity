@@ -1,18 +1,19 @@
 use {
     crate::{
         core::{
-            cache::{AsCacheRef, CacheRead, CacheWrite},
-            misc::range_ext::{OwnedRangeBounds, RangeBoundsExt},
+            cache::{CacheRead, CacheWrite},
             primitive::{
-                bytes::Create as BytesCreate,
-                commitlog::CommitLog,
-                map::refimpl::{Change as MapChange, Create as MapCreate, Update as MapUpdate},
+                bytes::{Create as BytesCreate, Read as BytesRead},
+                map::refimpl::{
+                    Change as MapChange, Create as MapCreate, Read as MapRead, Update as MapUpdate,
+                },
             },
-            workspace::{AsWorkspaceRef, Guard, Status, Workspace},
+            workspace::{Guard, Workspace},
         },
+        error::Type as TypeError,
         Addr, Error, Key, Path, Value,
     },
-    std::{fmt, io::Cursor, mem, ops::Bound},
+    std::io::Cursor,
     tokio::io::{self, AsyncRead, AsyncWrite},
 };
 /// The only version this impl uses, currently.
@@ -30,13 +31,43 @@ impl<'f, C, W> GitLfs<'f, C, W> {
             path,
         }
     }
-    pub async fn read<Writer>(&self, oid: String, w: Writer) -> Result<Option<u64>, Error>
+    pub async fn read<Oid, Writer>(&self, oid: Oid, w: Writer) -> Result<Option<u64>, Error>
     where
+        Oid: Into<Key>,
         C: CacheRead,
         W: Workspace,
         Writer: AsyncWrite + Unpin + Send,
     {
-        todo!()
+        let oid = oid.into();
+        let workspace_guard = self.workspace.lock().await?;
+        let root_content_addr = workspace_guard
+            .status()
+            .await?
+            .content_addr(self.cache)
+            .await?;
+        let map_addr = self
+            .path
+            .resolve_last(self.cache, root_content_addr)
+            .await?;
+        let reader = if let Some(map_addr) = map_addr.clone() {
+            MapRead::new(self.cache, map_addr)
+        } else {
+            return Ok(None);
+        };
+        let bytes_addr = match reader.get(&oid).await? {
+            Some(Value::Addr(addr)) => addr,
+            Some(_) => {
+                return Err(TypeError::UnexpectedValueVariant {
+                    at_segment: None,
+                    at_addr: map_addr,
+                }
+                .into())
+            },
+            None => return Ok(None),
+        };
+        let reader = BytesRead::new(self.cache, bytes_addr);
+        let n = reader.read(w).await?;
+        Ok(Some(n))
     }
     pub async fn write<Reader>(&self, mut r: Reader) -> Result<(Addr, Pointer), Error>
     where
@@ -123,7 +154,11 @@ pub mod test {
     async fn basic_write_read() {
         let (c, w) = Fixity::memory().into_cw();
         let git_lfs = GitLfs::new(&c, &w, Path::new());
-        let pointer = git_lfs.write(Cursor::new(b"foo")).await.unwrap();
+        let (_, pointer) = git_lfs.write(Cursor::new(b"foo")).await.unwrap();
         dbg!(&pointer);
+        let mut buf = Vec::new();
+        let n = git_lfs.read(pointer.oid, &mut buf).await.unwrap().unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(buf, b"foo");
     }
 }
