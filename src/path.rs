@@ -1,10 +1,7 @@
 pub use crate::map::PathSegment as MapSegment;
 use {
     crate::{
-        core::{
-            cache::{CacheRead, CacheWrite},
-            path::SegmentReplace,
-        },
+        core::cache::{CacheRead, CacheWrite},
         Addr, Error,
     },
     std::fmt,

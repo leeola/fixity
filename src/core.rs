@@ -3,6 +3,7 @@ pub mod cache;
 pub mod deser;
 pub(crate) mod dir;
 pub mod fixity;
+#[cfg(feature = "git_lfs")]
 pub mod git_lfs;
 pub mod map;
 pub mod misc;
