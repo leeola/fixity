@@ -60,7 +60,6 @@ async-recursion = "0.3.1"
 lru = "0.6.0"
 nom = "6.0.0"
 chrono = "0.4.19"
-dyn-clone = "1.0.4"
 
 [dev-dependencies]
 env_logger = "0.8"
