@@ -3,7 +3,7 @@ pub use deser_cache::DeserCache;
 use {
     crate::{
         core::{
-            primitive::{appendlog, commitlog, prollylist, prollytree},
+            primitive::{appendlog, commitlog, hash_set, prollylist, prollytree},
             storage::Error,
         },
         Addr,
@@ -27,6 +27,7 @@ pub enum Structured {
     ProllyTreeNode(prollytree::NodeOwned),
     ProllyListNode(prollylist::NodeOwned),
     CommitLogNode(appendlog::LogNode<commitlog::CommitNode>),
+    HashSetNode(hash_set::Node),
 }
 // allowing name repetition to avoid clobbering a std Read or Write trait.
 #[allow(clippy::module_name_repetitions)]
@@ -88,6 +89,11 @@ impl From<prollylist::NodeOwned> for Structured {
         Self::ProllyListNode(t)
     }
 }
+impl From<hash_set::Node> for Structured {
+    fn from(t: hash_set::Node) -> Self {
+        Self::HashSetNode(t)
+    }
+}
 impl TryFrom<Structured> for prollytree::NodeOwned {
     type Error = Error;
     fn try_from(t: Structured) -> Result<Self, Error> {
@@ -129,6 +135,18 @@ impl TryFrom<Structured> for appendlog::LogNode<commitlog::CommitNode> {
     fn try_from(t: Structured) -> Result<Self, Error> {
         match t {
             Structured::CommitLogNode(t) => Ok(t),
+            // TODO: this deserves a unique error variant. Possibly a cache-specific error?
+            _ => Err(Error::Unhandled {
+                message: "misaligned cache types".to_owned(),
+            }),
+        }
+    }
+}
+impl TryFrom<Structured> for hash_set::Node {
+    type Error = Error;
+    fn try_from(t: Structured) -> Result<Self, Error> {
+        match t {
+            Structured::HashSetNode(t) => Ok(t),
             // TODO: this deserves a unique error variant. Possibly a cache-specific error?
             _ => Err(Error::Unhandled {
                 message: "misaligned cache types".to_owned(),

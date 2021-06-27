@@ -17,9 +17,10 @@ fn single_insertion_depth(c: &mut Criterion) {
             let rt = Runtime::new().unwrap();
             b.to_async(rt).iter_with_large_drop(|| async {
                 let f = Fixity::memory();
-                let mut m = f.map(path.clone());
-                m.insert(0, 0);
-                m.stage().await.unwrap();
+                {
+                    let mut m = f.map(path.clone());
+                    m.insert(0, 0).await.unwrap();
+                }
                 f
             });
         });
@@ -36,10 +37,11 @@ fn multi_insertion_depth(c: &mut Criterion) {
             let rt = Runtime::new().unwrap();
             b.to_async(rt).iter_with_large_drop(|| async {
                 let f = Fixity::memory();
-                let mut m = f.map(path.clone());
-                for i in 0..5 {
-                    m.insert(i, i);
-                    m.stage().await.unwrap();
+                {
+                    let mut m = f.map(path.clone());
+                    for i in 0..5 {
+                        m.insert(i, i).await.unwrap();
+                    }
                 }
                 f
             });

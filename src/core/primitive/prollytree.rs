@@ -13,8 +13,6 @@ use crate::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-pub(crate) const ONE_LEN_BLOCK_WARNING: &str =
-    "writing key & value that exceeds block size, this is highly inefficient";
 /// An alias to a [`Node`] with owned parameters.
 pub type NodeOwned = Node<Key, Value, Addr>;
 /// The lowest storage block within Fixity, a Node within a Prolly Tree.

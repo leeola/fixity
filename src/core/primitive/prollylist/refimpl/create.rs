@@ -5,10 +5,7 @@ use {
             deser::Deser,
             primitive::{
                 prollylist::{Node, NodeOwned},
-                prollytree::{
-                    roller::{Config as RollerConfig, Roller},
-                    ONE_LEN_BLOCK_WARNING,
-                },
+                prollytree::roller::{Config as RollerConfig, Roller},
             },
         },
         Addr, Error, Value,
@@ -58,14 +55,6 @@ where
                 .roll_bytes(&item.serialize_inner(&Deser::default())?);
             block_buf.push(item);
             if boundary {
-                // Check for a case where a single key:value pair is equal to or exceeds
-                // the bytes of an individual block. This typically indicates that the average
-                // block size is too small or that the value being stored would be better
-                // represented as a chunked byte array.
-                let one_len_block = block_buf.len() == 1 && node_addrs.is_empty();
-                if one_len_block {
-                    log::warn!("{}", ONE_LEN_BLOCK_WARNING);
-                }
                 let node_addr = {
                     let node = {
                         let new_block_buf = match block_buf {

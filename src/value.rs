@@ -1,5 +1,7 @@
 pub mod from_cli_str;
 
+#[cfg(test)]
+use proptest::prelude::{any, prop, Strategy};
 use {
     crate::Error,
     multibase::Base,
@@ -16,8 +18,9 @@ const PRIMARY_ENCODING: Base = Base::Base58Btc;
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Addr([u8; 32]);
+pub struct Addr(#[cfg_attr(test, proptest(strategy = "Addr::prop_inner()"))] [u8; 32]);
 impl Addr {
     /// The length in bytes of an [`Addr`].
     pub const LEN: usize = 32;
@@ -25,6 +28,10 @@ impl Addr {
     pub fn hash<B: AsRef<[u8]>>(bytes: B) -> Self {
         let h: [u8; 32] = <[u8; 32]>::from(blake3::hash(bytes.as_ref()));
         Self(h)
+    }
+    /// Return the underlying hashed bytes for this `Addr`.
+    pub fn into_inner(self) -> [u8; 32] {
+        self.0
     }
     /// Create an `Addr` from a string of encoded bytes.
     ///
@@ -68,6 +75,18 @@ impl Addr {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0[..]
     }
+    /// Generate a `proptest` random `Addr`, with `no_shrink`.
+    #[cfg(test)]
+    pub fn prop() -> impl Strategy<Value = Self> {
+        Self::prop_inner().prop_map(Self)
+    }
+    /// Generate a `proptest` random inner `[u8; 32]`, with `no_shrink`.
+    #[cfg(test)]
+    fn prop_inner() -> impl Strategy<Value = [u8; 32]> {
+        prop::collection::vec(0u8..u8::MAX, Addr::LEN)
+            .no_shrink()
+            .prop_map(|bytes| <[u8; 32]>::try_from(bytes).expect("invalid array"))
+    }
 }
 impl AsRef<Addr> for Addr {
     fn as_ref(&self) -> &Self {
@@ -107,6 +126,7 @@ impl fmt::Display for Addr {
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scalar {
     Addr(Addr),
@@ -120,7 +140,12 @@ impl From<u32> for Scalar {
 }
 impl From<&str> for Scalar {
     fn from(t: &str) -> Self {
-        Self::String(t.to_owned())
+        Self::from(t.to_owned())
+    }
+}
+impl From<String> for Scalar {
+    fn from(t: String) -> Self {
+        Self::String(t)
     }
 }
 impl From<Addr> for Scalar {
@@ -173,11 +198,13 @@ where
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Value {
     Addr(Addr),
     Uint32(u32),
     String(String),
+    #[cfg_attr(test, proptest(strategy = "Value::prop_small_vec_variant()"))]
     Vec(Vec<Scalar>),
 }
 impl Value {
@@ -224,6 +251,11 @@ impl Value {
             },
         }
         Ok(())
+    }
+    /// A test helper to limit the size of the proptest `Value::Vec` variant.
+    #[cfg(test)]
+    pub fn prop_small_vec_variant() -> impl Strategy<Value = Value> {
+        prop::collection::vec(any::<Scalar>(), 1..3).prop_map(Value::Vec)
     }
 }
 impl fmt::Display for Value {

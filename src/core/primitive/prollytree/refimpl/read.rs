@@ -33,7 +33,6 @@ where
             Node::Leaf(v) => Ok(v),
             Node::Branch(v) => {
                 let mut kvs = Vec::new();
-                //for (_, addr) in v.as_slice() {
                 for (_, addr) in v {
                     kvs.append(&mut self.recursive_to_vec(addr).await?);
                 }
