@@ -530,6 +530,7 @@ dependencies = [
  "serde_json",
  "sha256",
  "speedy",
+ "sqlparser",
  "structopt",
  "tempfile",
  "thiserror",
@@ -1290,6 +1291,15 @@ dependencies = [
  "proc-macro2 1.0.27",
  "quote 1.0.9",
  "syn 1.0.73",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fa863a2dfc4879a35647c51dadf495a2ad53745eaf3723fda27006e745fb0ba"
+dependencies = [
+ "log",
 ]
 
 [[package]]
