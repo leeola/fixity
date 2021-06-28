@@ -28,6 +28,8 @@ pub mod error;
 pub mod fixity;
 pub mod map;
 pub mod path;
+#[cfg(feature = "sql")]
+pub mod sql;
 pub mod value;
 pub use self::{
     bytes::Bytes,

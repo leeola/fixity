@@ -1,6 +1,7 @@
 use {
     crate::{
         core::{self, deser, storage, workspace},
+        sql::SqlError,
         Addr,
     },
     std::io,
@@ -47,6 +48,8 @@ pub enum Error {
     Type(#[from] Type),
     #[error("builder error: `{message}`")]
     Builder { message: String },
+    #[error("SqlError: {0}")]
+    Sql(#[from] SqlError),
     #[error("prolly error: `{message}`")]
     Prolly { message: String },
     #[error("prolly@`{addr}`, error: `{message}`")]

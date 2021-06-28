@@ -27,6 +27,16 @@ impl<'f, C, W> Map<'f, C, W> {
     pub fn batch(&self) -> BatchMap<'f, C, W> {
         BatchMap::new(self.storage, self.workspace, self.path.clone())
     }
+    pub async fn lock(&self) -> Result<MapGuard<'f, '_, C, W>, Error>
+    where
+        W: Workspace,
+    {
+        let workspace_guard = self.workspace.lock().await?;
+        Ok(MapGuard {
+            map: self,
+            workspace_guard,
+        })
+    }
     /// The core implementation of [`insert`](crate::Map::insert).
     pub async fn insert<K, V>(&self, key: K, value: V) -> Result<Addr, Error>
     where
@@ -35,35 +45,54 @@ impl<'f, C, W> Map<'f, C, W> {
         C: CacheRead + CacheWrite,
         W: Workspace,
     {
-        let workspace_guard = self.workspace.lock().await?;
-        let root_content_addr = workspace_guard
+        self.lock()?.insert(key, value).await
+    }
+    /// The core implementation of [`exists`](crate::Map::exists).
+    pub async fn exists<K>(&self, key: K) -> Result<bool, Error>
+    where
+        K: Into<Key>,
+        C: CacheRead + CacheWrite,
+        W: Workspace,
+    {
+        let key = key.into();
+        let content_addr = self
+            .workspace
             .status()
             .await?
             .content_addr(self.storage)
             .await?;
-        let resolved_path = self
-            .path
-            .resolve(self.storage, root_content_addr.clone())
-            .await?;
-        let old_self_addr = resolved_path
-            .last()
-            .cloned()
-            .expect("resolved Path has zero len");
-        let new_self_addr = if let Some(self_addr) = old_self_addr {
-            refimpl::Update::new(self.storage, self_addr)
-                .with_vec(vec![(key.into(), refimpl::Change::Insert(value.into()))])
-                .await?
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
         } else {
-            refimpl::Create::new(self.storage)
-                .with_vec(vec![(key.into(), value.into())])
-                .await?
+            return Ok(false);
         };
-        let new_staged_content = self
-            .path
-            .update(self.storage, resolved_path, new_self_addr)
+        reader.exists(&key).await
+    }
+    /// An `Self::insert` which lets the caller retain a guard across multiple calls.
+    ///
+    /// This should be used only to ensure concurrency safety, to avoid holding guards
+    /// longer than need be.
+    pub async fn guarded_exists<K>(&self, key: K) -> Result<bool, Error>
+    where
+        K: Into<Key>,
+        C: CacheRead + CacheWrite,
+        W: Workspace,
+    {
+        let key = key.into();
+        let content_addr = self
+            .workspace
+            .status()
+            .await?
+            .content_addr(self.storage)
             .await?;
-        workspace_guard.stage(new_staged_content.clone()).await?;
-        Ok(new_staged_content)
+        let content_addr = self.path.resolve_last(self.storage, content_addr).await?;
+        let reader = if let Some(content_addr) = content_addr {
+            refimpl::Read::new(self.storage, content_addr)
+        } else {
+            return Ok(false);
+        };
+        reader.exists(&key).await
     }
     /// The core implementation of [`get`](crate::Map::get).
     pub async fn get<K>(&self, key: K) -> Result<Option<Value>, Error>
@@ -125,6 +154,51 @@ impl<'f, C, W> Map<'f, C, W> {
             })
             .map(Ok);
         Ok(Box::new(iter))
+    }
+}
+pub struct MapGuard<'f, 'g, C, W: Workspace> {
+    map: Map<'f, C, W>,
+    workspace_guard: W::Guard<'g>,
+}
+impl<'f, 'g, C, W> MapGuard<'f, 'g, C, W>
+where
+    W: Workspace,
+{
+    /// The core implementation of [`insert`](crate::Map::insert).
+    pub async fn insert<K, V>(&self, key: K, value: V) -> Result<Addr, Error>
+    where
+        K: Into<Key>,
+        V: Into<Value>,
+        C: CacheRead + CacheWrite,
+    {
+        let root_content_addr = workspace_guard
+            .status()
+            .await?
+            .content_addr(self.storage)
+            .await?;
+        let resolved_path = self
+            .path
+            .resolve(self.storage, root_content_addr.clone())
+            .await?;
+        let old_self_addr = resolved_path
+            .last()
+            .cloned()
+            .expect("resolved Path has zero len");
+        let new_self_addr = if let Some(self_addr) = old_self_addr {
+            refimpl::Update::new(self.storage, self_addr)
+                .with_vec(vec![(key.into(), refimpl::Change::Insert(value.into()))])
+                .await?
+        } else {
+            refimpl::Create::new(self.storage)
+                .with_vec(vec![(key.into(), value.into())])
+                .await?
+        };
+        let new_staged_content = self
+            .path
+            .update(self.storage, resolved_path, new_self_addr)
+            .await?;
+        workspace_guard.stage(new_staged_content.clone()).await?;
+        Ok(new_staged_content)
     }
 }
 pub struct BatchMap<'f, C, W> {
