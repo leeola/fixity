@@ -9,6 +9,8 @@ pub mod map;
 pub mod misc;
 pub mod path;
 pub mod primitive;
+#[cfg(feature = "sql")]
+pub mod sql;
 pub mod storage;
 pub mod workspace;
 pub use self::{
