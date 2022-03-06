@@ -1,7 +1,3 @@
-// NIT: I think this blanket allows incomplete features.. i'd like to just allow
-// this one.
-#![allow(incomplete_features)]
-#![feature(generic_associated_types)]
 // Lints.
 #![warn(
     unsafe_code,
@@ -21,20 +17,20 @@
 #![allow(clippy::missing_errors_doc)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-pub mod bytes;
-pub mod config;
-pub mod core;
-pub mod error;
-pub mod fixity;
-pub mod map;
-pub mod path;
-pub mod value;
-pub use self::{
-    bytes::Bytes,
-    config::Config,
-    error::{Error, Result},
-    fixity::Fixity,
-    map::Map,
-    path::Path,
-    value::{Addr, Key, Scalar, Value},
-};
+// pub mod bytes;
+// pub mod config;
+// pub mod core;
+// pub mod error;
+// pub mod fixity;
+// pub mod map;
+// pub mod path;
+// pub mod value;
+// pub use self::{
+//     bytes::Bytes,
+//     config::Config,
+//     error::{Error, Result},
+//     fixity::Fixity,
+//     map::Map,
+//     path::Path,
+//     value::{Addr, Key, Scalar, Value},
+// };

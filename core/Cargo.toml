@@ -1,0 +1,22 @@
+[package]
+name = "fixity_core"
+version = "0.0.1"
+edition = "2021"
+authors = ["Lee Olayvar <leeola@fastmail.com>"]
+license-file = "LICENSE"
+
+[features]
+default = ["deser_rkyv", "deser_json"]
+# TODO: These are named with the deser_ prefix because Cargo was
+# failing saying rkyv wasn't being used. Not sure how to work
+# around that offhand. Drop the deser_ prefix when able.
+deser_rkyv = ["fixity_store/rkyv"]
+deser_json = ["fixity_store/json"]
+
+[dependencies]
+fixity_store = { path = "../fixity_store" }
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.17", features = ["test-util", "macros"] }
+rstest = "0.12"

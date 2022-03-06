@@ -1,3 +1,5 @@
 **/target
 **/*.rs.bk
 .envrc
+.direnv
+bacon.toml
