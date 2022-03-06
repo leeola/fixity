@@ -1,16 +1,16 @@
 pub mod memory;
 pub use memory::Memory;
-use {std::str, tokio::io::AsyncRead};
+use std::{ops::Deref, str};
 
 #[async_trait::async_trait]
 pub trait Read: Sync {
-    type Buf: AsRef<[u8]>;
+    type Bytes: Deref<Target = [u8]>;
 
     async fn exists<K>(&self, k: K) -> Result<bool, Error>
     where
         K: AsRef<[u8]> + Send;
 
-    async fn read<K>(&self, k: K) -> Result<Self::Buf, Error>
+    async fn read<K>(&self, k: K) -> Result<Self::Bytes, Error>
     where
         K: AsRef<[u8]> + Send;
 
@@ -27,14 +27,10 @@ pub trait Read: Sync {
 }
 #[async_trait::async_trait]
 pub trait Write: Sync {
-    type Stage: WriteStg;
-    async fn stage(&self) -> Result<Self::Stage, Error>;
-}
-#[async_trait::async_trait]
-pub trait WriteStg: Sync {
     async fn write<K, V>(&self, k: K, v: V) -> Result<(), Error>
     where
         K: AsRef<[u8]> + Send,
+        // TODO: Probably into an IVec or something?
         V: AsRef<[u8]> + Send;
 
     /// A helper to write the provided String into storage.
@@ -45,13 +41,34 @@ pub trait WriteStg: Sync {
         self.write(addr, s.as_bytes()).await
     }
 }
+#[async_trait::async_trait]
+pub trait Stage: Sync {
+    type Stage: Flush;
+    async fn stage(&self) -> Result<Self::Stage, Error>;
+}
+#[async_trait::async_trait]
+pub trait Flush: Write {
+    async fn flush(&self) -> Result<(), Error>;
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("key not found")]
+    NotFound,
     #[error("read into string: {0}")]
     ReadIntoString(Box<dyn std::error::Error>),
     #[error("unknown: `{0}`")]
     Unknown(Box<dyn std::error::Error>),
+}
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Error::Unknown(s.into())
+    }
+}
+impl From<&'static str> for Error {
+    fn from(s: &'static str) -> Self {
+        Error::Unknown(s.into())
+    }
 }
 
 #[cfg(test)]

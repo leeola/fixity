@@ -45,8 +45,9 @@ harness = false
 # serde_json = { version = "1.0", optional = true }
 # # optionally include structopt on config structures for CLI lib users.
 # structopt = { version = "0.3", optional = true }
-# # non-feature oriented deps.
-# fbuzhash = { path = "./fbuzhash", version = "0.0.1" }
+# non-feature oriented deps.
+fixity_kv = { path = "./fixity_kv", version = "0.0.1" }
+fbuzhash = { path = "./fbuzhash", version = "0.0.1" }
 # log = "0.4"
 # thiserror = "1.0.21"
 # blake3 = "0.3"

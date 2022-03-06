@@ -119,10 +119,14 @@ dependencies = [
 [[package]]
 name = "fixity"
 version = "0.0.1"
+dependencies = [
+ "fbuzhash",
+ "fixity_kv",
+]
 
 [[package]]
 name = "fixity_kv"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "sled",
