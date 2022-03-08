@@ -122,6 +122,7 @@ version = "0.0.1"
 dependencies = [
  "fbuzhash",
  "fixity_kv",
+ "fixity_store",
 ]
 
 [[package]]
@@ -136,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "fixity_store"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "fs2"
