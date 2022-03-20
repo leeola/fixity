@@ -46,9 +46,10 @@ harness = false
 # # optionally include structopt on config structures for CLI lib users.
 # structopt = { version = "0.3", optional = true }
 # non-feature oriented deps.
-fixity_kv = { path = "./fixity_kv", version = "0.0.1" }
-fixity_store = { path = "./fixity_store", version = "0.0.1" }
-fbuzhash = { path = "./fbuzhash", version = "0.0.1" }
+fixity_kv = { path = "./fixity_kv" }
+fixity_store = { path = "./fixity_store" }
+fixity_types = { path = "./types" }
+fbuzhash = { path = "./fbuzhash" }
 # log = "0.4"
 # thiserror = "1.0.21"
 # blake3 = "0.3"
@@ -77,6 +78,7 @@ fbuzhash = { path = "./fbuzhash", version = "0.0.1" }
 members = [
   "fixity_kv",
   "fixity_store",
+  "types",
   # "fixi_cli",
   "fbuzhash",
   # "git_fixi",

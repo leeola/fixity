@@ -13,17 +13,22 @@ pub enum Struct {
     LACounter(LACounter),
 }
 pub struct GCounter;
+// Limited Alternate Counter
 pub struct LACounter {
     limit: usize,
+    inner: LACounterInner,
+}
+struct LACounterDeserializer;
+struct LACounterInner {
     counter: GCounter,
-    // Just storing this temporarily in a Result for ease
-    alternate: Result<GCounter, Box<LACounter>>,
+    // alternate: Result<GCounter, Box<LACounterInner>>,
+    alternate: Box<dyn Counter>,
 }
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+pub trait Counter: FixityType {}
+pub trait FixityType {
+    // fn serialize(&self, _??) -> Vec<u8>;
+    fn generics(&self) -> &'static [&'static str];
+    fn types(&self) -> &'static [&'static str];
 }
+
+pub trait Store {}
