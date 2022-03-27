@@ -4,4 +4,10 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+fixity_types = { path = "../types" }
 serde = "1.0"
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.17", features = ["test-util", "macros"] }
+rstest = "0.12"

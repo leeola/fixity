@@ -21,8 +21,9 @@ pub trait FixityType {
     fn generics(&self) -> &'static [&'static str];
     fn types(&self) -> &'static [&'static str];
 }
+// pub struct GRegister<T> {}
 
-pub struct GRegister<T> {
+pub struct GRegisterNode<T> {
     // u64 being the user ident for wip
     registers: std::collections::HashMap<u64, T>,
 }
