@@ -16,16 +16,19 @@ pub type Error = ();
 //     async fn get<T>(&self) -> Self::Ref<T>;
 // }
 
+const ADDR_LENGTH: usize = 32;
+pub type Addr = [u8; ADDR_LENGTH];
+
 #[async_trait::async_trait]
-pub trait Store<T> {
-    type Key: AsRef<[u8]>;
+pub trait Store<T, A = Addr> {
     type Ref: StoreRef<T>;
-    async fn put<K>(&self, t: T) -> Result<Self::Key, Error>
+    async fn put(&self, t: T) -> Result<A, Error>
     where
-        T: Send + 'static;
-    async fn get<K>(&self, k: K) -> Result<Self::Ref, Error>
+        T: Send + 'static,
+        A: Send;
+    async fn get(&self, k: &A) -> Result<Self::Ref, Error>
     where
-        K: AsRef<[u8]> + Send;
+        A: Send + Sync;
 }
 pub trait StoreRef<T> {
     type Repr;
@@ -36,59 +39,71 @@ pub trait StoreRef<T> {
 }
 pub mod test_any_store {
     use {
-        super::{Error, Store, StoreRef},
+        super::{Addr, Error, Store, StoreRef},
         std::{
             any::Any,
             borrow::Borrow,
             collections::HashMap,
+            hash::Hash,
+            marker::PhantomData,
             sync::{Arc, Mutex},
         },
     };
-    pub struct AnyRef(Arc<dyn Any + Send + Sync>);
-    pub struct TestAnyStore(Mutex<HashMap<Vec<u8>, AnyRef>>);
+    pub struct AnyRef<T> {
+        ref_: Arc<dyn Any + Send + Sync>,
+        _phantom: PhantomData<T>,
+    }
+    type DynRef = Arc<dyn Any + Send + Sync>;
+    pub struct TestAnyStore<K = Addr>(Mutex<HashMap<K, DynRef>>);
     impl TestAnyStore {
         pub fn new() -> Self {
             Self(Mutex::new(HashMap::new()))
         }
     }
     #[async_trait::async_trait]
-    impl<T> Store<T> for TestAnyStore
+    impl<T, A> Store<T, A> for TestAnyStore<A>
     where
         T: Any + Clone + 'static + Send + Sync,
+        A: From<Addr> + Clone + Hash + Eq,
     {
-        type Key = usize;
-        type Ref = AnyRef;
-        async fn put<K>(&self, t: T) -> Result<(), ()> {
-            self.0
-                .lock()
-                .unwrap()
-                .insert(k.as_ref().to_vec(), AnyRef(Arc::new(t)));
-            Ok(())
-        }
-        async fn get<K>(&self, k: K) -> Result<Self::Ref, ()>
+        type Ref = AnyRef<T>;
+        async fn put(&self, t: T) -> Result<A, ()>
         where
-            K: AsRef<[u8]> + Send,
+            A: Send,
+        {
+            let key = A::from([0u8; 32]);
+            self.0.lock().unwrap().insert(key.clone(), Arc::new(t));
+            Ok(key)
+        }
+        async fn get(&self, k: &A) -> Result<Self::Ref, ()>
+        where
+            A: Send + Sync,
         {
             let t = {
                 let map = self.0.lock().unwrap();
-                AnyRef(Arc::clone(&map.get(k.as_ref()).unwrap().0))
+                Arc::clone(&map.get(k).unwrap())
             };
-            Ok(t)
+            Ok(AnyRef {
+                ref_: t,
+                _phantom: PhantomData,
+            })
         }
     }
-    impl<T> StoreRef<T> for AnyRef
+    impl<T> StoreRef<T> for AnyRef<T>
     where
         T: Any + Clone,
     {
         type Repr = T;
         fn repr_to_owned(&self) -> Result<T, Error> {
-            self.0.downcast_ref().map_or(Err(()), |t: &T| Ok(t.clone()))
+            self.ref_
+                .downcast_ref()
+                .map_or(Err(()), |t: &T| Ok(t.clone()))
         }
         fn repr_borrow<U: ?Sized>(&self) -> Result<&U, Error>
         where
             Self::Repr: Borrow<U>,
         {
-            self.0
+            self.ref_
                 .downcast_ref()
                 .map_or(Err(()), |t: &T| Ok(t.borrow()))
         }
@@ -170,8 +185,8 @@ pub mod test {
         S: Store<String>,
         <<S as Store<String>>::Ref as StoreRef<String>>::Repr: Borrow<str>,
     {
-        store.put(b"foo", String::from("foo")).await.unwrap();
-        let ref_ = Store::<String>::get(&store, b"foo").await.unwrap();
+        let k = store.put(String::from("foo")).await.unwrap();
+        let ref_ = Store::<String>::get(&store, &k).await.unwrap();
         assert_eq!(ref_.repr_to_owned().unwrap(), String::from("foo"));
         assert_eq!(ref_.repr_borrow::<str>().unwrap(), "foo");
     }
