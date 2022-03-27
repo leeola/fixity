@@ -25,7 +25,7 @@ pub trait FixityType {
 
 pub struct GRegisterNode<T> {
     // u64 being the user ident for wip
-    registers: std::collections::HashMap<u64, T>,
+    pub registers: std::collections::HashMap<u64, T>,
 }
 #[test]
 fn foo() {}
