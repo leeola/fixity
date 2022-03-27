@@ -46,22 +46,20 @@ pub trait FixityType {
 //
 // #[async_trait::async_trait]
 // pub trait Store {
-//     type Storer<T>: TypeStore<T>;
-//     async fn of_type<T>(&self) -> Self::Storer<T>;
+//     type Ref<T>: StoreRef<T>;
+//     async fn get<T>(&self) -> Self::Ref<T>;
 // }
 
 use std::borrow::Borrow;
 pub type Error = ();
 #[async_trait::async_trait]
 pub trait Store<T> {
-    type Ref<RT>: StoreRef<RT>
-    where
-        RT: 'static;
+    type Ref: StoreRef<T>;
     async fn put<K>(&self, k: K, t: T) -> Result<(), Error>
     where
         K: AsRef<[u8]> + Send,
         T: Send + 'static;
-    async fn get<K>(&self, k: K) -> Result<Self::Ref<T>, Error>
+    async fn get<K>(&self, k: K) -> Result<Self::Ref, Error>
     where
         K: AsRef<[u8]> + Send;
 }
@@ -72,7 +70,7 @@ pub trait StoreRef<T> {
     where
         Self::Repr: Borrow<U>;
 }
-pub mod mem_any_store {
+pub mod test_store {
     use {
         super::{Error, Store, StoreRef},
         std::{
@@ -95,11 +93,7 @@ pub mod mem_any_store {
         T: Any + Clone + 'static + Send + Sync,
         DynRef: Clone,
     {
-        type Ref<T>
-        where
-            RT: 'static,
-            RT: Clone,
-        = DynRef;
+        type Ref = DynRef;
         async fn put<K>(&self, k: K, t: T) -> Result<(), ()>
         where
             K: AsRef<[u8]> + Send,
@@ -110,7 +104,7 @@ pub mod mem_any_store {
                 .insert(k.as_ref().to_vec(), Arc::new(t));
             Ok(())
         }
-        async fn get<K>(&self, k: K) -> Result<Self::Ref<T>, ()>
+        async fn get<K>(&self, k: K) -> Result<Self::Ref, ()>
         where
             K: AsRef<[u8]> + Send,
         {
@@ -138,6 +132,19 @@ pub mod mem_any_store {
     }
 }
 #[cfg(test)]
+#[tokio::test]
+async fn example() {
+    let store = test_store::TestStore::new();
+    store.put(b"foo", String::from("foo")).await.unwrap();
+    let ref_ = Store::<String>::get(&store, b"foo").await.unwrap();
+    // This works.
+    let s = StoreRef::<String>::repr_to_owned(&ref_).unwrap();
+    assert_eq!(s, String::from("foo"));
+    // This doesn't.
+    // let s = ref_.repr_to_owned().unwrap();
+    // assert_eq!(s, String::from("foo"));
+}
+#[cfg(test)]
 pub mod test {
     use {super::*, rstest::*};
     /*
@@ -163,7 +170,7 @@ pub mod test {
     */
     #[tokio::test]
     async fn foo() {
-        let store = mem_any_store::TestStore::new();
+        let store = test_store::TestStore::new();
         // let store = <mem_any_store::MemAnyStore as TypeStore::<String>>  =
         // mem_any_store::MemAnyStore::new();
 
