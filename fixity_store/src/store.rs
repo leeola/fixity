@@ -37,7 +37,7 @@ pub trait StoreRef<T> {
     where
         Self::Repr: Borrow<U>;
 }
-pub mod test_any_store {
+pub mod test_store {
     use {
         super::{Addr, Error, Store, StoreRef},
         std::{
@@ -54,34 +54,28 @@ pub mod test_any_store {
         _phantom: PhantomData<T>,
     }
     type DynRef = Arc<dyn Any + Send + Sync>;
-    pub struct TestAnyStore<K = Addr>(Mutex<HashMap<K, DynRef>>);
-    impl TestAnyStore {
+    pub struct TestStore<A = Addr>(Mutex<HashMap<A, DynRef>>);
+    impl TestStore {
         pub fn new() -> Self {
             Self(Mutex::new(HashMap::new()))
         }
     }
     #[async_trait::async_trait]
-    impl<T, A> Store<T, A> for TestAnyStore<A>
+    impl<T, A> Store<T, A> for TestStore<A>
     where
-        T: Any + Clone + 'static + Send + Sync,
-        A: From<Addr> + Clone + Hash + Eq,
+        T: Any + Clone + Send + Sync + 'static,
+        A: From<Addr> + Clone + Hash + Eq + Send + Sync,
     {
         type Ref = AnyRef<T>;
-        async fn put(&self, t: T) -> Result<A, ()>
-        where
-            A: Send,
-        {
+        async fn put(&self, t: T) -> Result<A, ()> {
             let key = A::from([0u8; 32]);
             self.0.lock().unwrap().insert(key.clone(), Arc::new(t));
             Ok(key)
         }
-        async fn get(&self, k: &A) -> Result<Self::Ref, ()>
-        where
-            A: Send + Sync,
-        {
+        async fn get(&self, cid: &A) -> Result<Self::Ref, ()> {
             let t = {
                 let map = self.0.lock().unwrap();
-                Arc::clone(&map.get(k).unwrap())
+                Arc::clone(&map.get(cid).unwrap())
             };
             Ok(AnyRef {
                 ref_: t,
@@ -109,76 +103,78 @@ pub mod test_any_store {
         }
     }
 }
-/*
-pub mod test_json_store {
+pub mod json_store {
     use {
-        super::{Error, Store, StoreRef},
+        super::{Addr, Error, Store, StoreRef},
         std::{
             any::Any,
             borrow::Borrow,
             collections::HashMap,
+            hash::Hash,
+            marker::PhantomData,
             sync::{Arc, Mutex},
         },
     };
-    struct JsonRef(Arc<Vec<u8>>);
-    pub struct TestAnyStore(Mutex<HashMap<Vec<u8>, JsonRef>>);
-    impl TestAnyStore {
+    pub struct JsonRef<T> {
+        buf: Arc<[u8]>,
+        _phantom: PhantomData<T>,
+    }
+    // TODO: Back this store by an actual kv storage.
+    pub struct JsonStore<A = Addr>(Mutex<HashMap<A, Arc<[u8]>>>);
+    impl JsonStore {
         pub fn new() -> Self {
             Self(Mutex::new(HashMap::new()))
         }
     }
     #[async_trait::async_trait]
-    impl<T> Store<T> for TestAnyStore
+    impl<T, A> Store<T, A> for JsonStore<A>
     where
-        T: Any + Clone + 'static + Send + Sync,
+        T: Any + Clone + Send + Sync + 'static,
+        A: From<Addr> + Clone + Hash + Eq + Send + Sync,
     {
-        type Ref = JsonRef;
-        async fn put<K>(&self, k: K, t: T) -> Result<(), ()>
-        where
-            K: AsRef<[u8]> + Send,
-        {
-            self.0
-                .lock()
-                .unwrap()
-                .insert(k.as_ref().to_vec(), JsonRef(Arc::new(t)));
-            Ok(())
+        type Ref = JsonRef<T>;
+        async fn put(&self, t: T) -> Result<A, ()> {
+            let addr = A::from([0u8; 32]);
+            let buf: Vec<u8> = todo!("serialize T");
+            self.0.lock().unwrap().insert(addr.clone(), Arc::from(buf));
+            Ok(addr)
         }
-        async fn get<K>(&self, k: K) -> Result<Self::Ref, ()>
-        where
-            K: AsRef<[u8]> + Send,
-        {
-            let t = {
+        async fn get(&self, cid: &A) -> Result<Self::Ref, ()> {
+            let buf = {
                 let map = self.0.lock().unwrap();
-                JsonRef(Arc::clone(&map.get(k.as_ref()).unwrap().0))
+                Arc::clone(&map.get(cid).unwrap())
             };
-            Ok(t)
+            Ok(JsonRef {
+                buf,
+                _phantom: PhantomData,
+            })
         }
     }
-    impl<T> StoreRef<T> for JsonRef
+    impl<T> StoreRef<T> for JsonRef<T>
     where
         T: Any + Clone,
     {
         type Repr = T;
         fn repr_to_owned(&self) -> Result<T, Error> {
-            self.downcast_ref().map_or(Err(()), |t: &T| Ok(t.clone()))
+            todo!()
         }
         fn repr_borrow<U: ?Sized>(&self) -> Result<&U, Error>
         where
             Self::Repr: Borrow<U>,
         {
-            self.downcast_ref().map_or(Err(()), |t: &T| Ok(t.borrow()))
+            todo!()
         }
     }
 }
-*/
 #[cfg(test)]
 pub mod test {
     use {
-        super::{test_any_store::TestAnyStore, *},
+        super::{json_store::JsonStore, test_store::TestStore, *},
         rstest::*,
     };
     #[rstest]
-    #[case::test_any_store(TestAnyStore::new())]
+    #[case::test_any_store(TestStore::new())]
+    #[case::test_any_store(JsonStore::new())]
     #[tokio::test]
     async fn store_poc<S>(#[case] store: S)
     where
