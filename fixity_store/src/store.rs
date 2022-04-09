@@ -37,6 +37,31 @@ pub trait StoreRef<T> {
     where
         Self::Repr: Borrow<U>;
 }
+pub trait ReprBorrow<'a, T>
+where
+    T: 'a,
+{
+    fn zrepr_borrow(&'a self) -> Result<T, Error>;
+}
+pub trait RefReprBorrow<T> {
+    fn ref_repr_borrow<'a>(&'a self) -> Result<T, Error>
+    where
+        T: 'a;
+}
+pub trait PairRefReprBorrow<T> {
+    fn pair_ref_repr_borrow<'a>(&'a self) -> Result<T, Error>
+    where
+        T: 'a;
+}
+// impl<'a, T, U> ReprBorrow<'a, &'a U> for T
+// where
+//     U: ?Sized,
+//     T: Borrow<U>,
+// {
+//     fn repr_borrow(&'a self) -> Result<&'a U, Error> {
+//         Ok(self.borrow())
+//     }
+// }
 pub mod any_store {
     use {
         super::{Addr, Error, Store, StoreRef},
@@ -100,6 +125,43 @@ pub mod any_store {
             self.ref_
                 .downcast_ref()
                 .map_or(Err(()), |t: &T| Ok(t.borrow()))
+        }
+    }
+    // impl<'a,  T, U> super::ReprBorrow<'a,  &'b U> for AnyRef<T>
+    // where
+    //     U: ?Sized,
+    //     T: Borrow<U> + 'static,
+    // {
+    //     fn zrepr_borrow(&'a self) -> Result<&'b U, Error> {
+    //         self.ref_
+    //             .downcast_ref()
+    //             .map_or(Err(()), |t: &T| Ok(t.borrow()))
+    //     }
+    // }
+    // impl<'a, T, U> super::RefReprBorrow<&'a U> for AnyRef<T>
+    // where
+    //     U: ?Sized,
+    //     T: Borrow<U> + 'static,
+    // {
+    //     fn ref_repr_borrow<'a>(&'a self) -> Result<&'a U, Error> {
+    //         todo!()
+    //         // self.ref_
+    //         //     .downcast_ref()
+    //         //     .map_or(Err(()), |t: &T| Ok(t.borrow()))
+    //     }
+    // }
+    impl<T, U> super::PairRefReprBorrow<U> for AnyRef<T>
+    where
+        T: Borrow<U> + 'static,
+    {
+        fn pair_ref_repr_borrow<'a>(&'a self) -> Result<U, Error>
+        where
+            T: 'a,
+        {
+            todo!()
+            // self.ref_
+            //     .downcast_ref()
+            //     .map_or(Err(()), |t: &T| Ok(t.borrow()))
         }
     }
 }
@@ -179,21 +241,52 @@ pub mod json_store {
 #[cfg(test)]
 pub mod test {
     use {
-        super::{any_store::AnyStore, json_store::JsonStore, *},
+        super::{any_store::AnyStore, *},
         rstest::*,
     };
+    // #[rstest]
+    // #[case::test_any_store(AnyStore::new())]
+    // // #[case::test_any_store(JsonStore::new())]
+    // #[tokio::test]
+    // async fn store_poc<'a, S>(#[case] store: S)
+    // // async fn store_poc<'a, S>(store: S)
+    // where
+    //     S: Store<String>,
+    //     <S as Store<String>>::Ref: PairRefReprBorrow<&'a str>,
+    //     // <<S as Store<String>>::Ref as StoreRef<String>>::Repr: Borrow<str>,
+    // {
+    //     let k = store.put(String::from("foo")).await.unwrap();
+    //     let ref_ = Store::<String>::get(&store, &k).await.unwrap();
+    //     // let z = ref_.zrepr_borrow().unwrap();
+    //     let z = ref_.pair_ref_repr_borrow().unwrap();
+    //     assert_eq!(z, "fooz");
+    //     // // assert_eq!(ref_.zrepr_borrow().unwrap(), "foo");
+    //     // assert_eq!(ref_.repr_to_owned().unwrap(), String::from("foo"));
+    // }
     #[rstest]
     #[case::test_any_store(AnyStore::new())]
-    #[case::test_any_store(JsonStore::new())]
+    // #[case::test_any_store(JsonStore::new())]
     #[tokio::test]
-    async fn store_poc<S>(#[case] store: S)
+    async fn store_poc<'a, S>(#[case] store: S)
+    // async fn store_poc<'a, S>(store: S)
     where
         S: Store<String>,
-        <<S as Store<String>>::Ref as StoreRef<String>>::Repr: Borrow<str>,
+        <S as Store<String>>::Ref: PairRefReprBorrow<&'a str>,
+        // <<S as Store<String>>::Ref as StoreRef<String>>::Repr: Borrow<str>,
     {
         let k = store.put(String::from("foo")).await.unwrap();
         let ref_ = Store::<String>::get(&store, &k).await.unwrap();
-        assert_eq!(ref_.repr_to_owned().unwrap(), String::from("foo"));
-        assert_eq!(ref_.repr_borrow::<str>().unwrap(), "foo");
+        // let z = ref_.zrepr_borrow().unwrap();
+        let z = ref_.pair_ref_repr_borrow().unwrap();
+        assert_eq!(z, "fooz");
+        // // assert_eq!(ref_.zrepr_borrow().unwrap(), "foo");
+        // assert_eq!(ref_.repr_to_owned().unwrap(), String::from("foo"));
+    }
+    // pub struct FooOwned {
+    //     pub name: &',
+    // }
+    pub struct Foo<'a> {
+        pub name: &'a str,
+        pub handle: &'a str,
     }
 }
