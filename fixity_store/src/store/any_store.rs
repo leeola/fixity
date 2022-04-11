@@ -9,7 +9,7 @@ use {
         sync::{Arc, Mutex},
     },
 };
-pub struct AnyStore<A = Addr>(Mutex<HashMap<A, DynRef>>);
+pub struct AnyStore<A = Addr>(Mutex<HashMap<A, DynAny>>);
 impl AnyStore {
     pub fn new() -> Self {
         Self(Mutex::new(HashMap::new()))
@@ -21,7 +21,7 @@ where
     T: Any + Clone + Send + Sync + 'static,
     C: From<Addr> + Clone + Hash + Eq + Send + Sync,
 {
-    type Repr = AnyRef<T>;
+    type Repr = AnyRepr<T>;
     async fn put(&self, t: T) -> Result<C, ()> {
         let key = C::from([0u8; 34]);
         self.0.lock().unwrap().insert(key.clone(), Arc::new(t));
@@ -32,18 +32,18 @@ where
             let map = self.0.lock().unwrap();
             Arc::clone(&map.get(cid).unwrap())
         };
-        Ok(AnyRef {
+        Ok(AnyRepr {
             ref_: t,
             _phantom: PhantomData,
         })
     }
 }
-type DynRef = Arc<dyn Any + Send + Sync>;
-pub struct AnyRef<T> {
-    ref_: DynRef,
+type DynAny = Arc<dyn Any + Send + Sync>;
+pub struct AnyRepr<T> {
+    ref_: DynAny,
     _phantom: PhantomData<T>,
 }
-impl<T> ReprToOwned<T> for AnyRef<T>
+impl<T> ReprToOwned<T> for AnyRepr<T>
 where
     T: Any + Clone,
 {
@@ -53,7 +53,7 @@ where
             .map_or(Err(()), |t: &T| Ok(t.clone()))
     }
 }
-impl<T, Borrowed> ReprBorrow<Borrowed> for AnyRef<T>
+impl<T, Borrowed> ReprBorrow<Borrowed> for AnyRepr<T>
 where
     T: Any + Borrow<Borrowed>,
     Borrowed: ?Sized,
