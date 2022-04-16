@@ -1,6 +1,8 @@
 use {
-    super::{Cid, Error, Repr, Store},
-    multihash::MultihashDigest,
+    super::{
+        cid::{CidHasher, Hashers},
+        Error, Repr, Store,
+    },
     serde::{de::DeserializeOwned, Serialize},
     std::{
         collections::HashMap,
@@ -10,32 +12,47 @@ use {
 };
 // TODO: Back this store by an actual kv storage.
 // TODO: back this by an anystore?
-pub struct JsonStore<C = Cid>(Mutex<HashMap<C, Arc<[u8]>>>);
-impl JsonStore {
-    pub fn new() -> Self {
-        Self(Mutex::new(HashMap::new()))
+pub struct JsonStore<H = Hashers>
+where
+    H: CidHasher,
+{
+    hasher: H,
+    data: Mutex<HashMap<H::Cid, Arc<[u8]>>>,
+}
+impl<H> JsonStore<H>
+where
+    H: CidHasher,
+{
+    pub fn new() -> Self
+    where
+        H: Default,
+    {
+        Self {
+            hasher: Default::default(),
+            data: Mutex::new(HashMap::new()),
+        }
     }
 }
 #[async_trait::async_trait]
-impl<T, C> Store<T, C> for JsonStore<C>
+impl<T, H> Store<T, H> for JsonStore<H>
 where
+    H: CidHasher + Sync,
+    H::Cid: Clone + Hash + Eq + Send + Sync,
     T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
-    C: TryFrom<Vec<u8>> + Clone + Hash + Eq + Send + Sync,
 {
     type Repr = JsonRepr<T>;
-    async fn put(&self, t: T) -> Result<C, Error> {
+    async fn put(&self, t: T) -> Result<H::Cid, Error> {
         let buf: Vec<u8> = serde_json::to_vec(&t).unwrap();
-        let addr: C = multihash::Code::Blake3_256
-            .digest(&buf)
-            .to_bytes()
-            .try_into()
-            .map_err(|_| ())?;
-        self.0.lock().unwrap().insert(addr.clone(), Arc::from(buf));
-        Ok(addr)
+        let cid = self.hasher.hash(&buf);
+        self.data
+            .lock()
+            .unwrap()
+            .insert(cid.clone(), Arc::from(buf));
+        Ok(cid)
     }
-    async fn get(&self, cid: &C) -> Result<Self::Repr, Error> {
+    async fn get(&self, cid: &H::Cid) -> Result<Self::Repr, Error> {
         let buf = {
-            let map = self.0.lock().unwrap();
+            let map = self.data.lock().unwrap();
             Arc::clone(&map.get(cid).unwrap())
         };
         Ok(JsonRepr {

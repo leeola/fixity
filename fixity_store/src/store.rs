@@ -1,22 +1,69 @@
-pub mod any_store;
+//pub mod any_store;
 pub mod json_store;
-pub mod rkyv_store;
+//pub mod rkyv_store;
+
+use cid::{CidHasher, Hashers};
 
 pub type Error = ();
 
-const CID_LENGTH: usize = 34;
-pub type Cid = [u8; CID_LENGTH];
+pub mod cid {
+    use multihash::MultihashDigest;
+
+    const CID_LENGTH: usize = 34;
+    pub type Cid = [u8; CID_LENGTH];
+
+    pub trait CidHasher {
+        type Cid;
+        fn hash(&self, buf: &[u8]) -> Self::Cid;
+        // A future fn to describe the underlying hasher.
+        // Length, algo, etc.
+        // fn desc() -> HasherDesc;
+    }
+
+    #[derive(Debug, Copy, Clone)]
+    pub enum Hashers {
+        Blake3_256,
+    }
+    impl CidHasher for Hashers {
+        type Cid = Cid;
+        fn hash(&self, buf: &[u8]) -> Self::Cid {
+            let hash = multihash::Code::from(*self).digest(&buf).to_bytes();
+            match hash.try_into() {
+                Ok(cid) => cid,
+                Err(_) => {
+                    // NIT:
+                    unreachable!("multihash header + 256 fits into 34bytes")
+                },
+            }
+        }
+    }
+    impl Default for Hashers {
+        fn default() -> Self {
+            Self::Blake3_256
+        }
+    }
+    impl From<Hashers> for multihash::Code {
+        fn from(h: Hashers) -> Self {
+            // NIT: using the Multihash derive might make this a bit more idiomatic,
+            // just not sure offhand if there's a way to do that while ensuring
+            // we use the same codes as multihash.
+            match h {
+                Hashers::Blake3_256 => multihash::Code::Blake3_256,
+            }
+        }
+    }
+}
 
 #[async_trait::async_trait]
-pub trait Store<T, C = Cid> {
+pub trait Store<T, H = Hashers>
+where
+    H: CidHasher,
+{
     type Repr: Repr<Owned = T>;
-    async fn put(&self, t: T) -> Result<C, Error>
+    async fn put(&self, t: T) -> Result<H::Cid, Error>
     where
-        T: Send + 'static,
-        C: Send;
-    async fn get(&self, k: &C) -> Result<Self::Repr, Error>
-    where
-        C: Send + Sync;
+        T: Send + 'static;
+    async fn get(&self, k: &H::Cid) -> Result<Self::Repr, Error>;
 }
 pub trait Repr {
     type Owned;
@@ -28,7 +75,8 @@ pub trait Repr {
 #[cfg(test)]
 pub mod test {
     use {
-        super::{any_store::AnyStore, json_store::JsonStore, rkyv_store::RkyvStore, *},
+        // super::{any_store::AnyStore, json_store::JsonStore, rkyv_store::RkyvStore, *},
+        super::{json_store::JsonStore, *},
         rstest::*,
         std::fmt::Debug,
     };
@@ -48,9 +96,9 @@ pub mod test {
         pub name: String,
     }
     #[rstest]
-    #[case::test_any_store(AnyStore::new())]
+    // #[case::test_any_store(AnyStore::new())]
     #[case::test_any_store(JsonStore::new())]
-    #[case::test_any_store(RkyvStore::new())]
+    // #[case::test_any_store(RkyvStore::new())]
     #[tokio::test]
     async fn store_poc<'a, S>(#[case] store: S)
     where
