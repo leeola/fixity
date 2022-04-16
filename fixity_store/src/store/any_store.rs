@@ -1,15 +1,14 @@
 use {
-    super::{Addr, Error, ReprBorrow, ReprToOwned, Store},
+    super::{Cid, Error, Repr, Store},
     std::{
         any::Any,
-        borrow::Borrow,
         collections::HashMap,
         hash::Hash,
         marker::PhantomData,
         sync::{Arc, Mutex},
     },
 };
-pub struct AnyStore<A = Addr>(Mutex<HashMap<A, DynAny>>);
+pub struct AnyStore<C = Cid>(Mutex<HashMap<C, DynAny>>);
 impl AnyStore {
     pub fn new() -> Self {
         Self(Mutex::new(HashMap::new()))
@@ -19,7 +18,7 @@ impl AnyStore {
 impl<T, C> Store<T, C> for AnyStore<C>
 where
     T: Any + Clone + Send + Sync + 'static,
-    C: From<Addr> + Clone + Hash + Eq + Send + Sync,
+    C: From<Cid> + Clone + Hash + Eq + Send + Sync,
 {
     type Repr = AnyRepr<T>;
     async fn put(&self, t: T) -> Result<C, ()> {
@@ -43,24 +42,18 @@ pub struct AnyRepr<T> {
     ref_: DynAny,
     _phantom: PhantomData<T>,
 }
-impl<T> ReprToOwned<T> for AnyRepr<T>
+impl<T> Repr for AnyRepr<T>
 where
     T: Any + Clone,
 {
+    type Owned = T;
+    type Borrow = T;
     fn repr_to_owned(&self) -> Result<T, Error> {
         self.ref_
             .downcast_ref()
             .map_or(Err(()), |t: &T| Ok(t.clone()))
     }
-}
-impl<T, Borrowed> ReprBorrow<Borrowed> for AnyRepr<T>
-where
-    T: Any + Borrow<Borrowed>,
-    Borrowed: ?Sized,
-{
-    fn repr_borrow(&self) -> Result<&Borrowed, Error> {
-        self.ref_
-            .downcast_ref()
-            .map_or(Err(()), |t: &T| Ok(t.borrow()))
+    fn repr_borrow(&self) -> Result<&Self::Borrow, Error> {
+        self.ref_.downcast_ref().map_or(Err(()), |t: &T| Ok(t))
     }
 }
