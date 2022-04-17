@@ -1,13 +1,12 @@
-//pub mod any_store;
 pub mod json_store;
-//pub mod rkyv_store;
+pub mod rkyv_store;
 
-use crate::cid::{ContentHasher, Hashers};
+use crate::cid::{ContentHasher, Hasher};
 
 pub type Error = ();
 
 #[async_trait::async_trait]
-pub trait Store<T, H = Hashers>
+pub trait Store<T, H = Hasher>: Send
 where
     H: ContentHasher,
 {
@@ -27,8 +26,7 @@ pub trait Repr {
 #[cfg(test)]
 pub mod test {
     use {
-        // super::{any_store::AnyStore, json_store::JsonStore, rkyv_store::RkyvStore, *},
-        super::{json_store::JsonStore, *},
+        super::{json_store::JsonStore, rkyv_store::RkyvStore, *},
         rstest::*,
         std::fmt::Debug,
     };
@@ -48,24 +46,40 @@ pub mod test {
         pub name: String,
     }
     #[rstest]
-    // #[case::test_any_store(AnyStore::new())]
-    #[case::test_any_store(JsonStore::new())]
-    // #[case::test_any_store(RkyvStore::new())]
+    #[case::json(JsonStore::memory())]
+    #[case::rkyv(RkyvStore::memory())]
     #[tokio::test]
     async fn store_poc<'a, S>(#[case] store: S)
     where
-        S: Store<Foo>,
         S: Store<String>,
-        <<S as Store<String>>::Repr as Repr>::Borrow: AsRef<str>,
+        S: Store<Foo>,
+        <<S as Store<String>>::Repr as Repr>::Borrow: Debug + PartialEq<str>,
         <<S as Store<Foo>>::Repr as Repr>::Borrow: Debug + PartialEq<Foo>,
     {
-        let k = store.put(String::from("foo")).await.unwrap();
-        let repr = Store::<String>::get(&store, &k).await.unwrap();
+        let k1 = store.put(String::from("foo")).await.unwrap();
+        let repr = Store::<String>::get(&store, &k1).await.unwrap();
         assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
-        assert_eq!(repr.repr_borrow().unwrap().as_ref(), "foo");
-        let k = store.put(Foo { name: "foo".into() }).await.unwrap();
-        let repr = Store::<Foo>::get(&store, &k).await.unwrap();
+        assert_eq!(repr.repr_borrow().unwrap(), "foo");
+        let k2 = store.put(Foo { name: "foo".into() }).await.unwrap();
+        let repr = Store::<Foo>::get(&store, &k2).await.unwrap();
         assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
         assert_eq!(repr.repr_borrow().unwrap(), &Foo { name: "foo".into() });
+        let k3 = store.put(String::from("bar")).await.unwrap();
+        assert_eq!(
+            Store::<String>::get(&store, &k1)
+                .await
+                .unwrap()
+                .repr_borrow()
+                .unwrap(),
+            "foo"
+        );
+        assert_eq!(
+            Store::<String>::get(&store, &k3)
+                .await
+                .unwrap()
+                .repr_borrow()
+                .unwrap(),
+            "bar"
+        );
     }
 }

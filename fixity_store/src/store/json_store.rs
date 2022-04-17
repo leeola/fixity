@@ -1,58 +1,54 @@
 use {
     super::{Error, Repr, Store},
-    crate::cid::{ContentHasher, Hashers},
-    serde::{de::DeserializeOwned, Serialize},
-    std::{
-        collections::HashMap,
-        hash::Hash,
-        sync::{Arc, Mutex},
+    crate::{
+        cid::{ContentHasher, Hasher},
+        storage::{memory::Memory, ContentStorage},
     },
+    async_trait::async_trait,
+    serde::{de::DeserializeOwned, Serialize},
 };
-// TODO: Back this store by an actual kv storage.
-// TODO: back this by an anystore?
-pub struct JsonStore<H = Hashers>
-where
-    H: ContentHasher,
-{
+// TODO: Cache the serialized values, to reduce deserialization cost.
+pub struct JsonStore<Storage, H = Hasher> {
     hasher: H,
-    data: Mutex<HashMap<H::Cid, Arc<[u8]>>>,
+    storage: Storage,
 }
-impl<H> JsonStore<H>
-where
-    H: ContentHasher,
-{
-    pub fn new() -> Self
+impl<Storage, H> JsonStore<Storage, H> {
+    pub fn new(storage: Storage) -> Self
     where
-        H: Default,
+        H: ContentHasher + Default,
+        Storage: ContentStorage<H::Cid>,
     {
         Self {
             hasher: Default::default(),
-            data: Mutex::new(HashMap::new()),
+            storage,
         }
     }
 }
-#[async_trait::async_trait]
-impl<T, H> Store<T, H> for JsonStore<H>
+impl JsonStore<Memory> {
+    pub fn memory() -> Self {
+        Self::new(Default::default())
+    }
+}
+#[async_trait]
+impl<T, S, H> Store<T, H> for JsonStore<S, H>
 where
-    H: ContentHasher + Sync,
-    H::Cid: Clone + Hash + Eq + Send + Sync,
+    S: ContentStorage<H::Cid>,
+    S::Content: From<Vec<u8>>,
+    H: ContentHasher,
+    H::Cid: Copy,
     T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
 {
     type Repr = JsonRepr<T>;
     async fn put(&self, t: T) -> Result<H::Cid, Error> {
+        // FIXME: prototype unwraps.
         let buf: Vec<u8> = serde_json::to_vec(&t).unwrap();
         let cid = self.hasher.hash(&buf);
-        self.data
-            .lock()
-            .unwrap()
-            .insert(cid.clone(), Arc::from(buf));
+        self.storage.write_unchecked(cid, buf).await?;
         Ok(cid)
     }
     async fn get(&self, cid: &H::Cid) -> Result<Self::Repr, Error> {
-        let buf = {
-            let map = self.data.lock().unwrap();
-            Arc::clone(&map.get(cid).unwrap())
-        };
+        // FIXME: prototype unwraps.
+        let buf = self.storage.read_unchecked(cid).await?;
         Ok(JsonRepr {
             value: serde_json::from_slice(buf.as_ref()).unwrap(),
         })

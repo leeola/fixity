@@ -1,69 +1,84 @@
 use {
-    super::{Cid, Error, Repr, Store},
-    multihash::MultihashDigest,
-    rkyv::{Archive, Deserialize, Serialize},
-    std::{
-        collections::HashMap,
-        hash::Hash,
-        marker::PhantomData,
-        sync::{Arc, Mutex},
+    super::{Error, Repr, Store},
+    crate::{
+        cid::{ContentHasher, Hasher},
+        storage::{memory::Memory, ContentStorage},
     },
+    async_trait::async_trait,
+    rkyv::{Archive, Deserialize, Serialize},
+    std::marker::PhantomData,
 };
 // TODO: Back this store by an actual kv storage.
-pub struct RkyvStore<C = Cid>(Mutex<HashMap<C, Arc<[u8]>>>);
-impl RkyvStore {
-    pub fn new() -> Self {
-        Self(Mutex::new(HashMap::new()))
+pub struct RkyvStore<Storage, H = Hasher> {
+    hasher: H,
+    storage: Storage,
+}
+impl<Storage, H> RkyvStore<Storage, H> {
+    pub fn new(storage: Storage) -> Self
+    where
+        H: ContentHasher + Default,
+        Storage: ContentStorage<H::Cid>,
+    {
+        Self {
+            hasher: Default::default(),
+            storage,
+        }
+    }
+}
+impl RkyvStore<Memory> {
+    pub fn memory() -> Self {
+        Self::new(Default::default())
     }
 }
 use rkyv::ser::serializers::AllocSerializer;
-#[async_trait::async_trait]
-impl<C, T> Store<T, C> for RkyvStore<C>
+#[async_trait]
+impl<S, H, T> Store<T, H> for RkyvStore<S, H>
 where
+    S: ContentStorage<H::Cid>,
+    S::Content: From<Box<[u8]>>,
+    H: ContentHasher,
+    H::Cid: Copy,
     T: Archive + Serialize<AllocSerializer<256>> + Send + Sync + 'static,
     T::Archived: Deserialize<T, rkyv::Infallible>,
-    C: TryFrom<Vec<u8>> + Clone + Hash + Eq + Send + Sync,
 {
-    type Repr = RkyvRef<T>;
-    async fn put(&self, t: T) -> Result<C, Error> {
+    type Repr = RkyvRef<S::Content, T>;
+    async fn put(&self, t: T) -> Result<H::Cid, Error> {
         // FIXME: prototype unwraps.
         // NIT: Make the buffer size configurable. N on RkyvStore<N, ...>
-        let bytes = rkyv::to_bytes::<_, 256>(&t).unwrap();
+        let aligned_vec = rkyv::to_bytes::<_, 256>(&t).unwrap();
         // NIT: is there a better way to do this? Converting to Box then Arc feels.. sad
-        let buf = Arc::<[u8]>::from(bytes.into_boxed_slice());
-        let addr: C = multihash::Code::Blake3_256
-            .digest(buf.as_ref())
-            .to_bytes()
-            .try_into()
-            .map_err(|_| ())?;
-        self.0.lock().unwrap().insert(addr.clone(), Arc::from(buf));
-        Ok(addr)
+        let slice = aligned_vec.into_boxed_slice();
+        let cid = self.hasher.hash(&slice.as_ref());
+        self.storage.write_unchecked(cid, slice).await?;
+        Ok(cid)
     }
-    async fn get(&self, cid: &C) -> Result<Self::Repr, Error> {
-        let buf = {
-            let map = self.0.lock().unwrap();
-            Arc::clone(&map.get(cid).unwrap())
-        };
+    async fn get(&self, cid: &H::Cid) -> Result<Self::Repr, Error> {
+        // FIXME: prototype unwraps.
+        let buf = self.storage.read_unchecked(cid).await?;
         Ok(RkyvRef {
             buf,
             _phantom: PhantomData,
         })
     }
 }
-pub struct RkyvRef<T> {
-    buf: Arc<[u8]>,
+pub struct RkyvRef<Buf, T> {
+    buf: Buf,
     _phantom: PhantomData<T>,
 }
-impl<T> RkyvRef<T> {
-    pub fn new(buf: Arc<[u8]>) -> Self {
+impl<Buf, T> RkyvRef<Buf, T>
+where
+    Buf: AsRef<[u8]>,
+{
+    pub fn new(buf: Buf) -> Self {
         Self {
             buf,
             _phantom: PhantomData,
         }
     }
 }
-impl<T> Repr for RkyvRef<T>
+impl<Buf, T> Repr for RkyvRef<Buf, T>
 where
+    Buf: AsRef<[u8]>,
     T: Archive,
     // TODO: Move the D to the root RkyvStore.
     T::Archived: Deserialize<T, rkyv::Infallible>,

@@ -1,34 +1,6 @@
 pub mod cid;
+pub mod storage;
 pub mod store;
-
-pub mod storage {
-    use {
-        crate::cid::{ContentHasher, Hashers},
-        async_trait::async_trait,
-        std::str,
-    };
-    type Error = ();
-    #[async_trait]
-    pub trait ContentStorage<V, H = Hashers>: Send + Sync
-    where
-        H: ContentHasher,
-        V: AsRef<[u8]> + Send + 'static,
-    {
-        async fn exists(&self, cid: &H::Cid) -> Result<bool, Error>;
-        async fn read(&self, cid: &H::Cid) -> Result<V, Error>;
-        async fn write(&self, k: H::Cid, v: V) -> Result<(), Error>;
-    }
-    // NIT: Name TBD..?
-    #[async_trait]
-    pub trait ReflogStorage<H = Hashers>: Send + Sync
-    where
-        H: ContentHasher,
-    {
-        async fn exists<S>(&self, path: &[S]) -> Result<bool, Error>
-        where
-            S: AsRef<str> + Send + Sync;
-    }
-}
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
