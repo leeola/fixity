@@ -1,8 +1,6 @@
 use {
-    super::{
-        cid::{CidHasher, Hashers},
-        Error, Repr, Store,
-    },
+    super::{Error, Repr, Store},
+    crate::cid::{ContentHasher, Hashers},
     serde::{de::DeserializeOwned, Serialize},
     std::{
         collections::HashMap,
@@ -14,14 +12,14 @@ use {
 // TODO: back this by an anystore?
 pub struct JsonStore<H = Hashers>
 where
-    H: CidHasher,
+    H: ContentHasher,
 {
     hasher: H,
     data: Mutex<HashMap<H::Cid, Arc<[u8]>>>,
 }
 impl<H> JsonStore<H>
 where
-    H: CidHasher,
+    H: ContentHasher,
 {
     pub fn new() -> Self
     where
@@ -36,7 +34,7 @@ where
 #[async_trait::async_trait]
 impl<T, H> Store<T, H> for JsonStore<H>
 where
-    H: CidHasher + Sync,
+    H: ContentHasher + Sync,
     H::Cid: Clone + Hash + Eq + Send + Sync,
     T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
 {

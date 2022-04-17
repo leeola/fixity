@@ -1,6 +1,8 @@
 pub mod memory;
-pub use memory::Memory;
+pub mod object;
+pub mod object_ref;
 use std::{ops::Deref, str};
+pub use {memory::Memory, object::ObjectKv, object_ref::ObjectRefKv};
 
 #[async_trait::async_trait]
 pub trait Read: Sync {
@@ -68,14 +70,5 @@ impl From<String> for Error {
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
         Error::Unknown(s.into())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
     }
 }
