@@ -46,9 +46,9 @@ harness = false
 # # optionally include structopt on config structures for CLI lib users.
 # structopt = { version = "0.3", optional = true }
 # non-feature oriented deps.
-fixity_kv = { path = "./fixity_kv" }
 fixity_store = { path = "./fixity_store" }
 fixity_types = { path = "./types" }
+fixity_structs = { path = "./structs" }
 fbuzhash = { path = "./fbuzhash" }
 # log = "0.4"
 # thiserror = "1.0.21"
@@ -72,12 +72,12 @@ fbuzhash = { path = "./fbuzhash" }
 # proptest-derive = "0.3"
 # tempfile = "3.2.0"
 # tokio = { version = "1.2.0", features = ["test-util", "rt-multi-thread"] }
-# criterion = { version = "0.3.4", features = ["async_tokio"] }
+# criterion = types{ version = "0.3.4", features = ["async_tokio"] }
 
 [workspace]
 members = [
-  "fixity_kv",
   "fixity_store",
+  "structs",
   "types",
   # "fixi_cli",
   "fbuzhash",

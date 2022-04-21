@@ -1,23 +1,24 @@
 [package]
-name = "fixity_store"
+name = "fixity_structs"
 version = "0.0.1"
 edition = "2021"
 authors = ["Lee Olayvar <leeola@fastmail.com>"]
 license-file = "LICENSE"
 
 [features]
-default = ["rkyv", "json"]
-json = ["serde_json", "serde"]
+default = ["deser_rkyv", "deser_json"]
+# TODO: These are named with the deser_ prefix because Cargo was
+# failing saying rkyv wasn't being used. Not sure how to work
+# around that offhand. Drop the deser_ prefix when able.
+deser_rkyv = ["fixity_store/rkyv", "rkyv"]
+deser_json = ["fixity_store/json", "serde"]
 
 [dependencies]
-fixity_types = { path = "../types" }
-async-trait = "0.1"
-multihash = "0.16.1"
+fixity_store = { path = "../fixity_store" }
 # Feature: rkyv
 rkyv = { version = "0.7", optional = true } 
 # Feature: json
 serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", optional = true } 
 
 [dev-dependencies]
 tokio = { version = "1.17", features = ["test-util", "macros"] }
