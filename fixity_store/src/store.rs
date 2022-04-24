@@ -49,7 +49,7 @@ pub mod test {
     #[case::json(JsonStore::memory())]
     #[case::rkyv(RkyvStore::memory())]
     #[tokio::test]
-    async fn store_poc<'a, S>(#[case] store: S)
+    async fn store_poc<S>(#[case] store: S)
     where
         S: Store<String>,
         S: Store<Foo>,

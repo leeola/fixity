@@ -1,4 +1,8 @@
-use std::collections::{btree_map::Entry, BTreeMap};
+use {
+    async_trait::async_trait,
+    fixity_store::prelude::{Content, ContentHasher, Error, Store},
+    std::collections::{btree_map::Entry, BTreeMap},
+};
 
 // TODO: replace with some form of centralized Id type. Likely just
 // rand bytes, maybe u64?
@@ -11,6 +15,8 @@ type GCounterInt = u32;
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[archive(compare(PartialEq))]
+#[archive_attr(derive(Debug))]
 pub struct GCounter(
     // NIT: Optionally use ProllyTree for large concurrent uses.
     // NIT: Make generic to support multiple sizes?
@@ -50,9 +56,27 @@ impl GCounter {
         }
     }
 }
+#[async_trait]
+impl<S, H> Content<Self, S, H> for GCounter
+where
+    S: Store<Self, H> + Sync,
+    H: ContentHasher,
+{
+    async fn get(store: &S, cid: &H::Cid) -> Result<S::Repr, Error> {
+        todo!()
+    }
+    async fn put_and_head(&self, store: &S) -> Result<H::Cid, Error> {
+        todo!()
+    }
+}
 #[cfg(test)]
 pub mod test {
-    use super::*;
+    use {
+        super::*,
+        fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore, Repr, Store},
+        rstest::*,
+        std::fmt::Debug,
+    };
     #[test]
     fn poc() {
         let mut a = GCounter::default();
@@ -66,5 +90,23 @@ pub mod test {
         b.inc(1);
         b.merge(&a);
         assert_eq!(b.value(), 4);
+    }
+    #[rstest]
+    #[case::json(JsonStore::memory())]
+    #[case::rkyv(RkyvStore::memory())]
+    #[tokio::test]
+    async fn content_io<S>(#[case] store: S)
+    where
+        S: Store<GCounter> + Sync,
+        <<S as Store<GCounter>>::Repr as Repr>::Borrow: Debug + PartialEq<GCounter>,
+    {
+        let mut counter = GCounter::default();
+        counter.inc(0);
+        let cid = counter.put_and_head(&store).await.unwrap();
+        // let repr = Content::<GCounter, S, fixity_store::cid::Hasher>::get(&store, &cid)
+        let repr = <GCounter as Content<_, _, _>>::get(&store, &cid)
+            .await
+            .unwrap();
+        assert_eq!(repr.repr_borrow().unwrap(), &counter);
     }
 }

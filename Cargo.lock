@@ -226,6 +226,7 @@ dependencies = [
 name = "fixity_structs"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "fixity_store",
  "rkyv",
  "rstest",

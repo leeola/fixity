@@ -15,6 +15,7 @@ deser_json = ["fixity_store/json", "serde"]
 
 [dependencies]
 fixity_store = { path = "../fixity_store" }
+async-trait = "0.1"
 # Feature: rkyv
 rkyv = { version = "0.7", optional = true } 
 # Feature: json
