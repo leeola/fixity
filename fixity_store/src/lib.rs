@@ -3,36 +3,32 @@ pub mod storage;
 pub mod store;
 pub mod content {
     use {
-        crate::{
-            cid::{ContentHasher, Hasher},
-            store::Store,
-        },
+        crate::cid::{ContentHasher, Hasher},
         async_trait::async_trait,
     };
     pub type Error = ();
-    // FIXME: I hate the _and_ naming convention.. need something better.
     #[async_trait]
-    pub trait Content<T, S, H = Hasher>: Sized + Send
+    pub trait Content<S, H = Hasher>: Sized + Send
     where
-        S: Store<T, H>,
         H: ContentHasher,
     {
-        async fn get(store: &S, cid: &H::Cid) -> Result<S::Repr, Error>;
-        async fn put_and_head(&self, store: &S) -> Result<H::Cid, Error>;
-        async fn put_and_all(&self, store: &S, cid_buf: &mut Vec<H::Cid>) -> Result<(), Error>
+        async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error>;
+        async fn save(&self, store: &S) -> Result<H::Cid, Error>;
+        async fn save_with_cids(&self, store: &S, cid_buf: &mut Vec<H::Cid>) -> Result<(), Error>
         where
             S: Sync,
         {
-            let cid = self.put_and_head(store).await?;
+            let cid = self.save(store).await?;
             cid_buf.push(cid);
             Ok(())
         }
     }
 }
-pub mod prelude {
-    pub use super::{cid::Hasher, Content, ContentHasher, Error, Store};
-}
-pub use {cid::ContentHasher, content::Content, store::Store};
+pub use {
+    cid::ContentHasher,
+    content::Content,
+    store::{Repr, Store},
+};
 pub type Error = ();
 
 /*

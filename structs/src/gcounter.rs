@@ -1,6 +1,6 @@
 use {
     async_trait::async_trait,
-    fixity_store::prelude::{Content, ContentHasher, Error, Store},
+    fixity_store::{Content, ContentHasher, Error, Repr, Store},
     std::collections::{btree_map::Entry, BTreeMap},
 };
 
@@ -57,25 +57,28 @@ impl GCounter {
     }
 }
 #[async_trait]
-impl<S, H> Content<Self, S, H> for GCounter
+impl<S, H> Content<S, H> for GCounter
 where
     S: Store<Self, H> + Sync,
     H: ContentHasher,
 {
-    async fn get(store: &S, cid: &H::Cid) -> Result<S::Repr, Error> {
-        todo!()
+    async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error> {
+        let repr = store.get(cid).await?;
+        let self_ = repr.repr_to_owned()?;
+        Ok(self_)
     }
-    async fn put_and_head(&self, store: &S) -> Result<H::Cid, Error> {
-        todo!()
+    async fn save(&self, store: &S) -> Result<H::Cid, Error> {
+        // TODO: Nix the ownership of `put()` - owning the type seems less likely these days.
+        let cid = store.put(self.clone()).await?;
+        Ok(cid)
     }
 }
 #[cfg(test)]
 pub mod test {
     use {
         super::*,
-        fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore, Repr, Store},
+        fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore},
         rstest::*,
-        std::fmt::Debug,
     };
     #[test]
     fn poc() {
@@ -97,16 +100,11 @@ pub mod test {
     #[tokio::test]
     async fn content_io<S>(#[case] store: S)
     where
-        S: Store<GCounter> + Sync,
-        <<S as Store<GCounter>>::Repr as Repr>::Borrow: Debug + PartialEq<GCounter>,
+        GCounter: Content<S>,
     {
         let mut counter = GCounter::default();
         counter.inc(0);
-        let cid = counter.put_and_head(&store).await.unwrap();
-        // let repr = Content::<GCounter, S, fixity_store::cid::Hasher>::get(&store, &cid)
-        let repr = <GCounter as Content<_, _, _>>::get(&store, &cid)
-            .await
-            .unwrap();
-        assert_eq!(repr.repr_borrow().unwrap(), &counter);
+        let cid = counter.save(&store).await.unwrap();
+        assert_eq!(GCounter::load(&store, &cid).await.unwrap(), counter);
     }
 }
