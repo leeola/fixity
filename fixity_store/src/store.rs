@@ -16,11 +16,57 @@ where
         T: Send + 'static;
     async fn get(&self, k: &H::Cid) -> Result<Self::Repr, Error>;
 }
+// TODO: make send, maybe sync
 pub trait Repr {
     type Owned;
     type Borrow;
     fn repr_to_owned(&self) -> Result<Self::Owned, Error>;
     fn repr_borrow(&self) -> Result<&Self::Borrow, Error>;
+}
+
+use async_trait::async_trait;
+#[async_trait]
+pub trait StoreZ<H = Hasher>: Send
+where
+    H: ContentHasher,
+{
+    type Repr<T>: ReprZ<T>;
+    async fn put<T>(&self, t: T) -> Result<H::Cid, Error>
+    where
+        T: Send + 'static,
+        Self: Put<T, H>,
+    {
+        Put::<_, H>::put_inner(self, t).await
+    }
+    async fn get<T>(&self, cid: &H::Cid) -> Result<Self::Repr<T>, Error>
+    where
+        Self: Get<Self::Repr<T>, H>,
+    {
+        Get::<_, H>::get(self, cid).await
+    }
+}
+#[async_trait]
+pub trait Put<T, H = Hasher>: Send
+where
+    H: ContentHasher,
+{
+    async fn put_inner(&self, t: T) -> Result<H::Cid, Error>
+    where
+        T: Send + 'static;
+}
+#[async_trait]
+pub trait Get<R, H = Hasher>: Send
+where
+    H: ContentHasher,
+{
+    async fn get(&self, cid: &H::Cid) -> Result<R, Error>;
+}
+pub trait ReprZ<T> {
+    type Borrow<'a>
+    where
+        Self: 'a;
+    fn repr_into_owned(self) -> Result<T, Error>;
+    fn repr_borrow<'a>(&'a self) -> Result<Self::Borrow<'a>, Error>;
 }
 
 #[cfg(test)]
@@ -81,5 +127,15 @@ pub mod test {
                 .unwrap(),
             "bar"
         );
+    }
+    #[rstest]
+    #[case::json(JsonStore::memory())]
+    // #[case::rkyv(RkyvStore::memory())]
+    #[tokio::test]
+    async fn storez_poc<S>(#[case] store: S)
+    where
+        S: StoreZ + Sync + Put<String>,
+    {
+        let k1 = store.put(String::from("foo")).await.unwrap();
     }
 }

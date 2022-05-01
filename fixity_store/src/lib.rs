@@ -1,3 +1,6 @@
+// A hopefully short term unstable feature, since GATs are stablizing soon.
+#![feature(generic_associated_types)]
+
 pub mod cid;
 pub mod storage;
 pub mod store;

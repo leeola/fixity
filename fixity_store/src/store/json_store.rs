@@ -1,5 +1,5 @@
 use {
-    super::{Error, Repr, Store},
+    super::{Error, Get, Put, Repr, ReprZ, Store, StoreZ},
     crate::{
         cid::{ContentHasher, Hasher},
         storage::{memory::Memory, ContentStorage},
@@ -54,6 +54,52 @@ where
         })
     }
 }
+#[async_trait]
+impl<S, H> StoreZ<H> for JsonStore<S, H>
+where
+    S: ContentStorage<H::Cid>,
+    S::Content: From<Vec<u8>>,
+    H: ContentHasher,
+    H::Cid: Copy,
+{
+    type Repr<T> = JsonRepr<T>;
+}
+#[async_trait]
+impl<T, S, H> Put<T, H> for JsonStore<S, H>
+where
+    S: ContentStorage<H::Cid>,
+    S::Content: From<Vec<u8>>,
+    H: ContentHasher,
+    H::Cid: Copy,
+    T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+{
+    async fn put_inner(&self, t: T) -> Result<H::Cid, Error>
+    where
+        T: Send + 'static,
+    {
+        // FIXME: prototype unwraps.
+        let buf: Vec<u8> = serde_json::to_vec(&t).unwrap();
+        let cid = self.hasher.hash(&buf);
+        self.storage.write_unchecked(cid, buf).await?;
+        Ok(cid)
+    }
+}
+#[async_trait]
+impl<T, S, H> Get<JsonRepr<T>, H> for JsonStore<S, H>
+where
+    S: ContentStorage<H::Cid>,
+    H: ContentHasher,
+    H::Cid: Copy,
+    T: Serialize + DeserializeOwned,
+{
+    async fn get(&self, cid: &H::Cid) -> Result<JsonRepr<T>, Error> {
+        let buf = self.storage.read_unchecked(cid).await?;
+        Ok(JsonRepr {
+            value: serde_json::from_slice(buf.as_ref()).unwrap(),
+        })
+    }
+}
+
 pub struct JsonRepr<T> {
     value: T,
 }
@@ -67,6 +113,17 @@ where
         Ok(self.value.clone())
     }
     fn repr_borrow(&self) -> Result<&Self::Borrow, Error> {
+        Ok(&self.value)
+    }
+}
+impl<T> ReprZ<T> for JsonRepr<T> {
+    type Borrow<'a> = &'a T
+    where
+        Self: 'a;
+    fn repr_into_owned(self) -> Result<T, Error> {
+        Ok(self.value)
+    }
+    fn repr_borrow<'a>(&'a self) -> Result<Self::Borrow<'a>, Error> {
         Ok(&self.value)
     }
 }
