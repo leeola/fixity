@@ -1,7 +1,8 @@
 use {
-    super::{Error, Get, Put, Repr, ReprZ, Store, StoreZ},
+    super::{Error, Repr, ReprZ, Store},
     crate::{
         cid::{ContentHasher, Hasher},
+        deser,
         storage::{memory::Memory, ContentStorage},
     },
     async_trait::async_trait,
@@ -54,6 +55,25 @@ where
         })
     }
 }
+
+pub struct JsonRepr<T> {
+    value: T,
+}
+impl<T> Repr for JsonRepr<T>
+where
+    T: Clone,
+{
+    type Owned = T;
+    type Borrow = T;
+    fn repr_to_owned(&self) -> Result<Self::Owned, Error> {
+        Ok(self.value.clone())
+    }
+    fn repr_borrow(&self) -> Result<&Self::Borrow, Error> {
+        Ok(&self.value)
+    }
+}
+
+/*
 #[async_trait]
 impl<S, H> StoreZ<H> for JsonStore<S, H>
 where
@@ -99,31 +119,15 @@ where
         })
     }
 }
-
-pub struct JsonRepr<T> {
-    value: T,
-}
-impl<T> Repr for JsonRepr<T>
+*/
+impl<T> ReprZ<T> for JsonRepr<T>
 where
-    T: Clone,
+    for<'a> T: deser::Deserialize<Ref<'a> = &'a T>,
 {
-    type Owned = T;
-    type Borrow = T;
-    fn repr_to_owned(&self) -> Result<Self::Owned, Error> {
-        Ok(self.value.clone())
-    }
-    fn repr_borrow(&self) -> Result<&Self::Borrow, Error> {
-        Ok(&self.value)
-    }
-}
-impl<T> ReprZ<T> for JsonRepr<T> {
-    type Borrow<'a> = &'a T
-    where
-        Self: 'a;
     fn repr_into_owned(self) -> Result<T, Error> {
         Ok(self.value)
     }
-    fn repr_borrow<'a>(&'a self) -> Result<Self::Borrow<'a>, Error> {
+    fn repr_ref(&self) -> Result<T::Ref<'_>, Error> {
         Ok(&self.value)
     }
 }

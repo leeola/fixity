@@ -24,27 +24,26 @@ pub trait Repr {
     fn repr_borrow(&self) -> Result<&Self::Borrow, Error>;
 }
 
-use async_trait::async_trait;
+use {
+    crate::deser::{Deserialize, Serialize},
+    async_trait::async_trait,
+};
 #[async_trait]
 pub trait StoreZ<H = Hasher>: Send
 where
     H: ContentHasher,
 {
-    type Repr<T>: ReprZ<T>;
+    type Repr<T>: ReprZ<T>
+    where
+        T: Deserialize;
     async fn put<T>(&self, t: T) -> Result<H::Cid, Error>
     where
-        T: Send + 'static,
-        Self: Put<T, H>,
-    {
-        Put::<_, H>::put_inner(self, t).await
-    }
+        T: Serialize + Send + 'static;
     async fn get<T>(&self, cid: &H::Cid) -> Result<Self::Repr<T>, Error>
     where
-        Self: Get<Self::Repr<T>, H>,
-    {
-        Get::<_, H>::get(self, cid).await
-    }
+        T: Deserialize;
 }
+/*
 #[async_trait]
 pub trait Put<T, H = Hasher>: Send
 where
@@ -61,12 +60,20 @@ where
 {
     async fn get(&self, cid: &H::Cid) -> Result<R, Error>;
 }
-pub trait ReprZ<T> {
-    type Borrow<'a>
-    where
-        Self: 'a;
+*/
+pub trait ReprZ<T>
+where
+    T: Deserialize,
+{
     fn repr_into_owned(self) -> Result<T, Error>;
-    fn repr_borrow<'a>(&'a self) -> Result<Self::Borrow<'a>, Error>;
+    fn repr_ref(&self) -> Result<T::Ref<'_>, Error>;
+    // fn repr_borrow<'a, U: ?Sized>(&'a self) -> &'a U
+    // where
+    //     T::Ref<'a>: std::borrow::Borrow<U>,
+    // {
+    //     use std::borrow::Borrow;
+    //     self.repr_ref().unwrap().borrow()
+    // }
 }
 
 #[cfg(test)]
@@ -128,14 +135,14 @@ pub mod test {
             "bar"
         );
     }
-    #[rstest]
-    #[case::json(JsonStore::memory())]
-    // #[case::rkyv(RkyvStore::memory())]
-    #[tokio::test]
-    async fn storez_poc<S>(#[case] store: S)
-    where
-        S: StoreZ + Sync + Put<String>,
-    {
-        let k1 = store.put(String::from("foo")).await.unwrap();
-    }
+    // #[rstest]
+    // #[case::json(JsonStore::memory())]
+    // // #[case::rkyv(RkyvStore::memory())]
+    // #[tokio::test]
+    // async fn storez_poc<S>(#[case] store: S)
+    // where
+    //     S: StoreZ + Sync + Put<String>,
+    // {
+    //     let k1 = store.put(String::from("foo")).await.unwrap();
+    // }
 }

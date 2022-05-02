@@ -9,6 +9,12 @@ use {
 pub type ReplicaId = u64;
 type GCounterInt = u32;
 
+pub enum CidPtr<Cid, T, R> {
+    Cid(Cid),
+    Owned(T),
+    Repr { cid: Cid, repr: R },
+}
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "rkyv",
