@@ -36,23 +36,41 @@ pub type Error = ();
 
 pub mod deser {
     pub use self::serde_json::SerdeJson;
+    pub type Error = crate::Error;
     pub trait Serialize<Deser = SerdeJson> {
-        fn serialize(&self) -> Vec<u8>;
+        fn serialize(&self) -> Result<Vec<u8>, Error>;
     }
-    pub trait Deserialize<Deser = SerdeJson> {
+    pub trait DeserializeRef<Deser = SerdeJson> {
         type Ref<'a>;
-        fn deserialize_owned(buf: &[u8]) -> Self;
-        fn deserialize_ref(buf: &[u8]) -> Self::Ref<'_>;
+    }
+    pub trait Deserialize<Deser = SerdeJson>: DeserializeRef<Deser> + Sized {
+        fn deserialize_owned(buf: &[u8]) -> Result<Self, Error>;
+        fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error>;
     }
     mod serde_json {
-        use super::Serialize;
+        use super::{Deserialize, DeserializeRef, Error, Serialize};
         pub struct SerdeJson;
         impl<T> Serialize<SerdeJson> for T
         where
             T: serde::Serialize,
         {
-            fn serialize(&self) -> Vec<u8> {
-                serde_json::to_vec(&self).unwrap()
+            fn serialize(&self) -> Result<Vec<u8>, Error> {
+                let v = serde_json::to_vec(&self).unwrap();
+                Ok(v)
+            }
+        }
+        impl<T> Deserialize<SerdeJson> for T
+        where
+            T: DeserializeRef<SerdeJson> + serde::de::DeserializeOwned,
+            for<'a> T::Ref<'a>: serde::Deserialize<'a>,
+        {
+            fn deserialize_owned(buf: &[u8]) -> Result<Self, Error> {
+                let self_ = serde_json::from_slice(buf.as_ref()).unwrap();
+                Ok(self_)
+            }
+            fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error> {
+                let ref_ = serde_json::from_slice(buf.as_ref()).unwrap();
+                Ok(ref_)
             }
         }
     }

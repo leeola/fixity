@@ -1,5 +1,5 @@
 use {
-    super::{Error, Repr, ReprZ, Store},
+    super::{Error, Repr, ReprZ, Store, StoreZ},
     crate::{
         cid::{ContentHasher, Hasher},
         deser,
@@ -7,6 +7,7 @@ use {
     },
     async_trait::async_trait,
     serde::{de::DeserializeOwned, Serialize},
+    std::{marker::PhantomData, sync::Arc},
 };
 // TODO: Cache the serialized values, to reduce deserialization cost.
 pub struct JsonStore<Storage, H = Hasher> {
@@ -73,7 +74,9 @@ where
     }
 }
 
-/*
+// NOTE: This is warning on invalid where clause, but the suggested method
+// fails to compile. Nightly fun, i imagine?
+#[allow(deprecated_where_clause_location)]
 #[async_trait]
 impl<S, H> StoreZ<H> for JsonStore<S, H>
 where
@@ -82,8 +85,31 @@ where
     H: ContentHasher,
     H::Cid: Copy,
 {
-    type Repr<T> = JsonRepr<T>;
+    type Repr<T>
+    where
+        T: deser::Deserialize,
+    = JsonReprZ<T>;
+    async fn put<T>(&self, t: T) -> Result<H::Cid, Error>
+    where
+        T: deser::Serialize + Send + 'static,
+    {
+        let buf = t.serialize().unwrap();
+        let cid = self.hasher.hash(&buf);
+        self.storage.write_unchecked(cid, buf).await?;
+        Ok(cid)
+    }
+    async fn get<T>(&self, cid: &H::Cid) -> Result<Self::Repr<T>, Error>
+    where
+        T: deser::Deserialize,
+    {
+        let buf = self.storage.read_unchecked(cid).await?;
+        Ok(JsonReprZ {
+            buf: buf.into(),
+            phantom_: PhantomData,
+        })
+    }
 }
+/*
 #[async_trait]
 impl<T, S, H> Put<T, H> for JsonStore<S, H>
 where
@@ -120,14 +146,20 @@ where
     }
 }
 */
-impl<T> ReprZ<T> for JsonRepr<T>
+pub struct JsonReprZ<T> {
+    buf: Arc<[u8]>,
+    phantom_: PhantomData<T>,
+}
+impl<T> ReprZ<T> for JsonReprZ<T>
 where
-    for<'a> T: deser::Deserialize<Ref<'a> = &'a T>,
+    T: deser::Deserialize,
 {
     fn repr_into_owned(self) -> Result<T, Error> {
-        Ok(self.value)
+        let value = T::deserialize_owned(self.buf.as_ref()).unwrap();
+        Ok(value)
     }
     fn repr_ref(&self) -> Result<T::Ref<'_>, Error> {
-        Ok(&self.value)
+        let value = T::deserialize_ref(self.buf.as_ref()).unwrap();
+        Ok(value)
     }
 }
