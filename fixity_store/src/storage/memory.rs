@@ -1,6 +1,6 @@
 use {
     super::{ContentStorage, Error},
-    crate::cid::Cid as DefaultCid,
+    crate::cid::CID_LENGTH,
     async_trait::async_trait,
     std::{
         collections::HashMap,
@@ -9,7 +9,7 @@ use {
     },
 };
 #[derive(Debug)]
-pub struct Memory<Cid = DefaultCid> {
+pub struct Memory<Cid = [u8; CID_LENGTH]> {
     content: Mutex<HashMap<Cid, Arc<[u8]>>>,
     // reflog: Arc<Mutex<HashMap<PathBuf, Arc<[u8]>>>> ,
 }
@@ -27,13 +27,13 @@ where
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked<Content>(&self, cid: Cid, content: Content) -> Result<(), Error>
+    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), Error>
     where
-        Content: Into<Self::Content> + Send + 'static,
+        B: Into<Vec<u8>> + Send + 'static,
     {
-        let buf = content.into();
         let mut lock = self.content.lock().unwrap();
-        let _ = lock.insert(cid, buf);
+        let bytes = bytes.into();
+        let _ = lock.insert(cid, bytes.into());
         Ok(())
     }
 }

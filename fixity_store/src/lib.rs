@@ -30,7 +30,7 @@ pub mod content {
 pub use {
     cid::ContentHasher,
     content::Content,
-    store::{Repr, Store},
+    //    store::{Repr, Store},
 };
 pub type Error = ();
 

@@ -1,72 +1,41 @@
-pub mod json_store;
-pub mod rkyv_store;
+// pub mod json_store;
+// pub mod rkyv_store;
 
 use {
     crate::{
-        cid::{ContentHasher, Hasher},
+        cid::{ContentHasher, ContentId, Hasher},
         deser::{Deserialize, SerdeJson, Serialize},
         storage::{memory::Memory, ContentStorage},
     },
+    async_trait::async_trait,
     std::{marker::PhantomData, sync::Arc},
 };
 
 pub type Error = ();
 
-#[async_trait::async_trait]
-pub trait Store<T, H = Hasher>: Send
-where
-    H: ContentHasher,
-{
-    type Repr: Repr<Owned = T>;
-    async fn put(&self, t: T) -> Result<H::Cid, Error>
-    where
-        T: Send + 'static;
-    async fn get(&self, k: &H::Cid) -> Result<Self::Repr, Error>;
+pub struct Repo<Store> {
+    store: Arc<Store>,
 }
-// TODO: make send, maybe sync
-pub trait Repr {
-    type Owned;
-    type Borrow;
-    fn repr_to_owned(&self) -> Result<Self::Owned, Error>;
-    fn repr_borrow(&self) -> Result<&Self::Borrow, Error>;
+pub struct Branch<Store> {
+    store: Arc<Store>,
 }
 
-use async_trait::async_trait;
 #[async_trait]
-pub trait StoreZ<H = Hasher>: Send
-where
-    H: ContentHasher,
-{
-    type Repr<T>: ReprZ<T>
-    where
-        T: Deserialize;
-    async fn put<T>(&self, t: T) -> Result<H::Cid, Error>
-    where
-        T: Serialize + Send + 'static;
-    async fn get<T>(&self, cid: &H::Cid) -> Result<Self::Repr<T>, Error>
-    where
-        T: Deserialize;
-}
-pub trait ReprZ<T>
-where
-    T: Deserialize,
-{
-    fn repr_into_owned(self) -> Result<T, Error>;
-    fn repr_ref(&self) -> Result<T::Ref<'_>, Error>;
-    // fn repr_borrow<'a, U: ?Sized>(&'a self) -> &'a U
+pub trait Store {
+    type Cid: ContentId;
+    type Hasher: ContentHasher<Self::Cid>;
+    type Storage: ContentStorage<Self::Cid>;
+    // async fn put<T>(&self, t: T) -> Result<Self::Cid, Error>
     // where
-    //     T::Ref<'a>: std::borrow::Borrow<U>,
-    // {
-    //     use std::borrow::Borrow;
-    //     self.repr_ref().unwrap().borrow()
-    // }
+    //     T: Serialize + Send + 'static;
 }
 
-pub struct StoreY<Storage, H = Hasher> {
+/*
+pub struct Store<Storage, H = Hasher> {
     hasher: H,
     storage: Storage,
 }
-impl<S, H> StoreY<S, H>
+impl<S, H> Store<S, H>
 where
     H: ContentHasher,
     S: ContentStorage<H::Cid>,
@@ -102,11 +71,12 @@ where
         })
     }
 }
-impl StoreY<Memory> {
+impl Store<Memory> {
     pub fn memory() -> Self {
         Self::new(Default::default())
     }
 }
+*/
 pub struct ReprY<T> {
     buf: Arc<[u8]>,
     phantom_: PhantomData<T>,
@@ -127,11 +97,7 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use {
-        super::{json_store::JsonStore, rkyv_store::RkyvStore, *},
-        rstest::*,
-        std::fmt::Debug,
-    };
+    use {super::*, rstest::*, std::fmt::Debug};
     #[derive(
         Debug,
         Clone,
@@ -147,6 +113,7 @@ pub mod test {
     pub struct Foo {
         pub name: String,
     }
+    /*
     #[rstest]
     #[case::json(JsonStore::memory())]
     #[case::rkyv(RkyvStore::memory())]
@@ -184,14 +151,15 @@ pub mod test {
             "bar"
         );
     }
-    #[rstest]
-    #[case(StoreY::memory())]
-    #[tokio::test]
-    async fn storez_poc<S, H>(#[case] store: StoreY<S, H>)
-    where
-        H: ContentHasher,
-        S: ContentStorage<H::Cid>,
-    {
-        // let k1 = store.put(String::from("foo")).await.unwrap();
-    }
+    */
+    // #[rstest]
+    // #[case(Store::memory())]
+    // #[tokio::test]
+    // async fn storey_poc<S, H>(#[case] store: Store<S, H>)
+    // where
+    //     H: ContentHasher,
+    //     S: ContentStorage<H::Cid>,
+    // {
+    //     //let k1 = store.put(String::from("foo")).await.unwrap();
+    // }
 }

@@ -15,9 +15,9 @@ where
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, Error>;
     // TODO: Make this take a Into<Vec<u8>> + AsRef<[u8]>. Not gaining anything by requiring
     // the extra From<Vec<u8>> bound.
-    async fn write_unchecked<Content>(&self, cid: Cid, content: Content) -> Result<(), Error>
+    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), Error>
     where
-        Content: Into<Self::Content> + Send + 'static;
+        B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
 // NIT: Name TBD..? Reflog seems a bit exclusive.
 #[async_trait]

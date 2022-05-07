@@ -1,14 +1,13 @@
 use {multihash::MultihashDigest, std::convert::TryFrom};
 
-const CID_LENGTH: usize = 34;
-/// A common Cid type found in `ContentHasher::Cid`.
-pub type Cid = [u8; CID_LENGTH];
+pub const CID_LENGTH: usize = 34;
 
-pub trait ContentHasher: Send + Sync {
-    // TODO: Require TryFrom and Into to allow easier representations? Maybe make Cid a
-    // trait itself.
-    type Cid: Send + Sync + TryFrom<Vec<u8>>;
-    fn hash(&self, buf: &[u8]) -> Self::Cid;
+pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord {
+    fn len(&self) -> usize;
+}
+
+pub trait ContentHasher<Cid: ContentId>: Send + Sync {
+    fn hash(&self, buf: &[u8]) -> Cid;
     // A future fn to describe the underlying hasher.
     // Length, algo, etc.
     // fn desc() -> HasherDesc;
@@ -20,9 +19,8 @@ pub trait ContentHasher: Send + Sync {
 pub enum Hasher {
     Blake3_256,
 }
-impl ContentHasher for Hasher {
-    type Cid = Cid;
-    fn hash(&self, buf: &[u8]) -> Self::Cid {
+impl<Cid> ContentHasher<Cid> for Hasher {
+    fn hash(&self, buf: &[u8]) -> Cid {
         let hash = multihash::Code::from(*self).digest(&buf).to_bytes();
         match hash.try_into() {
             Ok(cid) => cid,
