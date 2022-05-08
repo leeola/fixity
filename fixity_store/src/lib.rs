@@ -10,28 +10,25 @@ pub mod content {
         async_trait::async_trait,
     };
     pub type Error = ();
-    #[async_trait]
-    pub trait Content<S, H = Hasher>: Sized + Send
-    where
-        H: ContentHasher,
-    {
-        async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error>;
-        async fn save(&self, store: &S) -> Result<H::Cid, Error>;
-        async fn save_with_cids(&self, store: &S, cid_buf: &mut Vec<H::Cid>) -> Result<(), Error>
-        where
-            S: Sync,
-        {
-            let cid = self.save(store).await?;
-            cid_buf.push(cid);
-            Ok(())
-        }
-    }
+    // #[async_trait]
+    // pub trait Content<S, H = Hasher>: Sized + Send
+    // where
+    //     H: ContentHasher,
+    // {
+    //     async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error>;
+    //     async fn save(&self, store: &S) -> Result<H::Cid, Error>;
+    //     async fn save_with_cids(&self, store: &S, cid_buf: &mut Vec<H::Cid>) -> Result<(), Error>
+    //     where
+    //         S: Sync,
+    //     {
+    //         let cid = self.save(store).await?;
+    //         cid_buf.push(cid);
+    //         Ok(())
+    //     }
+    // }
 }
-pub use {
-    cid::ContentHasher,
-    content::Content,
-    //    store::{Repr, Store},
-};
+pub use cid::ContentHasher;
+//    store::{Repr, Store},
 pub type Error = ();
 
 pub mod deser {

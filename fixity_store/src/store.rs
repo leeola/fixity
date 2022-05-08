@@ -3,12 +3,12 @@
 
 use {
     crate::{
-        cid::{ContentHasher, ContentId, Hasher},
+        cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
         deser::{Deserialize, SerdeJson, Serialize},
         storage::{memory::Memory, ContentStorage},
     },
     async_trait::async_trait,
-    std::{marker::PhantomData, sync::Arc},
+    std::{marker::PhantomData, ops::Deref, sync::Arc},
 };
 
 pub type Error = ();
@@ -22,24 +22,34 @@ pub struct Branch<Store> {
 
 #[async_trait]
 pub trait Store {
-    type Cid: ContentId;
+    type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;
-    // async fn put<T>(&self, t: T) -> Result<Self::Cid, Error>
-    // where
-    //     T: Serialize + Send + 'static;
+    async fn put_with_cids<'a, T, D>(
+        &self,
+        t: &'a T,
+        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
+    ) -> Result<Self::Cid, Error>
+    where
+        T: Serialize<D> + Send + Sync;
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
+    where
+        T: Deserialize;
+    async fn put<T, D>(&self, t: &T) -> Result<Self::Cid, Error>
+    where
+        T: Serialize<D> + ContainedCids<Self::Cid> + Send + Sync,
+    {
+        let cids = t.contained_cids();
+        self.put_with_cids(t, cids).await
+    }
 }
 
-/*
-pub struct Store<Storage, H = Hasher> {
-    hasher: H,
+// NIT: Name sucks.
+pub struct StoreImpl<Storage, Hasher> {
+    hasher: Hasher,
     storage: Storage,
 }
-impl<S, H> Store<S, H>
-where
-    H: ContentHasher,
-    S: ContentStorage<H::Cid>,
-{
+impl<S, H> StoreImpl<S, H> {
     pub fn new(storage: S) -> Self
     where
         H: Default,
@@ -49,39 +59,51 @@ where
             storage,
         }
     }
-    pub async fn put<T>(&self, t: T) -> Result<H::Cid, Error>
+}
+#[async_trait]
+impl<S, H> Store for StoreImpl<S, H>
+where
+    H: ContentHasher<[u8; CID_LENGTH]>,
+    S: ContentStorage<[u8; CID_LENGTH]>,
+{
+    type Cid = [u8; CID_LENGTH];
+    type Hasher = H;
+    type Storage = S;
+
+    async fn put_with_cids<'a, T, D>(
+        &self,
+        t: &'a T,
+        _: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
+    ) -> Result<Self::Cid, Error>
     where
-        T: Serialize + Send + 'static,
-        S::Content: From<Vec<u8>>,
-        H::Cid: Copy,
+        T: Serialize<D> + Send + Sync,
     {
         let buf = t.serialize().unwrap();
         let cid = self.hasher.hash(&buf);
         self.storage.write_unchecked(cid, buf).await?;
         Ok(cid)
     }
-    async fn get<T>(&self, cid: &H::Cid) -> Result<ReprY<T>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
     where
         T: Deserialize,
     {
         let buf = self.storage.read_unchecked(cid).await?;
-        Ok(ReprY {
+        Ok(Repr {
             buf: buf.into(),
             phantom_: PhantomData,
         })
     }
 }
-impl Store<Memory> {
-    pub fn memory() -> Self {
-        Self::new(Default::default())
-    }
-}
-*/
-pub struct ReprY<T> {
+// impl Store<Memory> {
+//     pub fn memory() -> Self {
+//         Self::new(Default::default())
+//     }
+// }
+pub struct Repr<T> {
     buf: Arc<[u8]>,
     phantom_: PhantomData<T>,
 }
-impl<T> ReprY<T>
+impl<T> Repr<T>
 where
     T: Deserialize,
 {

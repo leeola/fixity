@@ -2,10 +2,17 @@ use {multihash::MultihashDigest, std::convert::TryFrom};
 
 pub const CID_LENGTH: usize = 34;
 
-pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord {
+pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + TryFrom<Vec<u8>> {
     fn len(&self) -> usize;
 }
-
+impl ContentId for [u8; CID_LENGTH] {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+pub trait ContainedCids<Cid: ContentId> {
+    fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Cid> + Send + 'static>;
+}
 pub trait ContentHasher<Cid: ContentId>: Send + Sync {
     fn hash(&self, buf: &[u8]) -> Cid;
     // A future fn to describe the underlying hasher.
@@ -19,7 +26,10 @@ pub trait ContentHasher<Cid: ContentId>: Send + Sync {
 pub enum Hasher {
     Blake3_256,
 }
-impl<Cid> ContentHasher<Cid> for Hasher {
+impl<Cid> ContentHasher<Cid> for Hasher
+where
+    Cid: ContentId,
+{
     fn hash(&self, buf: &[u8]) -> Cid {
         let hash = multihash::Code::from(*self).digest(&buf).to_bytes();
         match hash.try_into() {
