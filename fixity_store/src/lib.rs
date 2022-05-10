@@ -70,6 +70,10 @@ pub mod deser {
                 Ok(ref_)
             }
         }
+        // TODO: macro this.
+        impl DeserializeRef<SerdeJson> for String {
+            type Ref<'a> = &'a str;
+        }
     }
     mod rkyv {
         pub struct Rkyv;

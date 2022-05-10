@@ -11,7 +11,16 @@ impl ContentId for [u8; CID_LENGTH] {
     }
 }
 pub trait ContainedCids<Cid: ContentId> {
-    fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Cid> + Send + 'static>;
+    fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Cid> + Send + 'a>;
+}
+// NIT: Maybe move to a macro and explicitly impl for common types?
+impl<T, C> ContainedCids<C> for T
+where
+    C: ContentId,
+{
+    fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a C> + Send + 'a> {
+        Box::new(std::iter::empty())
+    }
 }
 pub trait ContentHasher<Cid: ContentId>: Send + Sync {
     fn hash(&self, buf: &[u8]) -> Cid;

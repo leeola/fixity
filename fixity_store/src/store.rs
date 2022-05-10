@@ -5,7 +5,7 @@ use {
     crate::{
         cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
         deser::{Deserialize, SerdeJson, Serialize},
-        storage::{memory::Memory, ContentStorage},
+        storage::{self, ContentStorage},
     },
     async_trait::async_trait,
     std::{marker::PhantomData, ops::Deref, sync::Arc},
@@ -21,7 +21,7 @@ pub struct Branch<Store> {
 }
 
 #[async_trait]
-pub trait Store {
+pub trait Store: Send + Sync {
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;
@@ -32,9 +32,9 @@ pub trait Store {
     ) -> Result<Self::Cid, Error>
     where
         T: Serialize<D> + Send + Sync;
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
+    async fn get<T, D>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
     where
-        T: Deserialize;
+        T: Deserialize<D>;
     async fn put<T, D>(&self, t: &T) -> Result<Self::Cid, Error>
     where
         T: Serialize<D> + ContainedCids<Self::Cid> + Send + Sync,
@@ -43,8 +43,8 @@ pub trait Store {
         self.put_with_cids(t, cids).await
     }
 }
-
 // NIT: Name sucks.
+#[derive(Default)]
 pub struct StoreImpl<Storage, Hasher> {
     hasher: Hasher,
     storage: Storage,
@@ -83,9 +83,9 @@ where
         self.storage.write_unchecked(cid, buf).await?;
         Ok(cid)
     }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
+    async fn get<T, D>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
     where
-        T: Deserialize,
+        T: Deserialize<D>,
     {
         let buf = self.storage.read_unchecked(cid).await?;
         Ok(Repr {
@@ -94,11 +94,49 @@ where
         })
     }
 }
-// impl Store<Memory> {
-//     pub fn memory() -> Self {
-//         Self::new(Default::default())
-//     }
-// }
+/*
+#[async_trait]
+impl<S, U> Store for S
+where
+    S: Deref<Target = U> + Send + Sync,
+    U: Store + Send + Sync,
+{
+    type Cid = U::Cid;
+    type Hasher = U::Hasher;
+    type Storage = U::Storage;
+    async fn put_with_cids<'a, T, D>(
+        &self,
+        t: &'a T,
+        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
+    ) -> Result<Self::Cid, Error>
+    where
+        T: Serialize<D> + Send + Sync,
+    {
+        self.deref().put_with_cids(t, contained_cids).await
+    }
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
+    where
+        T: Deserialize,
+    {
+        self.get(cid).await
+    }
+}
+pub struct Memory<H = Hasher>(StoreImpl<storage::Memory, H>);
+impl<H> Memory<H> {
+    pub fn new() -> Self
+    where
+        H: Default,
+    {
+        Self(StoreImpl::new(Default::default()))
+    }
+}
+impl<H> Deref for Memory<H> {
+    type Target = StoreImpl<storage::Memory, H>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+*/
 pub struct Repr<T> {
     buf: Arc<[u8]>,
     phantom_: PhantomData<T>,
@@ -107,7 +145,7 @@ impl<T> Repr<T>
 where
     T: Deserialize,
 {
-    pub fn repr_into_owned(self) -> Result<T, Error> {
+    pub fn repr_to_owned(&self) -> Result<T, Error> {
         let value = T::deserialize_owned(self.buf.as_ref()).unwrap();
         Ok(value)
     }
@@ -174,14 +212,17 @@ pub mod test {
         );
     }
     */
-    // #[rstest]
-    // #[case(Store::memory())]
-    // #[tokio::test]
-    // async fn storey_poc<S, H>(#[case] store: Store<S, H>)
-    // where
-    //     H: ContentHasher,
-    //     S: ContentStorage<H::Cid>,
-    // {
-    //     //let k1 = store.put(String::from("foo")).await.unwrap();
-    // }
+    #[rstest]
+    // #[case(Memory::<Hasher>::new())]
+    #[case(StoreImpl::<storage::Memory, Hasher>::default())]
+    #[tokio::test]
+    async fn store_poc<S>(#[case] store: S)
+    where
+        S: Store,
+    {
+        let k1 = store.put(&String::from("foo")).await.unwrap();
+        let repr = store.get::<String, _>(&k1).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
+        assert_eq!(repr.repr_ref().unwrap(), "foo");
+    }
 }
