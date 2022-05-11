@@ -4,7 +4,7 @@
 use {
     crate::{
         cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
-        deser::{Deserialize, SerdeJson, Serialize},
+        deser::{Deserialize, Serialize},
         storage::{self, ContentStorage},
     },
     async_trait::async_trait,
@@ -79,7 +79,7 @@ where
         T: Serialize<D> + Send + Sync,
     {
         let buf = t.serialize().unwrap();
-        let cid = self.hasher.hash(&buf);
+        let cid = self.hasher.hash(buf.as_ref());
         self.storage.write_unchecked(cid, buf).await?;
         Ok(cid)
     }
@@ -94,7 +94,6 @@ where
         })
     }
 }
-/*
 #[async_trait]
 impl<S, U> Store for S
 where
@@ -114,11 +113,11 @@ where
     {
         self.deref().put_with_cids(t, contained_cids).await
     }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
+    async fn get<T, D>(&self, cid: &Self::Cid) -> Result<Repr<T>, Error>
     where
-        T: Deserialize,
+        T: Deserialize<D>,
     {
-        self.get(cid).await
+        self.deref().get(cid).await
     }
 }
 pub struct Memory<H = Hasher>(StoreImpl<storage::Memory, H>);
@@ -127,7 +126,7 @@ impl<H> Memory<H> {
     where
         H: Default,
     {
-        Self(StoreImpl::new(Default::default()))
+        Self(StoreImpl::new(storage::Memory::default()))
     }
 }
 impl<H> Deref for Memory<H> {
@@ -136,7 +135,6 @@ impl<H> Deref for Memory<H> {
         &self.0
     }
 }
-*/
 pub struct Repr<T> {
     buf: Arc<[u8]>,
     phantom_: PhantomData<T>,
@@ -157,7 +155,7 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use {super::*, rstest::*, std::fmt::Debug};
+    use {super::*, crate::deser::DeserializeRef, rstest::*, std::fmt::Debug};
     #[derive(
         Debug,
         Clone,
@@ -172,6 +170,13 @@ pub mod test {
     #[archive_attr(derive(Debug))]
     pub struct Foo {
         pub name: String,
+    }
+    #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+    pub struct FooRef<'a> {
+        pub name: &'a str,
+    }
+    impl DeserializeRef for Foo {
+        type Ref<'a> = FooRef<'a>;
     }
     /*
     #[rstest]
@@ -213,16 +218,27 @@ pub mod test {
     }
     */
     #[rstest]
-    // #[case(Memory::<Hasher>::new())]
+    #[case(Memory::<Hasher>::new())]
     #[case(StoreImpl::<storage::Memory, Hasher>::default())]
     #[tokio::test]
     async fn store_poc<S>(#[case] store: S)
     where
         S: Store,
     {
-        let k1 = store.put(&String::from("foo")).await.unwrap();
+        use crate::deser::SerdeJson;
+        let k1 = store
+            .put::<_, SerdeJson>(&String::from("foo"))
+            .await
+            .unwrap();
         let repr = store.get::<String, _>(&k1).await.unwrap();
         assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
         assert_eq!(repr.repr_ref().unwrap(), "foo");
+        let k2 = store
+            .put::<_, SerdeJson>(&Foo { name: "foo".into() })
+            .await
+            .unwrap();
+        let repr = store.get::<Foo, _>(&k2).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
+        assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
     }
 }

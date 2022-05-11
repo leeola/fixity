@@ -35,7 +35,9 @@ pub mod deser {
     pub use self::serde_json::SerdeJson;
     pub type Error = crate::Error;
     pub trait Serialize<Deser = SerdeJson> {
-        fn serialize(&self) -> Result<Vec<u8>, Error>;
+        // NIT: It would be nice if constructing an Arc<[u8]> from this was more clean.
+        type Bytes: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
+        fn serialize(&self) -> Result<Self::Bytes, Error>;
     }
     pub trait DeserializeRef<Deser = SerdeJson> {
         type Ref<'a>;
@@ -51,7 +53,8 @@ pub mod deser {
         where
             T: serde::Serialize,
         {
-            fn serialize(&self) -> Result<Vec<u8>, Error> {
+            type Bytes = Vec<u8>;
+            fn serialize(&self) -> Result<Self::Bytes, Error> {
                 let v = serde_json::to_vec(&self).unwrap();
                 Ok(v)
             }
@@ -76,7 +79,42 @@ pub mod deser {
         }
     }
     mod rkyv {
+        use {
+            super::Error,
+            rkyv::{
+                ser::serializers::AllocSerializer, AlignedVec, Archive, Deserialize, Infallible,
+                Serialize,
+            },
+        };
         pub struct Rkyv;
+        // NIT: Make the buffer size configurable..?
+        impl<T> super::Serialize<Rkyv> for T
+        where
+            T: Archive + Serialize<AllocSerializer<256>> + Send + Sync + 'static,
+            T::Archived: Deserialize<T, Infallible>,
+        {
+            type Bytes = AlignedVec;
+            fn serialize(&self) -> Result<Self::Bytes, Error> {
+                let aligned_vec = rkyv::to_bytes::<_, 256>(self).unwrap();
+                Ok(aligned_vec)
+            }
+        }
+        impl<T> super::Deserialize<Rkyv> for T
+        where
+            for<'a> T: Archive + super::DeserializeRef<Rkyv, Ref<'a> = &'a T::Archived>,
+            T::Archived: Deserialize<T, Infallible>,
+        {
+            fn deserialize_owned(buf: &[u8]) -> Result<Self, Error> {
+                let archived = Self::deserialize_ref(buf)?;
+                let t: T = archived.deserialize(&mut rkyv::Infallible).unwrap();
+                Ok(t)
+            }
+            fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error> {
+                // TODO: Feature gate and type gate. Or maybe make an Rkyv and RkyvUnsafe type?
+                let archived = unsafe { rkyv::archived_root::<T>(buf) };
+                Ok(archived)
+            }
+        }
     }
 }
 
