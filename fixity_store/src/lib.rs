@@ -32,7 +32,7 @@ pub use cid::ContentHasher;
 pub type Error = ();
 
 pub mod deser {
-    pub use self::serde_json::SerdeJson;
+    pub use self::{rkyv::Rkyv, serde_json::SerdeJson};
     pub type Error = crate::Error;
     pub trait Serialize<Deser = SerdeJson> {
         // NIT: It would be nice if constructing an Arc<[u8]> from this was more clean.
@@ -48,6 +48,7 @@ pub mod deser {
     }
     mod serde_json {
         use super::{Deserialize, DeserializeRef, Error, Serialize};
+        #[derive(Debug, Default)]
         pub struct SerdeJson;
         impl<T> Serialize<SerdeJson> for T
         where
@@ -86,6 +87,7 @@ pub mod deser {
                 Serialize,
             },
         };
+        #[derive(Debug)]
         pub struct Rkyv;
         // NIT: Make the buffer size configurable..?
         impl<T> super::Serialize<Rkyv> for T
