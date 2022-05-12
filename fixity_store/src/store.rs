@@ -126,7 +126,7 @@ where
         self.deref().get(cid).await
     }
 }
-pub struct Memory<D = SerdeJson, H = Hasher>(StoreImpl<storage::Memory, D, H>);
+pub struct Memory<D, H = Hasher>(StoreImpl<storage::Memory, D, H>);
 impl<D, H> Memory<D, H> {
     pub fn new() -> Self
     where
@@ -161,7 +161,12 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use {super::*, crate::deser::DeserializeRef, rstest::*, std::fmt::Debug};
+    use {
+        super::*,
+        crate::deser::{DeserializeRef, Rkyv},
+        rstest::*,
+        std::fmt::Debug,
+    };
     #[derive(
         Debug,
         Clone,
@@ -225,19 +230,22 @@ pub mod test {
     */
     #[rstest]
     // #[case(Memory::<SerdeJson, Hasher>::new())]
-    #[case(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
+    #[case::impl_json(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
+    #[case::impl_rkyv(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
     #[tokio::test]
     async fn store_poc<S>(#[case] store: S)
     where
         S: Store,
+        String: Serialize<S::Deser> + Deserialize<S::Deser>,
+        Foo: Serialize<S::Deser> + Deserialize<S::Deser>,
     {
         let k1 = store.put(&String::from("foo")).await.unwrap();
-        // let repr = store.get::<String>(&k1).await.unwrap();
-        // assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
-        // assert_eq!(repr.repr_ref().unwrap(), "foo");
-        // let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
-        // let repr = store.get::<Foo>(&k2).await.unwrap();
-        // assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
-        // assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
+        let repr = store.get::<String>(&k1).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
+        assert_eq!(repr.repr_ref().unwrap(), "foo");
+        //let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
+        //let repr = store.get::<Foo>(&k2).await.unwrap();
+        //assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
+        //assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
     }
 }

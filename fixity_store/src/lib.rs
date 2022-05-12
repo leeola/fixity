@@ -81,19 +81,19 @@ pub mod deser {
     }
     mod rkyv {
         use {
-            super::Error,
+            super::{Deserialize, DeserializeRef, Error, Serialize},
             rkyv::{
-                ser::serializers::AllocSerializer, AlignedVec, Archive, Deserialize, Infallible,
-                Serialize,
+                ser::serializers::AllocSerializer, AlignedVec, Archive,
+                Deserialize as RkyvDeserialize, Infallible, Serialize as RkyvSerialize,
             },
         };
-        #[derive(Debug)]
+        #[derive(Debug, Default)]
         pub struct Rkyv;
         // NIT: Make the buffer size configurable..?
-        impl<T> super::Serialize<Rkyv> for T
+        impl<T> Serialize<Rkyv> for T
         where
-            T: Archive + Serialize<AllocSerializer<256>> + Send + Sync + 'static,
-            T::Archived: Deserialize<T, Infallible>,
+            T: Archive + RkyvSerialize<AllocSerializer<256>> + Send + Sync + 'static,
+            T::Archived: RkyvDeserialize<T, Infallible>,
         {
             type Bytes = AlignedVec;
             fn serialize(&self) -> Result<Self::Bytes, Error> {
@@ -101,10 +101,17 @@ pub mod deser {
                 Ok(aligned_vec)
             }
         }
-        impl<T> super::Deserialize<Rkyv> for T
+        impl<T> DeserializeRef<Rkyv> for T
         where
-            for<'a> T: Archive + super::DeserializeRef<Rkyv, Ref<'a> = &'a T::Archived>,
-            T::Archived: Deserialize<T, Infallible>,
+            T: Archive,
+            T::Archived: 'static,
+        {
+            type Ref<'a> = &'a T::Archived;
+        }
+        impl<T> Deserialize<Rkyv> for T
+        where
+            for<'a> T: Archive + DeserializeRef<Rkyv, Ref<'a> = &'a T::Archived>,
+            T::Archived: RkyvDeserialize<T, Infallible>,
         {
             fn deserialize_owned(buf: &[u8]) -> Result<Self, Error> {
                 let archived = Self::deserialize_ref(buf)?;
@@ -116,6 +123,17 @@ pub mod deser {
                 let archived = unsafe { rkyv::archived_root::<T>(buf) };
                 Ok(archived)
             }
+        }
+        #[test]
+        fn rkyv_io() {
+            use super::Deserialize;
+            let buf = Serialize::<Rkyv>::serialize(&String::from("foo"))
+                .unwrap()
+                .into_vec();
+            let s = <String as Deserialize<Rkyv>>::deserialize_ref(buf.as_slice()).unwrap();
+            assert_eq!(s, "foo");
+            let s = <String as Deserialize<Rkyv>>::deserialize_owned(buf.as_slice()).unwrap();
+            assert_eq!(s, "foo");
         }
     }
 }
