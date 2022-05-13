@@ -34,15 +34,15 @@ pub type Error = ();
 pub mod deser {
     pub use self::{rkyv::Rkyv, serde_json::SerdeJson};
     pub type Error = crate::Error;
-    pub trait Serialize<Deser = SerdeJson> {
+    pub trait Serialize<Deser> {
         // NIT: It would be nice if constructing an Arc<[u8]> from this was more clean.
         type Bytes: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
         fn serialize(&self) -> Result<Self::Bytes, Error>;
     }
-    pub trait DeserializeRef<Deser = SerdeJson> {
+    pub trait DeserializeRef<Deser> {
         type Ref<'a>;
     }
-    pub trait Deserialize<Deser = SerdeJson>: DeserializeRef<Deser> + Sized {
+    pub trait Deserialize<Deser>: DeserializeRef<Deser> + Sized {
         fn deserialize_owned(buf: &[u8]) -> Result<Self, Error>;
         fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error>;
     }
@@ -130,6 +130,7 @@ pub mod deser {
             let buf = Serialize::<Rkyv>::serialize(&String::from("foo"))
                 .unwrap()
                 .into_vec();
+            dbg!(&buf);
             let s = <String as Deserialize<Rkyv>>::deserialize_ref(buf.as_slice()).unwrap();
             assert_eq!(s, "foo");
             let s = <String as Deserialize<Rkyv>>::deserialize_owned(buf.as_slice()).unwrap();
