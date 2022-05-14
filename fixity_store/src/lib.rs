@@ -35,7 +35,7 @@ impl Container for Cont {
     type Deser = Json;
     async fn get<T>(&self) -> Repr<T, Self::Deser>
     where
-        T: DeserializeRefGats<Self::Deser>,
+        T: DeserializeGats<Self::Deser>,
     {
         todo!()
     }
@@ -75,15 +75,17 @@ where
 pub trait DeserializeRefGats<Deser> {
     type Ref<'a>;
 }
-impl<D> DeserializeRefGats<D> for String {
+impl DeserializeRefGats<Json> for String {
     type Ref<'a> = &'a str;
 }
+#[cfg(test)]
 #[tokio::test]
 async fn call_foo() {
     foo(Cont).await
 }
-async fn foo<C: Container>(_c: C)
+async fn foo<C>(_c: C)
 where
+    C: Container,
     String: DeserializeGats<C::Deser>,
     for<'a> <String as DeserializeRefGats<C::Deser>>::Ref<'a>: Debug,
 {
