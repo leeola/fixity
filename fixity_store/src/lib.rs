@@ -28,13 +28,64 @@ pub mod content {
     // }
 }
 
+use std::fmt::Debug;
+struct Cont;
+#[async_trait::async_trait]
+impl Container for Cont {
+    type Deser = Json;
+    async fn get<T>(&self) -> Repr<T, Self::Deser>
+    where
+        T: DeserializeRefGats<Self::Deser>,
+    {
+        todo!()
+    }
+}
+struct Json;
+#[async_trait::async_trait]
+pub trait Container {
+    type Deser;
+    async fn get<T>(&self) -> Repr<T, Self::Deser>
+    where
+        T: DeserializeGats<Self::Deser>;
+}
+pub struct Repr<T, D>
+where
+    T: DeserializeGats<D>,
+{
+    _t: std::marker::PhantomData<T>,
+    _d: std::marker::PhantomData<D>,
+}
+#[async_trait::async_trait]
+pub trait DeserializeGats<Deser>: DeserializeRefGats<Deser> + Sized {
+    fn deserialize_owned(buf: &[u8]) -> Result<Self, Error>;
+    fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error>;
+}
+impl<D, T> DeserializeGats<D> for T
+where
+    T: DeserializeRefGats<D> + serde::de::DeserializeOwned,
+    for<'a> T::Ref<'a>: serde::Deserialize<'a>,
+{
+    fn deserialize_owned(buf: &[u8]) -> Result<Self, Error> {
+        todo!()
+    }
+    fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, Error> {
+        todo!()
+    }
+}
 pub trait DeserializeRefGats<Deser> {
     type Ref<'a>;
 }
-fn foo<Deser>()
+impl<D> DeserializeRefGats<D> for String {
+    type Ref<'a> = &'a str;
+}
+#[tokio::test]
+async fn call_foo() {
+    foo(Cont).await
+}
+async fn foo<C: Container>(_c: C)
 where
-    String: DeserializeRefGats<Deser>,
-    for<'a> <String as DeserializeRefGats<Deser>>::Ref<'a>: std::fmt::Debug,
+    String: DeserializeGats<C::Deser>,
+    for<'a> <String as DeserializeRefGats<C::Deser>>::Ref<'a>: Debug,
 {
 }
 

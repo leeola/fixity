@@ -236,14 +236,39 @@ pub mod test {
     */
     #[rstest]
     // #[case(Memory::<SerdeJson, Hasher>::new())]
-    #[case::impl_json(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
-    // #[case::impl_rkyv(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
+    // #[case::impl_json(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
+    #[case::impl_rkyv(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
     #[tokio::test]
     async fn store_poc<S>(#[case] store: S)
     where
         S: Store,
         String: Serialize<S::Deser> + Deserialize<S::Deser>,
+        // String: DeserializeRef<S::Deser>,
         // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: Debug,
+        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: AsRef<str>,
+        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug + AsRef<str>,
+        //for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a> &'a str,
+        // Foo: Serialize<S::Deser> + Deserialize<S::Deser>,
+    {
+        let k1 = store.put(&String::from("foo")).await.unwrap();
+        let repr = store.get::<String>(&k1).await.unwrap();
+        // assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
+        // assert_eq!(repr.repr_ref().unwrap().as_ref(), "foo");
+        //let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
+        //let repr = store.get::<Foo>(&k2).await.unwrap();
+        //assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
+        //assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
+    }
+    #[tokio::test]
+    async fn call_bar() {
+        bar(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default()).await;
+    }
+    async fn bar<S>(store: S)
+    where
+        S: Store,
+        String: Serialize<S::Deser> + Deserialize<S::Deser>,
+        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: Debug,
+        // for<'a> String: DeserializeRef<S::Deser, Ref<'a> = &'a rkyv::string::ArchivedString>,
         // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: AsRef<str>,
         // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug + AsRef<str>,
         //for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a> &'a str,
