@@ -243,16 +243,15 @@ pub mod test {
     where
         S: Store,
         String: Serialize<S::Deser> + Deserialize<S::Deser>,
-        for<'a> String: DeserializeRef<S::Deser, Ref<'a>: std::fmt::Debug>,
+        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: Debug,
         // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: AsRef<str>,
-        for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug,
         // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug + AsRef<str>,
         //for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a> &'a str,
-        Foo: Serialize<S::Deser> + Deserialize<S::Deser>,
+        // Foo: Serialize<S::Deser> + Deserialize<S::Deser>,
     {
         let k1 = store.put(&String::from("foo")).await.unwrap();
         let repr = store.get::<String>(&k1).await.unwrap();
-        assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
+        // assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
         // assert_eq!(repr.repr_ref().unwrap().as_ref(), "foo");
         //let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
         //let repr = store.get::<Foo>(&k2).await.unwrap();

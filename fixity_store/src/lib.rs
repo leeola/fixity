@@ -27,6 +27,17 @@ pub mod content {
     //     }
     // }
 }
+
+pub trait DeserializeRefGats<Deser> {
+    type Ref<'a>;
+}
+fn foo<Deser>()
+where
+    String: DeserializeRefGats<Deser>,
+    for<'a> <String as DeserializeRefGats<Deser>>::Ref<'a>: std::fmt::Debug,
+{
+}
+
 pub use cid::ContentHasher;
 //    store::{Repr, Store},
 pub type Error = ();
