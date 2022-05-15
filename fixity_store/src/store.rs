@@ -195,68 +195,40 @@ pub mod test {
     impl DeserializeRef<SerdeJson> for Foo {
         type Ref<'a> = FooRef<'a>;
     }
-    /*
     #[rstest]
-    #[case::json(JsonStore::memory())]
-    #[case::rkyv(RkyvStore::memory())]
-    #[tokio::test]
-    async fn store_poc<S>(#[case] store: S)
-    where
-        S: Store<String>,
-        S: Store<Foo>,
-        <<S as Store<String>>::Repr as Repr>::Borrow: Debug + PartialEq<str>,
-        <<S as Store<Foo>>::Repr as Repr>::Borrow: Debug + PartialEq<Foo>,
-    {
-        let k1 = store.put(String::from("foo")).await.unwrap();
-        let repr = Store::<String>::get(&store, &k1).await.unwrap();
-        assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
-        assert_eq!(repr.repr_borrow().unwrap(), "foo");
-        let k2 = store.put(Foo { name: "foo".into() }).await.unwrap();
-        let repr = Store::<Foo>::get(&store, &k2).await.unwrap();
-        assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
-        assert_eq!(repr.repr_borrow().unwrap(), &Foo { name: "foo".into() });
-        let k3 = store.put(String::from("bar")).await.unwrap();
-        assert_eq!(
-            Store::<String>::get(&store, &k1)
-                .await
-                .unwrap()
-                .repr_borrow()
-                .unwrap(),
-            "foo"
-        );
-        assert_eq!(
-            Store::<String>::get(&store, &k3)
-                .await
-                .unwrap()
-                .repr_borrow()
-                .unwrap(),
-            "bar"
-        );
-    }
-    */
-    #[rstest]
-    // #[case(Memory::<SerdeJson, Hasher>::new())]
-    #[case::impl_json(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
+    #[case::memory(Memory::<SerdeJson, Hasher>::new())]
+    #[case::memory_impl(StoreImpl::<storage::Memory, SerdeJson, Hasher>::default())]
     // #[case::impl_rkyv(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
     #[tokio::test]
-    async fn store_poc<S>(#[case] store: S)
+    async fn store_json<S>(#[case] store: S)
     where
-        S: Store,
-        String: Serialize<S::Deser> + Deserialize<S::Deser>,
-        for<'a> String: DeserializeRef<S::Deser, Ref<'a>: std::fmt::Debug>,
-        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: AsRef<str>,
-        for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug,
-        // for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a>: std::fmt::Debug + AsRef<str>,
-        //for<'a> <String as DeserializeRef<S::Deser>>::Ref<'a> &'a str,
-        Foo: Serialize<S::Deser> + Deserialize<S::Deser>,
+        S: Store<Deser = SerdeJson>,
     {
         let k1 = store.put(&String::from("foo")).await.unwrap();
         let repr = store.get::<String>(&k1).await.unwrap();
         assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
-        // assert_eq!(repr.repr_ref().unwrap().as_ref(), "foo");
-        //let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
-        //let repr = store.get::<Foo>(&k2).await.unwrap();
-        //assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
-        //assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
+        assert_eq!(repr.repr_ref().unwrap(), "foo");
+        let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
+        let repr = store.get::<Foo>(&k2).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
+        assert_eq!(repr.repr_ref().unwrap(), FooRef { name: "foo" });
+    }
+    #[rstest]
+    #[case::memory(Memory::<Rkyv, Hasher>::new())]
+    #[case::memory_impl(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
+    // #[case::impl_rkyv(StoreImpl::<storage::Memory, Rkyv, Hasher>::default())]
+    #[tokio::test]
+    async fn store_rkyv<S>(#[case] store: S)
+    where
+        S: Store<Deser = Rkyv>,
+    {
+        let k1 = store.put(&String::from("foo")).await.unwrap();
+        let repr = store.get::<String>(&k1).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), String::from("foo"));
+        assert_eq!(repr.repr_ref().unwrap(), "foo");
+        let k2 = store.put(&Foo { name: "foo".into() }).await.unwrap();
+        let repr = store.get::<Foo>(&k2).await.unwrap();
+        assert_eq!(repr.repr_to_owned().unwrap(), Foo { name: "foo".into() });
+        assert_eq!(repr.repr_ref().unwrap(), &Foo { name: "foo".into() });
     }
 }
