@@ -1,5 +1,5 @@
 use {
-    super::{ContentStorage, Error},
+    super::{ContentStorage, Error, MetaStorage},
     crate::cid::CID_LENGTH,
     async_trait::async_trait,
     std::{
@@ -11,7 +11,7 @@ use {
 #[derive(Debug)]
 pub struct Memory<Cid = [u8; CID_LENGTH]> {
     content: Mutex<HashMap<Cid, Arc<[u8]>>>,
-    // reflog: Arc<Mutex<HashMap<PathBuf, Arc<[u8]>>>> ,
+    meta: Mutex<HashMap<(String, Cid, String), Arc<[u8]>>>,
 }
 #[async_trait]
 impl<Cid> ContentStorage<Cid> for Memory<Cid>
@@ -41,6 +41,7 @@ impl<C> Default for Memory<C> {
     fn default() -> Self {
         Self {
             content: Default::default(),
+            meta: Default::default(),
         }
     }
 }

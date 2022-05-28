@@ -22,7 +22,7 @@ pub struct Branch<Store> {
 
 #[async_trait]
 pub trait Store: Send + Sync {
-    type Deser: Send + Sync;
+    type Deser;
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;

@@ -2,7 +2,7 @@ pub mod memory;
 pub use memory::Memory;
 use {
     async_trait::async_trait,
-    std::{ops::Deref, str, sync::Arc},
+    std::{str, sync::Arc},
 };
 type Error = ();
 #[async_trait]
@@ -19,34 +19,20 @@ where
     where
         B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
-// NIT: Name TBD..? Reflog seems a bit exclusive.
 #[async_trait]
-pub trait ReflogStorage: Send + Sync {
-    async fn list<P>(&self, path: P) -> Result<bool, Error>
-    where
-        P: AsRef<Path> + Send;
-    // async fn exists<S>(&self, path: &[S]) -> Result<bool, Error>
-    // where
-    //     S: AsRef<str> + Send + Sync;
-}
-// TODO: Don't clobber Path[Buf]
-pub struct PathBuf {}
-pub enum SegmentBuf<Buf = Vec<u8>>
+pub trait MetaStorage<Cid>: Send + Sync
 where
-    Buf: Deref<Target = [u8]> + 'static,
+    Cid: Send + Sync,
 {
-    /// A non-UTF8 series of bytes as a segment, commonly a
-    /// key fingerprint identifying a user to be used as a path
-    /// segment.
-    Buf(Buf),
-    String(String),
-}
-// TODO: Don't clobber Path[Buf]
-pub struct Path {}
-pub enum Segment<'a> {
-    /// A non-UTF8 series of bytes as a segment, commonly a
-    /// series of bytes identifying a user to be used as a path
-    /// segment.
-    BufSlice(&'a [u8]),
-    Str(&'a str),
+    type Meta: AsRef<[u8]> + Into<Arc<[u8]>>;
+    async fn read(&self, remote: &str, author: &Cid, prefix: &str) -> Result<Self::Meta, Error>;
+    async fn write<B>(
+        &self,
+        remote: &str,
+        author: &Cid,
+        prefix: &str,
+        bytes: B,
+    ) -> Result<(), Error>
+    where
+        B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
