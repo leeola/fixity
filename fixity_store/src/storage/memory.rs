@@ -1,5 +1,5 @@
 use {
-    super::{ContentStorage, Error, MetaStorage},
+    super::{ContentStorage, Error, RemoteStorage},
     crate::cid::CID_LENGTH,
     async_trait::async_trait,
     std::{
@@ -9,13 +9,14 @@ use {
     },
 };
 #[derive(Debug)]
-pub struct Memory<Cid = [u8; CID_LENGTH]> {
+pub struct Memory<Rid = [u8; CID_LENGTH], Cid = [u8; CID_LENGTH]> {
     content: Mutex<HashMap<Cid, Arc<[u8]>>>,
-    meta: Mutex<HashMap<(String, Cid, String), Arc<[u8]>>>,
+    remote: Mutex<HashMap<String, HashMap<Rid, Cid>>>,
 }
 #[async_trait]
-impl<Cid> ContentStorage<Cid> for Memory<Cid>
+impl<Rid, Cid> ContentStorage<Cid> for Memory<Rid, Cid>
 where
+    Rid: Send,
     Cid: Hash + Eq + Send + Sync,
 {
     type Content = Arc<[u8]>;
@@ -41,7 +42,7 @@ impl<C> Default for Memory<C> {
     fn default() -> Self {
         Self {
             content: Default::default(),
-            meta: Default::default(),
+            remote: Default::default(),
         }
     }
 }

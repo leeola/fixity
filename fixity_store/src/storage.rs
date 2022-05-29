@@ -20,19 +20,14 @@ where
         B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
 #[async_trait]
-pub trait MetaStorage<Cid>: Send + Sync
+pub trait RemoteStorage<Rid, Cid>: Send + Sync
 where
+    Rid: Send + Sync,
     Cid: Send + Sync,
 {
-    type Meta: AsRef<[u8]> + Into<Arc<[u8]>>;
-    async fn read(&self, remote: &str, author: &Cid, prefix: &str) -> Result<Self::Meta, Error>;
-    async fn write<B>(
-        &self,
-        remote: &str,
-        author: &Cid,
-        prefix: &str,
-        bytes: B,
-    ) -> Result<(), Error>
-    where
-        B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
+    async fn list_repos(&self, remote: &str) -> Result<Vec<String>, Error>;
+    async fn list_replicas(&self, remote: &str, repo: &str) -> Result<Vec<(Rid, Cid)>, Error>;
+    async fn get_replica(&self, remote: &str, repo: &str, replica: &Rid) -> Result<Cid, Error>;
+    async fn set_meta(&self, remote: &str, replica: Rid, meta: Cid) -> Result<(), Error>;
+    async fn create_repo(&self, remote: &str) -> Result<(), Error>;
 }
