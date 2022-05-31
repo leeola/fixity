@@ -19,6 +19,7 @@ pub trait Store: Send + Sync {
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;
+    // TODO: Refactor `put_with_cids` to bubble up, like `save_with_cids`.
     async fn put_with_cids<'a, T>(
         &self,
         t: &'a T,
