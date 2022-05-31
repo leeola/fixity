@@ -27,8 +27,11 @@ pub mod content {
     //     }
     // }
 }
-pub use cid::ContentHasher;
-//    store::{Repr, Store},
+pub use {
+    cid::ContentHasher,
+    storage::{ContentStorage, RemoteStorage},
+    store::Store,
+};
 pub type Error = ();
 
 pub mod deser;

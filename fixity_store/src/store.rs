@@ -13,13 +13,6 @@ use {
 
 pub type Error = ();
 
-pub struct Repo<Store> {
-    store: Arc<Store>,
-}
-pub struct Branch<Store> {
-    store: Arc<Store>,
-}
-
 #[async_trait]
 pub trait Store: Send + Sync {
     type Deser;

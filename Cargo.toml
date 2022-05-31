@@ -79,6 +79,7 @@ members = [
   "fixity_store",
   "structs",
   "types",
+  "repo",
   # "fixi_cli",
   "fbuzhash",
   # "git_fixi",

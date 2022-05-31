@@ -209,6 +209,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixity_repo"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "fixity_store",
+ "rstest",
+ "tokio",
+]
+
+[[package]]
 name = "fixity_store"
 version = "0.0.1"
 dependencies = [

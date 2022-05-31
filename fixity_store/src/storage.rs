@@ -26,8 +26,7 @@ where
     Cid: Send + Sync,
 {
     async fn list_repos(&self, remote: &str) -> Result<Vec<String>, Error>;
-    async fn list_replicas(&self, remote: &str, repo: &str) -> Result<Vec<(Rid, Cid)>, Error>;
-    async fn get_replica(&self, remote: &str, repo: &str, replica: &Rid) -> Result<Cid, Error>;
-    async fn set_meta(&self, remote: &str, replica: Rid, meta: Cid) -> Result<(), Error>;
-    async fn create_repo(&self, remote: &str) -> Result<(), Error>;
+    async fn list_heads(&self, remote: &str, repo: &str) -> Result<Vec<(Rid, Cid)>, Error>;
+    async fn get_head(&self, remote: &str, repo: &str, replica: &Rid) -> Result<Cid, Error>;
+    async fn set_head(&self, remote: &str, replica: Rid, head: Cid) -> Result<(), Error>;
 }
