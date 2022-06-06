@@ -15,6 +15,6 @@ default = []
 fixity = { path = "..", features = ["structopt"] }
 structopt = "0.3"
 env_logger = "0.7"
-tokio = { version = "1.4.0", features = ["rt-multi-thread", "macros", "io-std"] }
+tokio = { version = "1.8.4", features = ["rt-multi-thread", "macros", "io-std"] }
 thiserror = "1.0.21"
 log = "0.4.11"
