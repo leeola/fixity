@@ -20,13 +20,17 @@ where
         B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
 #[async_trait]
-pub trait RemoteStorage<Rid, Cid>: Send + Sync
-where
-    Rid: Send + Sync,
-    Cid: Send + Sync,
-{
-    async fn list_repos(&self, remote: &str) -> Result<Vec<String>, Error>;
-    async fn list_heads(&self, remote: &str, repo: &str) -> Result<Vec<(Rid, Cid)>, Error>;
-    async fn get_head(&self, remote: &str, repo: &str, replica: &Rid) -> Result<Cid, Error>;
-    async fn set_head(&self, remote: &str, replica: Rid, head: Cid) -> Result<(), Error>;
+pub trait MutStorage: Send + Sync {
+    type Value: AsRef<[u8]> + Into<Arc<[u8]>>;
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, Error>;
+    async fn get(&self, key: &str) -> Result<Self::Value, Error>;
+    async fn put(&self, key: String, value: Vec<u8>) -> Result<(), Error>;
+}
+#[derive(Debug)]
+pub struct Log<Rid, Cid> {
+    pub remote: String,
+    pub repo: String,
+    pub replica: Rid,
+    pub head: Cid,
+    pub message: String,
 }

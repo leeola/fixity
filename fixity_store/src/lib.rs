@@ -1,5 +1,6 @@
 // A hopefully short term unstable feature, since GATs are stablizing soon.
 #![feature(generic_associated_types)]
+pub mod deser;
 
 pub mod cid;
 pub mod storage;
@@ -44,12 +45,76 @@ pub mod content {
 }
 pub use {
     cid::ContentHasher,
-    storage::{ContentStorage, RemoteStorage},
+    meta::Meta,
+    storage::{ContentStorage, MutStorage},
     store::Store,
 };
 pub type Error = ();
 
-pub mod deser;
+pub mod meta {
+    use {super::Error, async_trait::async_trait};
+
+    #[async_trait]
+    pub trait Meta<Rid, Cid>: Send + Sync
+    where
+        Rid: Send + Sync,
+        Cid: Send + Sync,
+    {
+        async fn repos(&self, remote: &str) -> Result<Vec<String>, Error>;
+        async fn branches(&self, remote: &str, repo: &str) -> Result<Vec<String>, Error>;
+        async fn heads(
+            &self,
+            remote: &str,
+            repo: &str,
+            branch: &str,
+        ) -> Result<Vec<(Rid, Cid)>, Error>;
+        async fn head(
+            &self,
+            remote: &str,
+            repo: &str,
+            branch: &str,
+            replica: &Rid,
+        ) -> Result<Cid, Error>;
+        async fn set_head(
+            &self,
+            remote: &str,
+            repo: &str,
+            replica: Rid,
+            head: Cid,
+        ) -> Result<(), Error>;
+        async fn detatch_head(
+            &self,
+            remote: &str,
+            repo: &str,
+            replica: Rid,
+            head: Cid,
+        ) -> Result<(), Error>;
+        async fn append_log(
+            &self,
+            remote: &str,
+            repo: &str,
+            replica: Rid,
+            head: Cid,
+            message: &str,
+        ) -> Result<(), Error>;
+        async fn logs(
+            &self,
+            remote: &str,
+            repo: &str,
+            replica: Rid,
+            offset: usize,
+            limit: usize,
+        ) -> Result<Vec<Log<Rid, Cid>>, Error>;
+    }
+    #[derive(Debug)]
+    pub struct Log<Rid, Cid> {
+        pub remote: String,
+        pub repo: String,
+        pub replica: Rid,
+        pub head: Cid,
+        pub message: String,
+    }
+}
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

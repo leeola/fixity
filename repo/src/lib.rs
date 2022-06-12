@@ -1,22 +1,22 @@
 use {
     async_trait::async_trait,
-    fixity_store::{RemoteStorage, Store},
+    fixity_store::{Meta, Store},
     std::{marker::PhantomData, ops::Deref, sync::Arc},
 };
 
-pub struct Repo<Remote, Store, T> {
-    remote_storage: Arc<Remote>,
+pub struct Repo<Meta, Store, T> {
+    meta: Arc<Meta>,
     store: Arc<Store>,
     _t: PhantomData<T>,
 }
-impl<R, S> Repo<R, S> {
-    pub async fn open(remote: Arc<R>, store: Arc<S>, repo: &str) -> Self {
+impl<M, S, T> Repo<M, S, T> {
+    pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Self {
         todo!()
     }
 }
 
-pub struct RepoReplica<Remote, Store, T, Rid> {
-    remote_storage: Arc<Remote>,
+pub struct RepoReplica<Meta, Store, T, Rid> {
+    meta: Arc<Meta>,
     store: Arc<Store>,
     _t: PhantomData<T>,
     replica_id: Rid,

@@ -1,5 +1,5 @@
 use {
-    super::{ContentStorage, Error, RemoteStorage},
+    super::{ContentStorage, Error, MutStorage},
     crate::cid::CID_LENGTH,
     async_trait::async_trait,
     std::{
