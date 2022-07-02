@@ -209,7 +209,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fixity_repo"
+name = "fixity_core"
 version = "0.0.1"
 dependencies = [
  "async-trait",

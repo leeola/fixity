@@ -22,15 +22,35 @@ where
 #[async_trait]
 pub trait MutStorage: Send + Sync {
     type Value: AsRef<[u8]> + Into<Arc<[u8]>>;
-    async fn list(&self, prefix: &str) -> Result<Vec<String>, Error>;
-    async fn get(&self, key: &str) -> Result<Self::Value, Error>;
-    async fn put(&self, key: String, value: Vec<u8>) -> Result<(), Error>;
+    async fn list<K>(&self, prefix: K) -> Result<Vec<String>, Error>
+    where
+        K: AsRef<str> + Send;
+    async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
+    where
+        K: AsRef<str> + Send;
+    async fn put<K, V>(&self, key: K, value: V) -> Result<(), Error>
+    where
+        K: AsRef<str> + Into<String> + Send,
+        V: AsRef<[u8]> + Into<Vec<u8>> + Send;
 }
-#[derive(Debug)]
-pub struct Log<Rid, Cid> {
-    pub remote: String,
-    pub repo: String,
-    pub replica: Rid,
-    pub head: Cid,
-    pub message: String,
+#[cfg(test)]
+pub mod testz {
+    use {
+        super::{memory::Memory, MutStorage},
+        rstest::*,
+    };
+    #[rstest]
+    #[case::test_storage(Memory::<()>::default())]
+    #[tokio::test]
+    async fn mut_storage<M: MutStorage>(#[case] m: M) {
+        m.put("foo", "bar").await.unwrap();
+        assert_eq!(m.get("foo").await.unwrap().as_ref(), b"bar");
+        m.put("foo/bar", "boo").await.unwrap();
+        m.put("zaz", "zoinks").await.unwrap();
+        assert_eq!(
+            m.list("foo").await.unwrap(),
+            vec!["foo".to_string(), "foo/bar".to_string()]
+        );
+        assert!(m.list("b").await.unwrap().is_empty());
+    }
 }

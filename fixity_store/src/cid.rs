@@ -7,7 +7,7 @@ pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + TryFrom<Vec<u8>> {
 }
 impl ContentId for [u8; CID_LENGTH] {
     fn len(&self) -> usize {
-        self.len()
+        CID_LENGTH
     }
 }
 pub trait ContainedCids<Cid: ContentId> {

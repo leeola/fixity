@@ -1,5 +1,5 @@
 [package]
-name = "fixity_repo"
+name = "fixity_core"
 version = "0.0.1"
 edition = "2021"
 authors = ["Lee Olayvar <leeola@fastmail.com>"]
