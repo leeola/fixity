@@ -1,54 +1,105 @@
-use {
-    async_trait::async_trait,
-    fixity_store::{Content, ContentHasher, Error, Repr, Store},
-    std::collections::{btree_map::Entry, BTreeMap},
-};
+pub mod gcounter_v2;
+pub mod owned_or_repr;
 
-// TODO: replace with some form of centralized Id type. Likely just
-// rand bytes, maybe u64?
-pub type ReplicaId = u64;
+use self::owned_or_repr::{Oor, OwnedOrRepr};
+use async_trait::async_trait;
+use fixity_store::{
+    deser::{Deserialize, Rkyv},
+    replicaid::{ReplicaId, Rid},
+    store::Repr,
+};
+use rkyv::{collections::ArchivedBTreeMap, vec::ArchivedVec};
+use std::collections::{btree_map::Entry, BTreeMap};
+
 type GCounterInt = u32;
 
-pub enum CidPtr<Cid, T, R> {
-    Cid(Cid),
-    Owned(T),
-    Repr { cid: Cid, repr: R },
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-#[archive(compare(PartialEq))]
-#[archive_attr(derive(Debug))]
-pub struct GCounter(
+#[derive(Clone, PartialEq, Eq)]
+struct GCounter<const N: usize, D = Rkyv>(
     // NIT: Optionally use ProllyTree for large concurrent uses.
-    // NIT: Make generic to support multiple sizes?
-    BTreeMap<ReplicaId, GCounterInt>,
+    // NIT: Make int generic to support multiple sizes?
+    // TODO: Convert Vec back to BTree for faster lookups? This was made a Vec
+    // due to difficulties in looking up `ArchivedRid`.
+    // Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
+    // in theory we can go back to a Rid.
+    // Oor<BTreeMap<Rid<N>, GCounterInt>, D>,
+    Oor<Vec<(Rid<N>, GCounterInt)>, D>,
 );
-impl GCounter {
+impl<const N: usize> GCounter<N> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn inc(&mut self, rid: ReplicaId) {
-        let value = self.0.entry(rid).or_default();
-        *value += 1;
+}
+impl<const N: usize> GCounter<N, Rkyv> {
+    pub fn inc(&mut self, rid: Rid<N>) {
+        let owned = self.0.owned_as_mut().unwrap();
+        let index_res = owned.binary_search_by_key(&&rid, |(rid, _)| rid);
+        match index_res {
+            Ok(i) => {
+                let (_, count) = owned.get_mut(i).expect("index returned by `binary_search`");
+            },
+            Err(i) => owned.insert(i, (rid, 1)),
+        }
     }
     pub fn value(&self) -> u32 {
-        self.0.iter().map(|(_, i)| i).sum()
+        // TODO: cache the result.
+        match self.0.inner() {
+            OwnedOrRepr::Owned(values) => values.iter().map(|(_, i)| i).sum(),
+            OwnedOrRepr::Repr(repr) => {
+                let values = repr.repr_ref().unwrap();
+                values.iter().map(|(_, i)| i).sum()
+            },
+        }
     }
-    pub fn contains_rid(&self, rid: &ReplicaId) -> bool {
-        self.0.contains_key(rid)
+    pub fn contains_rid(&self, rid: &Rid<N>) -> bool {
+        match self.0.inner() {
+            OwnedOrRepr::Owned(vals) => vals.binary_search_by_key(&rid, |(rid, _)| rid).is_ok(),
+            OwnedOrRepr::Repr(repr) => {
+                let vals = repr.repr_ref().unwrap();
+                vals.binary_search_by(|(rhs, _)| rhs.partial_cmp(rid).unwrap())
+                    .is_ok()
+            },
+        }
     }
-    pub fn get(&self, rid: &ReplicaId) -> Option<&GCounterInt> {
-        self.0.get(rid)
+    pub fn get(&self, rid: &Rid<N>) -> Option<GCounterInt> {
+        match self.0.inner() {
+            OwnedOrRepr::Owned(vals) => {
+                let i = vals.binary_search_by_key(&rid, |(rid, _)| rid).ok()?;
+                let (_, count) = vals.get(i).expect("index returned by `binary_search`");
+                Some(*count)
+            },
+            OwnedOrRepr::Repr(repr) => {
+                let vals = repr.repr_ref().unwrap();
+                let i = vals
+                    .binary_search_by(|(rhs, _)| rhs.partial_cmp(rid).unwrap())
+                    .ok()?;
+                let (_, count) = vals.get(i).expect("index returned by `binary_search`");
+                Some(*count)
+            },
+        }
     }
-    pub fn iter(&self) -> impl Iterator<Item = (&ReplicaId, &GCounterInt)> {
-        self.0.iter()
-    }
+    // pub fn iter(&self) -> impl Iterator<Item = (&Rid<N>, &GCounterInt)> {
+    //     todo!()
+    // }
     pub fn merge(&mut self, other: &Self) {
+        let self_ = self.0.owned_as_mut().unwrap();
+        match other.0.inner() {
+            OwnedOrRepr::Owned(other) => {
+                todo!()
+                // let idx = other.binary_search_by_key(&rid, |(rid, _)| rid);
+                // match idx {
+                //     Ok(idx) => {
+                // let other_i = other[i];
+                // let self_i =
+                //     todo!("write this cleanly without nesting the binary_search results");
+                //     },
+                // }
+            },
+            OwnedOrRepr::Repr(repr) => {
+                todo!()
+            },
+        }
+        // for (rid, other_i) in other.iter() {}
+        /*
         for (&rid, &other_i) in other.0.iter() {
             match self.0.entry(rid) {
                 Entry::Occupied(mut entry) => {
@@ -60,32 +111,21 @@ impl GCounter {
                 },
             }
         }
+        */
+        todo!()
     }
 }
-#[async_trait]
-impl<S, H> Content<S, H> for GCounter
-where
-    S: Store<Self, H> + Sync,
-    H: ContentHasher,
-{
-    async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error> {
-        let repr = store.get(cid).await?;
-        let self_ = repr.repr_to_owned()?;
-        Ok(self_)
-    }
-    async fn save(&self, store: &S) -> Result<H::Cid, Error> {
-        // TODO: Nix the ownership of `put()` - owning the type seems less likely these days.
-        let cid = store.put(self.clone()).await?;
-        Ok(cid)
+impl<const N: usize, D> Default for GCounter<N, D> {
+    fn default() -> Self {
+        Self(Oor::default())
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore},
-        rstest::*,
-    };
+    use super::*;
+    /*
+    use fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore};
+    use rstest::*;
     #[test]
     fn poc() {
         let mut a = GCounter::default();
@@ -113,4 +153,5 @@ pub mod test {
         let cid = counter.save(&store).await.unwrap();
         assert_eq!(GCounter::load(&store, &cid).await.unwrap(), counter);
     }
+    */
 }

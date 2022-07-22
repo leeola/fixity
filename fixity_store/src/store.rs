@@ -1,41 +1,92 @@
 // pub mod json_store;
 // pub mod rkyv_store;
 
-use {
-    crate::{
-        cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
-        deser::{Deserialize, SerdeJson, Serialize},
-        storage::{self, ContentStorage},
-    },
-    async_trait::async_trait,
-    std::{marker::PhantomData, ops::Deref, sync::Arc},
+use crate::{
+    contentid::{Cid, ContentHasher, ContentId, Hasher, NewContentId, CID_LENGTH},
+    deser::{Deserialize, Serialize},
+    storage::{self, ContentStorage, StorageError},
 };
+use async_trait::async_trait;
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
+use thiserror::Error;
 
-pub type Error = ();
+#[async_trait]
+pub trait NewStore<Deser, Cid: NewContentId>: ContentStorage<Cid> {
+    async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
+    where
+        T: Deserialize<Deser>;
+    async fn put<T>(&self, t: &T) -> Result<Cid, StoreError>
+    where
+        T: Serialize<Deser> + Send + Sync;
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize<Deser> + Send + Sync;
+}
 
 #[async_trait]
 pub trait Store: Send + Sync {
-    type Deser;
+    type Deser: Send + Sync;
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;
-    // TODO: Refactor `put_with_cids` to bubble up, like `save_with_cids`.
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
-    where
-        T: Serialize<Self::Deser> + Send + Sync;
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>;
-    async fn put<T>(&self, t: &T) -> Result<Self::Cid, Error>
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
     where
-        T: Serialize<Self::Deser> + ContainedCids<Self::Cid> + Send + Sync,
+        T: Serialize<Self::Deser> + Send + Sync;
+    async fn put_with_cids<T>(
+        &self,
+        t: &T,
+        cids_buf: &mut Vec<Self::Cid>,
+    ) -> Result<(), StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync;
+}
+#[derive(Error, Debug)]
+pub enum StoreError {
+    #[error("resource not found")]
+    NotFound,
+    #[error("resource not modified")]
+    NotModified,
+    #[error("storage: {0}")]
+    Storage(StorageError),
+}
+impl From<StorageError> for StoreError {
+    fn from(err: StorageError) -> Self {
+        match err {
+            StorageError::NotFound => Self::NotFound,
+            err => Self::Storage(err),
+        }
+    }
+}
+#[async_trait]
+impl<S, U> Store for S
+where
+    S: Deref<Target = U> + Send + Sync,
+    U: Store + Send + Sync,
+{
+    type Deser = U::Deser;
+    type Cid = U::Cid;
+    type Hasher = U::Hasher;
+    type Storage = U::Storage;
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
+    where
+        T: Deserialize<Self::Deser>,
     {
-        let cids = t.contained_cids();
-        self.put_with_cids(t, cids).await
+        self.deref().get(cid).await
+    }
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        self.deref().put(t).await
+    }
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Self::Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        self.deref().put_with_cids(t, cids_buf).await
     }
 }
 // NIT: Name sucks.
@@ -60,29 +111,19 @@ impl<S, D, H> StoreImpl<S, D, H> {
 #[async_trait]
 impl<S, D, H> Store for StoreImpl<S, D, H>
 where
+    // FIXME: ... What? CID_LENGTH stopped working in the const Param here
+    // as of beta-2022-09-20. Need to report this if it's still around
+    // whenever i clean this code up.. something is fishy.
+    S: ContentStorage<Cid<34>>,
     D: Send + Sync,
-    H: ContentHasher<[u8; CID_LENGTH]>,
-    S: ContentStorage<[u8; CID_LENGTH]>,
+    H: ContentHasher<Cid<34>>,
 {
     type Deser = D;
-    type Cid = [u8; CID_LENGTH];
+    type Cid = Cid<CID_LENGTH>;
     type Hasher = H;
     type Storage = S;
 
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        _: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
-    where
-        T: Serialize<Self::Deser> + Send + Sync,
-    {
-        let buf = t.serialize().unwrap();
-        let cid = self.hasher.hash(buf.as_ref());
-        self.storage.write_unchecked(cid, buf).await?;
-        Ok(cid)
-    }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>,
     {
@@ -93,32 +134,24 @@ where
             _d: PhantomData,
         })
     }
-}
-#[async_trait]
-impl<S, U> Store for S
-where
-    S: Deref<Target = U> + Send + Sync,
-    U: Store + Send + Sync,
-{
-    type Deser = U::Deser;
-    type Cid = U::Cid;
-    type Hasher = U::Hasher;
-    type Storage = U::Storage;
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
     where
         T: Serialize<Self::Deser> + Send + Sync,
     {
-        self.deref().put_with_cids(t, contained_cids).await
+        let buf = t.serialize().unwrap();
+        let cid = self.hasher.hash(buf.as_ref());
+        self.storage.write_unchecked(cid.clone(), buf).await?;
+        Ok(cid)
     }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Self::Cid>) -> Result<(), StoreError>
     where
-        T: Deserialize<Self::Deser>,
+        T: Serialize<Self::Deser> + Send + Sync,
     {
-        self.deref().get(cid).await
+        let buf = t.serialize().unwrap();
+        let cid = self.hasher.hash(buf.as_ref());
+        self.storage.write_unchecked(cid.clone(), buf).await?;
+        cids_buf.push(cid);
+        Ok(())
     }
 }
 pub struct Memory<D, H = Hasher>(StoreImpl<storage::Memory, D, H>);
@@ -136,10 +169,8 @@ impl<D, H> Deref for Memory<D, H> {
         &self.0
     }
 }
-pub struct Repr<T, D>
-where
-    T: Deserialize<D>,
-{
+#[derive(Clone, PartialEq, Eq)]
+pub struct Repr<T, D> {
     buf: Arc<[u8]>,
     _t: PhantomData<T>,
     _d: PhantomData<D>,
@@ -148,12 +179,11 @@ impl<T, D> Repr<T, D>
 where
     T: Deserialize<D>,
 {
-    pub fn repr_to_owned(&self) -> Result<T, Error> {
-        dbg!(&self.buf);
+    pub fn repr_to_owned(&self) -> Result<T, StoreError> {
         let value = T::deserialize_owned(self.buf.as_ref()).unwrap();
         Ok(value)
     }
-    pub fn repr_ref(&self) -> Result<T::Ref<'_>, Error> {
+    pub fn repr_ref(&self) -> Result<T::Ref<'_>, StoreError> {
         let value = T::deserialize_ref(self.buf.as_ref()).unwrap();
         Ok(value)
     }
@@ -161,12 +191,10 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::deser::{DeserializeRef, Rkyv},
-        rstest::*,
-        std::fmt::Debug,
-    };
+    use super::*;
+    use crate::deser::{DeserializeRef, Rkyv, SerdeJson};
+    use rstest::*;
+    use std::fmt::Debug;
     #[derive(
         Debug,
         Clone,

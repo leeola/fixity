@@ -1,56 +1,19 @@
 // A hopefully short term unstable feature, since GATs are stablizing soon.
-#![feature(generic_associated_types)]
+pub mod container;
+pub mod contentid;
 pub mod deser;
-
-pub mod cid;
 pub mod meta;
 pub mod storage;
 pub mod store;
-pub mod content {
-    use {
-        crate::{
-            deser::{Deserialize, Serialize},
-            Store,
-        },
-        async_trait::async_trait,
-    };
-    pub type Error = ();
-    #[async_trait]
-    pub trait Content<S>: Sized + Send
-    where
-        S: Store,
-    {
-        async fn load(store: &S, cid: &S::Cid) -> Result<Self, Error>;
-        async fn save(&self, store: &S) -> Result<S::Cid, Error>;
-        async fn save_with_cids(&self, store: &S, cid_buf: &mut Vec<S::Cid>) -> Result<(), Error> {
-            let cid = self.save(store).await?;
-            cid_buf.push(cid);
-            Ok(())
-        }
-    }
-    #[async_trait]
-    impl<T, S> Content<S> for T
-    where
-        S: Store,
-        T: Serialize<S::Deser> + Deserialize<S::Deser> + Send + Sync,
-    {
-        async fn load(store: &S, cid: &S::Cid) -> Result<Self, Error> {
-            let repr = store.get::<Self>(cid).await?;
-            repr.repr_to_owned()
-        }
-        async fn save(&self, store: &S) -> Result<S::Cid, Error> {
-            // store.put
-            todo!()
-        }
-    }
-}
-pub use {
-    cid::ContentHasher,
-    meta::Meta,
-    storage::{ContentStorage, MutStorage},
-    store::Store,
-};
-pub type Error = ();
+pub use contentid::ContentHasher;
+pub mod replicaid;
+pub use meta::Meta;
+pub use storage::{ContentStorage, MutStorage};
+pub use store::Store;
+pub mod content_store;
+pub mod deser_store;
+pub mod mut_store;
+pub mod stores;
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

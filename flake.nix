@@ -21,6 +21,8 @@
         devShell = pkgs.mkShell {
           buildInputs = [
             pkgs.rust-analyzer
+            # using a hardcoded rustfmt version to support nightly rustfmt features.
+            pkgs.rust-bin.nightly."2022-09-20".rustfmt
             rust
             pkgs.pkg-config
             pkgs.binutils

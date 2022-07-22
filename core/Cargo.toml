@@ -15,7 +15,10 @@ deser_json = ["fixity_store/json"]
 
 [dependencies]
 fixity_store = { path = "../fixity_store" }
+fixity_structs = { path = "../structs" }
 async-trait = "0.1"
+thiserror = "1.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1.17", features = ["test-util", "macros"] }

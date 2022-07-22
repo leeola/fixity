@@ -1,49 +1,54 @@
-use super::{ContentStorage, MutStorage, StorageError};
-use crate::contentid::{self, CID_LENGTH};
+use crate::{
+    content_store::{ContentStore, ContentStoreError},
+    contentid::NewContentId,
+    mut_store::{MutStore, MutStoreError},
+};
 use async_trait::async_trait;
 use std::{
     collections::{BTreeMap, HashMap},
-    hash::Hash,
     ops::RangeBounds,
     sync::{Arc, Mutex},
 };
-/// A test focused in-memory only storage.
+
+/// A (currently) test focused in-memory only storage.
 #[derive(Debug)]
-pub struct Memory<Cid = contentid::Cid<CID_LENGTH>> {
-    content: Mutex<HashMap<Cid, Arc<[u8]>>>,
+pub struct Memory<Cid> {
+    // TODO: change to faster concurrency primitives. At
+    // the very least, RwLock instead of Mutex.
+    bytes: Mutex<HashMap<Cid, Arc<[u8]>>>,
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
 #[async_trait]
-impl<Cid> ContentStorage<Cid> for Memory<Cid>
+impl<Cid> ContentStore<Cid> for Memory<Cid>
 where
-    Cid: Hash + Eq + Send + Sync,
+    Cid: NewContentId,
 {
-    type Content = Arc<[u8]>;
-    async fn exists(&self, cid: &Cid) -> Result<bool, StorageError> {
-        Ok(self.content.lock().unwrap().contains_key(cid))
+    type Bytes = Arc<[u8]>;
+    async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError> {
+        Ok(self.bytes.lock().unwrap().contains_key(cid))
     }
-    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, StorageError> {
-        let lock = self.content.lock().unwrap();
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError> {
+        let lock = self.bytes.lock().unwrap();
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), StorageError>
-    where
-        B: Into<Vec<u8>> + Send + 'static,
-    {
-        let mut lock = self.content.lock().unwrap();
-        let bytes = bytes.into();
-        let _ = lock.insert(cid, bytes.into());
+    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError> {
+        let mut lock = self.bytes.lock().unwrap();
+        let _ = lock.insert(cid.clone(), Arc::from(bytes));
         Ok(())
     }
 }
 #[async_trait]
-impl<Cid> MutStorage for Memory<Cid>
+impl<Cid> MutStore for Memory<Cid>
 where
     Cid: Send,
 {
     type Value = Arc<[u8]>;
-    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, StorageError>
+    async fn list<K, D>(
+        &self,
+        prefix: K,
+        delimiter: Option<D>,
+    ) -> Result<Vec<String>, MutStoreError>
     where
         K: AsRef<str> + Send,
         D: AsRef<str> + Send,
@@ -58,8 +63,8 @@ where
                 // fail on saturation, rollover, etc. This area is just a bit weird.
                 let after_delimiter =
                     char::from_u32(last_delim_char as u32 + 1).ok_or_else(|| {
-                        StorageError::InvalidInput {
-                            message: Box::from("failed to page delim char"),
+                        MutStoreError::InvalidInput {
+                            message: String::from("failed to page delim char"),
                         }
                     })?;
                 let mut matches = Vec::new();
@@ -85,15 +90,15 @@ where
             .collect::<Vec<_>>();
         Ok(matches)
     }
-    async fn get<K>(&self, key: K) -> Result<Self::Value, StorageError>
+    async fn get<K>(&self, key: K) -> Result<Self::Value, MutStoreError>
     where
         K: AsRef<str> + Send,
     {
         let lock = self.mut_.lock().unwrap();
-        let buf = lock.get(key.as_ref()).ok_or(StorageError::NotFound)?;
+        let buf = lock.get(key.as_ref()).ok_or(MutStoreError::NotFound)?;
         Ok(Arc::clone(&buf))
     }
-    async fn put<K, V>(&self, key: K, value: V) -> Result<(), StorageError>
+    async fn put<K, V>(&self, key: K, value: V) -> Result<(), MutStoreError>
     where
         K: AsRef<str> + Into<String> + Send,
         V: AsRef<[u8]> + Into<Vec<u8>> + Send,
@@ -106,7 +111,7 @@ where
 impl<C> Default for Memory<C> {
     fn default() -> Self {
         Self {
-            content: Default::default(),
+            bytes: Default::default(),
             mut_: Default::default(),
         }
     }
