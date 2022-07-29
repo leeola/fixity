@@ -24,10 +24,19 @@ impl<M, S, T> Repo<M, S, T> {
         todo!()
     }
 }
+// TODO: figure out how the Containers get access to meta/store/HEAD tracking.
+// A: Maybe none needed? Repo creates the instance of T from a `Container::new(head)`
+// and due to it being a replica, everything is safe after.
+// Q: How does the Container update the head?
+// Q2: Is there a difference between root interface and child content interfaces?
+//     The root needs to update a pointer, the rest just write.
+// A: Try wrapping the inner `T` and `Defer/Mut` into it. Then `Replica::commit()` will
+// write it, and then update the pointer.
+// That also lets us track mut and do nothing if it was never mutated.
 pub struct RepoReplica<Meta, Store, T, Rid> {
     meta: Arc<Meta>,
     store: Arc<Store>,
-    _t: PhantomData<T>,
+    t: PhantomData<T>,
     replica_id: Rid,
 }
 pub mod api_drafting {
@@ -41,8 +50,8 @@ pub mod api_drafting {
         foo: Foo<T>,
     }
     trait ContentContainer {
-        type WrittenType; // :Deser bound,
-        fn get_mut(&mut self, ptr_mut_register: ()) -> &mut Self;
+        type DeserType; // :Deser bound,
+        fn write(&mut self, store: ()) -> ();
     }
     // IDEA: maybe track loaded ptrs with hierarchy so that a centralized location
     // can write them in reverse order, efficiently.
@@ -56,6 +65,7 @@ pub mod api_drafting {
             // children: Vec<Ptr<U>>, // !?
         },
         Mut {
+            previous_cid: (),
             value: T,
         },
     }
