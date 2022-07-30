@@ -1,6 +1,10 @@
 use async_trait::async_trait;
-use fixity_store::{Meta, Store};
-use std::{marker::PhantomData, ops::Deref, sync::Arc};
+use fixity_store::{container::Container, Meta, Store};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 pub struct Fixity<Meta, Store> {
     meta: Arc<Meta>,
@@ -19,8 +23,12 @@ pub struct Repo<Meta, Store, T> {
     store: Arc<Store>,
     _t: PhantomData<T>,
 }
-impl<M, S, T> Repo<M, S, T> {
-    pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Self {
+impl<M, S, T> Repo<M, S, T>
+where
+    S: Store,
+    T: Container<S>,
+{
+    pub async fn open<R>(meta: Arc<M>, store: Arc<S>, repo: &str) -> Self {
         todo!()
     }
 }
@@ -33,11 +41,27 @@ impl<M, S, T> Repo<M, S, T> {
 // A: Try wrapping the inner `T` and `Defer/Mut` into it. Then `Replica::commit()` will
 // write it, and then update the pointer.
 // That also lets us track mut and do nothing if it was never mutated.
-pub struct RepoReplica<Meta, Store, T, Rid> {
+pub struct RepoReplica<Meta, Store, Rid, T> {
     meta: Arc<Meta>,
     store: Arc<Store>,
-    t: PhantomData<T>,
     replica_id: Rid,
+    value: T,
+}
+impl<M, S, R, T> RepoReplica<M, S, R, T> {
+    pub async fn open(meta: Arc<M>, store: Arc<S>, replica: R) -> Self {
+        todo!()
+    }
+}
+impl<M, S, R, T> Deref for RepoReplica<M, S, R, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+impl<M, S, R, T> DerefMut for RepoReplica<M, S, R, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
 }
 pub mod api_drafting {
     use async_trait::async_trait;

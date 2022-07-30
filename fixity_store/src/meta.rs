@@ -1,4 +1,6 @@
-use {super::Error, crate::storage::MutStorage, async_trait::async_trait};
+use super::Error;
+use crate::storage::MutStorage;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait Meta<Rid, Cid>: Send + Sync
@@ -21,23 +23,9 @@ where
         &self,
         remote: &str,
         repo: &str,
+        branch: &str,
         replica: Rid,
         head: Cid,
-    ) -> Result<(), Error>;
-    async fn detatch_head(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        head: Cid,
-    ) -> Result<(), Error>;
-    async fn append_log(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        head: Cid,
-        message: &str,
     ) -> Result<(), Error>;
     async fn logs(
         &self,
@@ -90,27 +78,9 @@ where
         &self,
         remote: &str,
         repo: &str,
+        branch: &str,
         replica: Rid,
         head: Cid,
-    ) -> Result<(), Error> {
-        todo!()
-    }
-    async fn detatch_head(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        head: Cid,
-    ) -> Result<(), Error> {
-        todo!()
-    }
-    async fn append_log(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        head: Cid,
-        message: &str,
     ) -> Result<(), Error> {
         todo!()
     }
@@ -124,4 +94,9 @@ where
     ) -> Result<Vec<Log<Rid, Cid>>, Error> {
         todo!()
     }
+}
+#[cfg(test)]
+pub mod meta_mut_storage {
+    #[tokio::test]
+    async fn repos() {}
 }

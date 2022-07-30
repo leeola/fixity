@@ -13,6 +13,7 @@ json = ["serde_json", "serde"]
 fixity_types = { path = "../types" }
 async-trait = "0.1"
 multihash = "0.16"
+multibase = "0.9"
 # Feature: rkyv
 rkyv = { version = "0.7", optional = true } 
 # Feature: json

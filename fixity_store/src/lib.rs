@@ -3,43 +3,10 @@
 pub mod deser;
 
 pub mod cid;
+pub mod container;
 pub mod meta;
 pub mod storage;
 pub mod store;
-pub mod content {
-    use crate::{
-        deser::{Deserialize, Serialize},
-        Store,
-    };
-    use async_trait::async_trait;
-    pub type Error = ();
-    #[async_trait]
-    pub trait Container<S>: Sized + Send
-    where
-        S: Store,
-    {
-        // async fn type() -> TypeSig;
-        // async fn serialized_type() -> TypeSig;
-        async fn open(store: &S, cid: &S::Cid) -> Result<Self, Error>;
-        async fn save(&self, store: &S) -> Result<S::Cid, Error>;
-        async fn save_with_cids(&self, store: &S, cid_buf: &mut Vec<S::Cid>) -> Result<(), Error>;
-    }
-    // #[async_trait]
-    // impl<T, S> Content<S> for T
-    // where
-    //     S: Store,
-    //     T: Serialize<S::Deser> + Deserialize<S::Deser> + Send + Sync,
-    // {
-    //     async fn load(store: &S, cid: &S::Cid) -> Result<Self, Error> {
-    //         let repr = store.get::<Self>(cid).await?;
-    //         repr.repr_to_owned()
-    //     }
-    //     async fn save(&self, store: &S) -> Result<S::Cid, Error> {
-    //         // store.put
-    //         todo!()
-    //     }
-    // }
-}
 pub use cid::ContentHasher;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
