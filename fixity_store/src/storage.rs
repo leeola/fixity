@@ -1,9 +1,7 @@
 pub mod memory;
+use async_trait::async_trait;
 pub use memory::Memory;
-use {
-    async_trait::async_trait,
-    std::{str, sync::Arc},
-};
+use std::{str, sync::Arc};
 type Error = ();
 #[async_trait]
 pub trait ContentStorage<Cid>: Send + Sync
@@ -34,11 +32,9 @@ pub trait MutStorage: Send + Sync {
         V: AsRef<[u8]> + Into<Vec<u8>> + Send;
 }
 #[cfg(test)]
-pub mod testz {
-    use {
-        super::{memory::Memory, MutStorage},
-        rstest::*,
-    };
+pub mod test {
+    use super::{memory::Memory, MutStorage};
+    use rstest::*;
     #[rstest]
     #[case::test_storage(Memory::<()>::default())]
     #[tokio::test]

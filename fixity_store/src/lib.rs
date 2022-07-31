@@ -8,6 +8,7 @@ pub mod meta;
 pub mod storage;
 pub mod store;
 pub use cid::ContentHasher;
+pub mod rid;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
