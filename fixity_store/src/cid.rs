@@ -12,12 +12,13 @@ pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> {
         self.as_ref()
     }
 }
-impl ContentId for [u8; CID_LENGTH] {
+impl<const N: usize> ContentId for [u8; N] {
     fn from_hash(hash: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(hash).map_err(|_| ())
     }
     fn len(&self) -> usize {
-        CID_LENGTH
+        0
+        // Self::len(self)
     }
 }
 pub trait ContainedCids<Cid: ContentId> {

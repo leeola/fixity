@@ -130,6 +130,28 @@ where
 }
 #[cfg(test)]
 pub mod meta_mut_storage {
+    use crate::{cid::CID_LENGTH, storage::Memory, Meta, MutStorage};
+    use std::sync::Arc;
+
+    use rstest::*;
+    #[rstest]
+    #[case::test_storage(Memory::<[u8; 4]>::default())]
     #[tokio::test]
-    async fn repos() {}
+    async fn basic<S: Meta<[u8; 4], [u8; 4]>>(#[case] s: S) {
+        let rid = [1u8; 4];
+        s.set_head("remote", "repo", "brancha", rid, [2u8; 4])
+            .await
+            .unwrap();
+        s.set_head("remote", "repo", "branchb", rid, [3u8; 4])
+            .await
+            .unwrap();
+        assert_eq!(
+            s.head("remote", "repo", "brancha", &rid).await.unwrap(),
+            [2u8; 4],
+        );
+        assert_eq!(
+            s.head("remote", "repo", "branchb", &rid).await.unwrap(),
+            [3u8; 4],
+        );
+    }
 }
