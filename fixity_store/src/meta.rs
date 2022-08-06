@@ -62,11 +62,11 @@ where
     Rid: ReplicaId + 'static,
     Cid: ContentId + 'static,
 {
-    async fn repos(&self, _remote: &str) -> Result<Vec<String>, Error> {
-        todo!()
+    async fn repos(&self, remote: &str) -> Result<Vec<String>, Error> {
+        list_dirs(self, format!("{remote}/")).await
     }
-    async fn branches(&self, _remote: &str, _repo: &str) -> Result<Vec<String>, Error> {
-        todo!()
+    async fn branches(&self, remote: &str, repo: &str) -> Result<Vec<String>, Error> {
+        list_dirs(self, format!("{remote}/{repo}/")).await
     }
     async fn heads(
         &self,
@@ -75,13 +75,13 @@ where
         branch: &str,
     ) -> Result<Vec<(Rid, Cid)>, Error> {
         let branch_path = format!("{remote}/{repo}/{branch}/");
-        let paths = self.list(&branch_path).await?;
+        let paths = self.list::<_, &str>(&branch_path, None).await?;
         let mut items = Vec::new();
         for path in paths {
-            let replica_path = path.strip_prefix(&branch_path).unwrap();
-            let (_, rid_bytes) = multibase::decode(&replica_path).map_err(|_| ())?;
+            let encoded_rid = path.strip_prefix(&branch_path).unwrap();
+            let (_, rid_bytes) = multibase::decode(&encoded_rid).map_err(|_| ())?;
             let rid = Rid::from_hash(rid_bytes)?;
-            let cid_value = self.get(replica_path).await?;
+            let cid_value = self.get(&path).await?;
             let encoded_cid = std::str::from_utf8(cid_value.as_ref()).map_err(|_| ())?;
             let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|_| ())?;
             let head = Cid::from_hash(head_bytes)?;
@@ -128,30 +128,57 @@ where
         todo!()
     }
 }
+async fn list_dirs<S: MutStorage>(storage: &S, base_path: String) -> Result<Vec<String>, Error> {
+    let paths = storage.list::<_, &str>(&base_path, Some("/")).await?;
+    let dirs = paths
+        .into_iter()
+        .filter_map(|path| {
+            // silently dropping items in the repo that may not be great, but we can't
+            // fail either since users could make the repo dirty. So in general, ignore.
+            let mut dir = path.strip_prefix(&base_path)?.to_owned();
+            // each dir ends in a delim, so drop it.
+            let _ = dir.pop();
+            Some(dir)
+        })
+        .collect::<Vec<_>>();
+    Ok(dirs)
+}
 #[cfg(test)]
 pub mod meta_mut_storage {
-    use crate::{cid::CID_LENGTH, storage::Memory, Meta, MutStorage};
-    use std::sync::Arc;
+    use crate::{storage::Memory, Meta};
 
     use rstest::*;
     #[rstest]
     #[case::test_storage(Memory::<[u8; 4]>::default())]
     #[tokio::test]
     async fn basic<S: Meta<[u8; 4], [u8; 4]>>(#[case] s: S) {
-        let rid = [1u8; 4];
-        s.set_head("remote", "repo", "brancha", rid, [2u8; 4])
+        let rida = [10u8; 4];
+        let ridb = [20u8; 4];
+        s.set_head("remote", "repo", "branch", rida, [1u8; 4])
             .await
             .unwrap();
-        s.set_head("remote", "repo", "branchb", rid, [3u8; 4])
+        s.set_head("remote", "repo", "branch", ridb, [2u8; 4])
             .await
             .unwrap();
         assert_eq!(
-            s.head("remote", "repo", "brancha", &rid).await.unwrap(),
+            s.head("remote", "repo", "branch", &rida).await.unwrap(),
+            [1u8; 4],
+        );
+        assert_eq!(
+            s.head("remote", "repo", "branch", &ridb).await.unwrap(),
             [2u8; 4],
         );
         assert_eq!(
-            s.head("remote", "repo", "branchb", &rid).await.unwrap(),
-            [3u8; 4],
+            s.heads("remote", "repo", "branch").await.unwrap(),
+            vec![([10u8; 4], [1u8; 4]), ([20u8; 4], [2u8; 4])],
         );
+        s.set_head("remote", "repo", "foo", ridb, [2u8; 4])
+            .await
+            .unwrap();
+        assert_eq!(
+            s.branches("remote", "repo").await.unwrap(),
+            vec!["branch", "foo"]
+        );
+        assert_eq!(s.repos("remote").await.unwrap(), vec!["repo"]);
     }
 }

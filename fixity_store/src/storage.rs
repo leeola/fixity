@@ -20,9 +20,10 @@ where
 #[async_trait]
 pub trait MutStorage: Send + Sync {
     type Value: AsRef<[u8]> + Into<Arc<[u8]>>;
-    async fn list<K>(&self, prefix: K) -> Result<Vec<String>, Error>
+    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, Error>
     where
-        K: AsRef<str> + Send;
+        K: AsRef<str> + Send,
+        D: AsRef<str> + Send;
     async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
     where
         K: AsRef<str> + Send;
@@ -31,6 +32,7 @@ pub trait MutStorage: Send + Sync {
         K: AsRef<str> + Into<String> + Send,
         V: AsRef<[u8]> + Into<Vec<u8>> + Send;
 }
+// pub struct Path {
 #[cfg(test)]
 pub mod test {
     use super::{memory::Memory, MutStorage};
@@ -44,9 +46,9 @@ pub mod test {
         m.put("foo/bar", "boo").await.unwrap();
         m.put("zaz", "zoinks").await.unwrap();
         assert_eq!(
-            m.list("foo").await.unwrap(),
+            m.list::<_, &str>("foo", None).await.unwrap(),
             vec!["foo".to_string(), "foo/bar".to_string()]
         );
-        assert!(m.list("b").await.unwrap().is_empty());
+        assert!(m.list::<_, &str>("b", None).await.unwrap().is_empty());
     }
 }
