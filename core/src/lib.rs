@@ -1,35 +1,66 @@
 use async_trait::async_trait;
-use fixity_store::{container::Container, Meta, Store};
+use fixity_store::{
+    cid::Hasher,
+    container::Container,
+    deser::Rkyv,
+    storage,
+    store::{self, StoreImpl},
+    Meta, Store,
+};
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
-
+pub type Error = ();
+type Rid = [u8; 8];
 pub struct Fixity<Meta, Store> {
     meta: Arc<Meta>,
     store: Arc<Store>,
 }
-impl<M, S> Fixity<M, S> {
+impl<M, S> Fixity<M, S>
+where
+    S: Store,
+    M: Meta<Rid, S::Cid>,
+{
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
     }
-    pub async fn open<T>(&self, repo: &str) -> Repo<M, S, T> {
-        todo!()
+    pub async fn open<T: Container<S>>(&self, repo: &str) -> Result<Repo<M, S, T>, Error> {
+        // TODO: check stored repo type. Meta doesn't store
+        // repo signature yet.
+        Repo::<M, S, T>::open(Arc::clone(&self.meta), Arc::clone(&self.store), repo).await
+    }
+}
+type MemStorage = storage::Memory;
+type MemStore = store::StoreImpl<MemStorage, Rkyv, Hasher>;
+type MemFixity = Fixity<Arc<MemStorage>, Arc<MemStore>>;
+impl MemFixity {
+    pub fn memory() -> MemFixity {
+        let storage = Arc::new(storage::Memory::default());
+        // let store: MemStore = Arc::new(StoreImpl::new(Arc::clone(&storage)));
+        let store = Arc::new(StoreImpl::new(storage::Memory::default()));
+        MemFixity::new(storage, store)
     }
 }
 pub struct Repo<Meta, Store, T> {
+    repo: String,
     meta: Arc<Meta>,
     store: Arc<Store>,
-    _t: PhantomData<T>,
+    _phantom_t: PhantomData<T>,
 }
 impl<M, S, T> Repo<M, S, T>
 where
     S: Store,
     T: Container<S>,
 {
-    pub async fn open<R>(meta: Arc<M>, store: Arc<S>, repo: &str) -> Self {
-        todo!()
+    pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Result<Self, Error> {
+        Ok(Repo {
+            repo: repo.to_string(),
+            meta,
+            store,
+            _phantom_t: PhantomData,
+        })
     }
 }
 // TODO: figure out how the Containers get access to meta/store/HEAD tracking.
@@ -123,13 +154,11 @@ pub mod api_drafting_3 {
         weak_ptrs: HashMap<Cid, Ptr<T>>,
     }
 }
+#[cfg(test)]
 #[tokio::test]
 async fn wip() {
     use fixity_store::{cid::Hasher, deser::Rkyv, store::Memory};
     let fixi = {
-        let mem = Arc::new(Memory::<Rkyv, Hasher>::new());
-        let repo = Fixity::new(Arc::clone(&mem), mem)
-            .open::<String>("foo")
-            .await;
+        // let repo = Fixity::memory().open::<String>("foo").await.unwrap();
     };
 }

@@ -28,6 +28,13 @@ where
         replica: Rid,
         head: Cid,
     ) -> Result<(), Error>;
+    async fn append_log<S: Into<String> + Send>(
+        &self,
+        remote: &str,
+        repo: &str,
+        replica: Rid,
+        message: S,
+    ) -> Result<Vec<Log<Rid, Cid>>, Error>;
     async fn logs(
         &self,
         remote: &str,
@@ -116,6 +123,15 @@ where
         let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_bytes());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         self.put(path, head).await
+    }
+    async fn append_log<S: Into<String> + Send>(
+        &self,
+        _remote: &str,
+        _repo: &str,
+        _replica: Rid,
+        _message: S,
+    ) -> Result<Vec<Log<Rid, Cid>>, Error> {
+        todo!()
     }
     async fn logs(
         &self,
