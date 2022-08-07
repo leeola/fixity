@@ -1,7 +1,9 @@
 pub mod memory;
+pub mod mut_storage;
 use async_trait::async_trait;
 pub use memory::Memory;
-use std::{str, sync::Arc};
+pub use mut_storage::MutStorage;
+use std::{ops::Deref, str, sync::Arc};
 type Error = ();
 #[async_trait]
 pub trait ContentStorage<Cid>: Send + Sync
@@ -18,37 +20,23 @@ where
         B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
 }
 #[async_trait]
-pub trait MutStorage: Send + Sync {
-    type Value: AsRef<[u8]> + Into<Arc<[u8]>>;
-    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, Error>
+impl<T, U, Cid> ContentStorage<Cid> for T
+where
+    Cid: Send + Sync + 'static,
+    T: Deref<Target = U> + Send + Sync,
+    U: ContentStorage<Cid>,
+{
+    type Content = U::Content;
+    async fn exists(&self, cid: &Cid) -> Result<bool, Error> {
+        self.deref().exists(cid).await
+    }
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, Error> {
+        self.deref().read_unchecked(cid).await
+    }
+    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), Error>
     where
-        K: AsRef<str> + Send,
-        D: AsRef<str> + Send;
-    async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
-    where
-        K: AsRef<str> + Send;
-    async fn put<K, V>(&self, key: K, value: V) -> Result<(), Error>
-    where
-        K: AsRef<str> + Into<String> + Send,
-        V: AsRef<[u8]> + Into<Vec<u8>> + Send;
-}
-// pub struct Path {
-#[cfg(test)]
-pub mod test {
-    use super::{memory::Memory, MutStorage};
-    use rstest::*;
-    #[rstest]
-    #[case::test_storage(Memory::<()>::default())]
-    #[tokio::test]
-    async fn mut_storage<M: MutStorage>(#[case] m: M) {
-        m.put("foo", "bar").await.unwrap();
-        assert_eq!(m.get("foo").await.unwrap().as_ref(), b"bar");
-        m.put("foo/bar", "boo").await.unwrap();
-        m.put("zaz", "zoinks").await.unwrap();
-        assert_eq!(
-            m.list::<_, &str>("foo", None).await.unwrap(),
-            vec!["foo".to_string(), "foo/bar".to_string()]
-        );
-        assert!(m.list::<_, &str>("b", None).await.unwrap().is_empty());
+        B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static,
+    {
+        self.deref().write_unchecked(cid, bytes).await
     }
 }

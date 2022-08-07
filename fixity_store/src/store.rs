@@ -1,15 +1,13 @@
 // pub mod json_store;
 // pub mod rkyv_store;
 
-use {
-    crate::{
-        cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
-        deser::{Deserialize, SerdeJson, Serialize},
-        storage::{self, ContentStorage},
-    },
-    async_trait::async_trait,
-    std::{marker::PhantomData, ops::Deref, sync::Arc},
+use crate::{
+    cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
+    deser::{Deserialize, SerdeJson, Serialize},
+    storage::{self, ContentStorage},
 };
+use async_trait::async_trait;
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 pub type Error = ();
 
@@ -38,6 +36,33 @@ pub trait Store: Send + Sync {
         self.put_with_cids(t, cids).await
     }
 }
+#[async_trait]
+impl<S, U> Store for S
+where
+    S: Deref<Target = U> + Send + Sync,
+    U: Store + Send + Sync,
+{
+    type Deser = U::Deser;
+    type Cid = U::Cid;
+    type Hasher = U::Hasher;
+    type Storage = U::Storage;
+    async fn put_with_cids<'a, T>(
+        &self,
+        t: &'a T,
+        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
+    ) -> Result<Self::Cid, Error>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        self.deref().put_with_cids(t, contained_cids).await
+    }
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    where
+        T: Deserialize<Self::Deser>,
+    {
+        self.deref().get(cid).await
+    }
+}
 // NIT: Name sucks.
 #[derive(Default)]
 pub struct StoreImpl<Storage, Deser, Hasher> {
@@ -60,9 +85,9 @@ impl<S, D, H> StoreImpl<S, D, H> {
 #[async_trait]
 impl<S, D, H> Store for StoreImpl<S, D, H>
 where
+    S: ContentStorage<[u8; CID_LENGTH]>,
     D: Send + Sync,
     H: ContentHasher<[u8; CID_LENGTH]>,
-    S: ContentStorage<[u8; CID_LENGTH]>,
 {
     type Deser = D;
     type Cid = [u8; CID_LENGTH];
@@ -92,33 +117,6 @@ where
             _t: PhantomData,
             _d: PhantomData,
         })
-    }
-}
-#[async_trait]
-impl<S, U> Store for S
-where
-    S: Deref<Target = U> + Send + Sync,
-    U: Store + Send + Sync,
-{
-    type Deser = U::Deser;
-    type Cid = U::Cid;
-    type Hasher = U::Hasher;
-    type Storage = U::Storage;
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
-    where
-        T: Serialize<Self::Deser> + Send + Sync,
-    {
-        self.deref().put_with_cids(t, contained_cids).await
-    }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
-    where
-        T: Deserialize<Self::Deser>,
-    {
-        self.deref().get(cid).await
     }
 }
 pub struct Memory<D, H = Hasher>(StoreImpl<storage::Memory, D, H>);
@@ -161,12 +159,10 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        crate::deser::{DeserializeRef, Rkyv},
-        rstest::*,
-        std::fmt::Debug,
-    };
+    use super::*;
+    use crate::deser::{DeserializeRef, Rkyv};
+    use rstest::*;
+    use std::fmt::Debug;
     #[derive(
         Debug,
         Clone,

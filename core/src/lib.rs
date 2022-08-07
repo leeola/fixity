@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use fixity_store::{
-    cid::Hasher,
+    cid::{Hasher, CID_LENGTH},
     container::Container,
     deser::Rkyv,
     storage,
@@ -32,14 +32,14 @@ where
         Repo::<M, S, T>::open(Arc::clone(&self.meta), Arc::clone(&self.store), repo).await
     }
 }
+// Some type aliases for simplicity.
 type MemStorage = storage::Memory;
-type MemStore = store::StoreImpl<MemStorage, Rkyv, Hasher>;
-type MemFixity = Fixity<Arc<MemStorage>, Arc<MemStore>>;
+type MemStore = store::StoreImpl<Arc<MemStorage>, Rkyv, Hasher>;
+type MemFixity = Fixity<MemStorage, MemStore>;
 impl MemFixity {
     pub fn memory() -> MemFixity {
         let storage = Arc::new(storage::Memory::default());
-        // let store: MemStore = Arc::new(StoreImpl::new(Arc::clone(&storage)));
-        let store = Arc::new(StoreImpl::new(storage::Memory::default()));
+        let store = Arc::new(StoreImpl::new(Arc::clone(&storage)));
         MemFixity::new(storage, store)
     }
 }
@@ -158,7 +158,5 @@ pub mod api_drafting_3 {
 #[tokio::test]
 async fn wip() {
     use fixity_store::{cid::Hasher, deser::Rkyv, store::Memory};
-    let fixi = {
-        // let repo = Fixity::memory().open::<String>("foo").await.unwrap();
-    };
+    let repo = Fixity::memory().open::<String>("foo").await.unwrap();
 }
