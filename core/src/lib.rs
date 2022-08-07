@@ -13,7 +13,6 @@ use std::{
     sync::Arc,
 };
 pub type Error = ();
-type Rid = [u8; 8];
 pub struct Fixity<Meta, Store> {
     meta: Arc<Meta>,
     store: Arc<Store>,
@@ -21,7 +20,7 @@ pub struct Fixity<Meta, Store> {
 impl<M, S> Fixity<M, S>
 where
     S: Store,
-    M: Meta<Rid, S::Cid>,
+    M: Meta<S::Cid>,
 {
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
@@ -52,6 +51,7 @@ pub struct Repo<Meta, Store, T> {
 impl<M, S, T> Repo<M, S, T>
 where
     S: Store,
+    M: Meta<S::Cid>,
     T: Container<S>,
 {
     pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Result<Self, Error> {
@@ -62,8 +62,19 @@ where
             _phantom_t: PhantomData,
         })
     }
-    pub async fn branch(&self, branch: &str) -> Result<RepoReplica<M, S, (), T>, Error> {
-        todo!()
+    pub async fn branch(
+        &self,
+        branch: &str,
+        replica: M::Rid,
+    ) -> Result<RepoReplica<M, S, T>, Error> {
+        RepoReplica::open(
+            Arc::clone(&self.meta),
+            Arc::clone(&self.store),
+            &self.repo,
+            branch,
+            replica,
+        )
+        .await
     }
 }
 // TODO: figure out how the Containers get access to meta/store/HEAD tracking.
@@ -75,26 +86,48 @@ where
 // A: Try wrapping the inner `T` and `Defer/Mut` into it. Then `Replica::commit()` will
 // write it, and then update the pointer.
 // That also lets us track mut and do nothing if it was never mutated.
-pub struct RepoReplica<Meta, Store, Rid, T> {
-    meta: Arc<Meta>,
-    store: Arc<Store>,
+pub struct RepoReplica<M, S, T>
+where
+    S: Store,
+    M: Meta<S::Cid>,
+{
+    meta: Arc<M>,
+    store: Arc<S>,
     repo: Box<str>,
     branch: Box<str>,
-    replica_id: Rid,
+    replica_id: M::Rid,
     value: T,
 }
-impl<M, S, R, T> RepoReplica<M, S, R, T> {
-    pub async fn open(meta: Arc<M>, store: Arc<S>, replica: R, branch: &str) -> Self {
+impl<M, S, T> RepoReplica<M, S, T>
+where
+    S: Store,
+    M: Meta<S::Cid>,
+{
+    pub async fn open(
+        meta: Arc<M>,
+        store: Arc<S>,
+        repo: &str,
+        branch: &str,
+        replica: M::Rid,
+    ) -> Result<Self, Error> {
         todo!()
     }
 }
-impl<M, S, R, T> Deref for RepoReplica<M, S, R, T> {
+impl<M, S, T> Deref for RepoReplica<M, S, T>
+where
+    S: Store,
+    M: Meta<S::Cid>,
+{
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.value
     }
 }
-impl<M, S, R, T> DerefMut for RepoReplica<M, S, R, T> {
+impl<M, S, T> DerefMut for RepoReplica<M, S, T>
+where
+    S: Store,
+    M: Meta<S::Cid>,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.value
     }
