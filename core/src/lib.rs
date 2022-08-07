@@ -44,9 +44,9 @@ impl MemFixity {
     }
 }
 pub struct Repo<Meta, Store, T> {
-    repo: String,
     meta: Arc<Meta>,
     store: Arc<Store>,
+    repo: Box<str>,
     _phantom_t: PhantomData<T>,
 }
 impl<M, S, T> Repo<M, S, T>
@@ -56,11 +56,14 @@ where
 {
     pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Result<Self, Error> {
         Ok(Repo {
-            repo: repo.to_string(),
+            repo: Box::from(repo),
             meta,
             store,
             _phantom_t: PhantomData,
         })
+    }
+    pub async fn branch(&self, branch: &str) -> Result<RepoReplica<M, S, (), T>, Error> {
+        todo!()
     }
 }
 // TODO: figure out how the Containers get access to meta/store/HEAD tracking.
@@ -75,11 +78,13 @@ where
 pub struct RepoReplica<Meta, Store, Rid, T> {
     meta: Arc<Meta>,
     store: Arc<Store>,
+    repo: Box<str>,
+    branch: Box<str>,
     replica_id: Rid,
     value: T,
 }
 impl<M, S, R, T> RepoReplica<M, S, R, T> {
-    pub async fn open(meta: Arc<M>, store: Arc<S>, replica: R) -> Self {
+    pub async fn open(meta: Arc<M>, store: Arc<S>, replica: R, branch: &str) -> Self {
         todo!()
     }
 }
