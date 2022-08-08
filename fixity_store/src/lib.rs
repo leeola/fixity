@@ -12,7 +12,7 @@ pub mod rid;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
-pub type Error = ();
+use thiserror::Error;
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

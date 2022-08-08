@@ -4,12 +4,19 @@
 use crate::{
     cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
     deser::{Deserialize, SerdeJson, Serialize},
-    storage::{self, ContentStorage},
+    storage::{self, ContentStorage, StorageError},
 };
 use async_trait::async_trait;
 use std::{marker::PhantomData, ops::Deref, sync::Arc};
+use thiserror::Error;
 
-pub type Error = ();
+#[derive(Error, Debug)]
+pub enum StoreError {
+    #[error("resource not found")]
+    NotFound,
+    #[error("storage: {0}")]
+    Storage(#[from] StorageError),
+}
 
 #[async_trait]
 pub trait Store: Send + Sync {
@@ -22,13 +29,13 @@ pub trait Store: Send + Sync {
         &self,
         t: &'a T,
         contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
+    ) -> Result<Self::Cid, StoreError>
     where
         T: Serialize<Self::Deser> + Send + Sync;
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>;
-    async fn put<T>(&self, t: &T) -> Result<Self::Cid, Error>
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
     where
         T: Serialize<Self::Deser> + ContainedCids<Self::Cid> + Send + Sync,
     {
@@ -50,13 +57,13 @@ where
         &self,
         t: &'a T,
         contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
+    ) -> Result<Self::Cid, StoreError>
     where
         T: Serialize<Self::Deser> + Send + Sync,
     {
         self.deref().put_with_cids(t, contained_cids).await
     }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>,
     {
@@ -98,7 +105,7 @@ where
         &self,
         t: &'a T,
         _: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, Error>
+    ) -> Result<Self::Cid, StoreError>
     where
         T: Serialize<Self::Deser> + Send + Sync,
     {
@@ -107,7 +114,7 @@ where
         self.storage.write_unchecked(cid, buf).await?;
         Ok(cid)
     }
-    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, Error>
+    async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>,
     {
@@ -146,12 +153,12 @@ impl<T, D> Repr<T, D>
 where
     T: Deserialize<D>,
 {
-    pub fn repr_to_owned(&self) -> Result<T, Error> {
+    pub fn repr_to_owned(&self) -> Result<T, StoreError> {
         dbg!(&self.buf);
         let value = T::deserialize_owned(self.buf.as_ref()).unwrap();
         Ok(value)
     }
-    pub fn repr_ref(&self) -> Result<T::Ref<'_>, Error> {
+    pub fn repr_ref(&self) -> Result<T::Ref<'_>, StoreError> {
         let value = T::deserialize_ref(self.buf.as_ref()).unwrap();
         Ok(value)
     }

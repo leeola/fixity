@@ -1,18 +1,22 @@
-use super::Error;
+use super::StorageError;
 use async_trait::async_trait;
 use std::{ops::Deref, sync::Arc};
 
 #[async_trait]
 pub trait MutStorage: Send + Sync {
     type Value: AsRef<[u8]> + Into<Arc<[u8]>>;
-    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, Error>
+    async fn list<K, D>(
+        &self,
+        prefix: K,
+        delimiter: Option<D>,
+    ) -> Result<Vec<String>, StorageError>
     where
         K: AsRef<str> + Send,
         D: AsRef<str> + Send;
-    async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
+    async fn get<K>(&self, key: K) -> Result<Self::Value, StorageError>
     where
         K: AsRef<str> + Send;
-    async fn put<K, V>(&self, key: K, value: V) -> Result<(), Error>
+    async fn put<K, V>(&self, key: K, value: V) -> Result<(), StorageError>
     where
         K: AsRef<str> + Into<String> + Send,
         V: AsRef<[u8]> + Into<Vec<u8>> + Send;
@@ -24,20 +28,20 @@ where
     U: MutStorage,
 {
     type Value = U::Value;
-    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, Error>
+    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, StorageError>
     where
         K: AsRef<str> + Send,
         D: AsRef<str> + Send,
     {
         self.deref().list(prefix, delimiter).await
     }
-    async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
+    async fn get<K>(&self, key: K) -> Result<Self::Value, StorageError>
     where
         K: AsRef<str> + Send,
     {
         self.deref().get(key).await
     }
-    async fn put<K, V>(&self, key: K, value: V) -> Result<(), Error>
+    async fn put<K, V>(&self, key: K, value: V) -> Result<(), StorageError>
     where
         K: AsRef<str> + Into<String> + Send,
         V: AsRef<[u8]> + Into<Vec<u8>> + Send,

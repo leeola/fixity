@@ -1,4 +1,4 @@
-use super::{ContentStorage, Error, MutStorage};
+use super::{ContentStorage, MutStorage, StorageError};
 use crate::cid::CID_LENGTH;
 use async_trait::async_trait;
 use std::{
@@ -19,15 +19,15 @@ where
     Cid: Hash + Eq + Send + Sync,
 {
     type Content = Arc<[u8]>;
-    async fn exists(&self, cid: &Cid) -> Result<bool, Error> {
+    async fn exists(&self, cid: &Cid) -> Result<bool, StorageError> {
         Ok(self.content.lock().unwrap().contains_key(cid))
     }
-    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, Error> {
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, StorageError> {
         let lock = self.content.lock().unwrap();
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), Error>
+    async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), StorageError>
     where
         B: Into<Vec<u8>> + Send + 'static,
     {
@@ -43,7 +43,7 @@ where
     Cid: Send,
 {
     type Value = Arc<[u8]>;
-    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, Error>
+    async fn list<K, D>(&self, prefix: K, delimiter: Option<D>) -> Result<Vec<String>, StorageError>
     where
         K: AsRef<str> + Send,
         D: AsRef<str> + Send,
@@ -54,10 +54,14 @@ where
             let delimiter = delimiter.as_ref();
             // This will fallback to a non-delim when the delim is empty.
             if let Some(last_delim_char) = delimiter.chars().next_back() {
-                // TODO: Can this be made to always behave as expected? Also to not
+                // NIT: Can this be made to always behave as expected? Also to not
                 // fail on saturation, rollover, etc. This area is just a bit weird.
                 let after_delimiter =
-                    char::from_u32(last_delim_char as u32 + 1).ok_or_else(|| ())?;
+                    char::from_u32(last_delim_char as u32 + 1).ok_or_else(|| {
+                        StorageError::InvalidInput {
+                            message: Box::from("failed to page delim char"),
+                        }
+                    })?;
                 let mut matches = Vec::new();
                 delim_cursor(
                     &mut_,
@@ -81,19 +85,15 @@ where
             .collect::<Vec<_>>();
         Ok(matches)
     }
-    async fn get<K>(&self, key: K) -> Result<Self::Value, Error>
+    async fn get<K>(&self, key: K) -> Result<Self::Value, StorageError>
     where
         K: AsRef<str> + Send,
     {
         let lock = self.mut_.lock().unwrap();
-        let buf = lock
-            .get(key.as_ref())
-            // TODO: Error::NotFound
-            // .unwrap_or(Error::NotFound)
-            .unwrap();
+        let buf = lock.get(key.as_ref()).ok_or(StorageError::NotFound)?;
         Ok(Arc::clone(&buf))
     }
-    async fn put<K, V>(&self, key: K, value: V) -> Result<(), Error>
+    async fn put<K, V>(&self, key: K, value: V) -> Result<(), StorageError>
     where
         K: AsRef<str> + Into<String> + Send,
         V: AsRef<[u8]> + Into<Vec<u8>> + Send,

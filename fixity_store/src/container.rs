@@ -15,9 +15,6 @@ where
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, Error>;
     async fn save(&self, store: &S) -> Result<S::Cid, Error>;
     async fn save_with_cids(&self, store: &S, cids_buf: &mut Vec<S::Cid>) -> Result<(), Error>;
-    fn new() -> Self {
-        Self::default()
-    }
 }
 #[async_trait]
 impl<T, S> Container<S> for T
