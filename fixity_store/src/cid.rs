@@ -1,20 +1,18 @@
 use multihash::MultihashDigest;
 use std::convert::TryFrom;
 
-use crate::Error;
-
 pub const CID_LENGTH: usize = 34;
 
 pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> {
-    fn from_hash(hash: Vec<u8>) -> Result<Self, Error>;
+    fn from_hash(hash: Vec<u8>) -> Option<Self>;
     fn len(&self) -> usize;
     fn as_bytes(&self) -> &[u8] {
         self.as_ref()
     }
 }
 impl<const N: usize> ContentId for [u8; N] {
-    fn from_hash(hash: Vec<u8>) -> Result<Self, Error> {
-        Self::try_from(hash).map_err(|_| ())
+    fn from_hash(hash: Vec<u8>) -> Option<Self> {
+        Self::try_from(hash).ok()
     }
     fn len(&self) -> usize {
         0
@@ -53,9 +51,8 @@ where
     fn hash(&self, buf: &[u8]) -> Cid {
         let hash = multihash::Code::from(*self).digest(&buf).to_bytes();
         match Cid::from_hash(hash) {
-            Ok(cid) => cid,
-            Err(_) => {
-                // NIT:
+            Some(cid) => cid,
+            None => {
                 unreachable!("multihash header + 256 fits into 34bytes")
             },
         }

@@ -1,7 +1,11 @@
-use super::Error;
-use crate::{cid::ContentId, rid::ReplicaId, storage::MutStorage};
+use crate::{
+    cid::ContentId,
+    rid::ReplicaId,
+    storage::{MutStorage, StorageError},
+};
 use async_trait::async_trait;
 use multibase::Base;
+use thiserror::Error;
 
 #[async_trait]
 pub trait Meta<Cid>: Send + Sync
@@ -9,21 +13,25 @@ where
     Cid: Send + Sync + 'static,
 {
     type Rid: ReplicaId + 'static;
-    async fn repos(&self, remote: &str) -> Result<Vec<String>, Error>;
-    async fn branches(&self, remote: &str, repo: &str) -> Result<Vec<String>, Error>;
+    async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>>;
+    async fn branches(
+        &self,
+        remote: &str,
+        repo: &str,
+    ) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>>;
     async fn heads(
         &self,
         remote: &str,
         repo: &str,
         branch: &str,
-    ) -> Result<Vec<(Self::Rid, Cid)>, Error>;
+    ) -> Result<Vec<(Self::Rid, Cid)>, MetaStoreError<Self::Rid, Cid>>;
     async fn head(
         &self,
         remote: &str,
         repo: &str,
         branch: &str,
         replica: &Self::Rid,
-    ) -> Result<Cid, Error>;
+    ) -> Result<Cid, MetaStoreError<Self::Rid, Cid>>;
     async fn set_head(
         &self,
         remote: &str,
@@ -31,14 +39,14 @@ where
         branch: &str,
         replica: Self::Rid,
         head: Cid,
-    ) -> Result<(), Error>;
+    ) -> Result<(), MetaStoreError<Self::Rid, Cid>>;
     async fn append_log<S: Into<String> + Send>(
         &self,
         remote: &str,
         repo: &str,
         replica: Self::Rid,
         message: S,
-    ) -> Result<(), Error>;
+    ) -> Result<(), MetaStoreError<Self::Rid, Cid>>;
     async fn logs(
         &self,
         remote: &str,
@@ -46,7 +54,16 @@ where
         replica: Self::Rid,
         offset: usize,
         limit: usize,
-    ) -> Result<Vec<Log<Self::Rid, Cid>>, Error>;
+    ) -> Result<Vec<Log<Self::Rid, Cid>>, MetaStoreError<Self::Rid, Cid>>;
+}
+#[derive(Error, Debug)]
+pub enum MetaStoreError<Rid, Cid> {
+    #[error("resource not found")]
+    NotFound,
+    #[error("invalid content id: {message}")]
+    InvalidCid { cid: Cid, message: Box<str> },
+    #[error("invalid replica id: {message}")]
+    InvalidRid { rid: Rid, message: Box<str> },
 }
 #[derive(Debug)]
 pub struct Log<Rid, Cid> {
@@ -73,18 +90,24 @@ where
     Cid: ContentId + 'static,
 {
     type Rid = [u8; 8];
-    async fn repos(&self, remote: &str) -> Result<Vec<String>, Error> {
-        list_dirs(self, format!("{remote}/")).await
+    async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>> {
+        let dirs = list_dirs(self, format!("{remote}/")).await?;
+        Ok(dirs)
     }
-    async fn branches(&self, remote: &str, repo: &str) -> Result<Vec<String>, Error> {
-        list_dirs(self, format!("{remote}/{repo}/")).await
+    async fn branches(
+        &self,
+        remote: &str,
+        repo: &str,
+    ) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>> {
+        let dirs = list_dirs(self, format!("{remote}/{repo}/")).await?;
+        Ok(dirs)
     }
     async fn heads(
         &self,
         remote: &str,
         repo: &str,
         branch: &str,
-    ) -> Result<Vec<(Self::Rid, Cid)>, Error> {
+    ) -> Result<Vec<(Self::Rid, Cid)>, MetaStoreError<Self::Rid, Cid>> {
         let branch_path = format!("{remote}/{repo}/{branch}/");
         let paths = self.list::<_, &str>(&branch_path, None).await?;
         let mut items = Vec::new();
@@ -106,7 +129,7 @@ where
         repo: &str,
         branch: &str,
         replica: &Self::Rid,
-    ) -> Result<Cid, Error> {
+    ) -> Result<Cid, MetaStoreError<Self::Rid, Cid>> {
         let replica = multibase::encode(MUT_CID_RID_ENCODING, replica.as_bytes());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         let value = self.get(path).await?;
@@ -122,7 +145,7 @@ where
         branch: &str,
         replica: Self::Rid,
         head: Cid,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MetaStoreError<Self::Rid, Cid>> {
         let replica = multibase::encode(MUT_CID_RID_ENCODING, replica.as_bytes());
         let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_bytes());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
@@ -134,7 +157,7 @@ where
         _repo: &str,
         _replica: Self::Rid,
         _message: S,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MetaStoreError<Self::Rid, Cid>> {
         todo!()
     }
     async fn logs(
@@ -144,11 +167,14 @@ where
         _replica: Self::Rid,
         _offset: usize,
         _limit: usize,
-    ) -> Result<Vec<Log<Self::Rid, Cid>>, Error> {
+    ) -> Result<Vec<Log<Self::Rid, Cid>>, MetaStoreError<Self::Rid, Cid>> {
         todo!()
     }
 }
-async fn list_dirs<S: MutStorage>(storage: &S, base_path: String) -> Result<Vec<String>, Error> {
+async fn list_dirs<S: MutStorage>(
+    storage: &S,
+    base_path: String,
+) -> Result<Vec<String>, StorageError> {
     let paths = storage.list::<_, &str>(&base_path, Some("/")).await?;
     let dirs = paths
         .into_iter()

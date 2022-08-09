@@ -10,14 +10,6 @@ use async_trait::async_trait;
 use std::{marker::PhantomData, ops::Deref, sync::Arc};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum StoreError {
-    #[error("resource not found")]
-    NotFound,
-    #[error("storage: {0}")]
-    Storage(#[from] StorageError),
-}
-
 #[async_trait]
 pub trait Store: Send + Sync {
     type Deser;
@@ -41,6 +33,21 @@ pub trait Store: Send + Sync {
     {
         let cids = t.contained_cids();
         self.put_with_cids(t, cids).await
+    }
+}
+#[derive(Error, Debug)]
+pub enum StoreError {
+    #[error("resource not found")]
+    NotFound,
+    #[error("storage: {0}")]
+    Storage(StorageError),
+}
+impl From<StorageError> for StoreError {
+    fn from(err: StorageError) -> Self {
+        match err {
+            StorageError::NotFound => Self::NotFound,
+            err => Self::Storage(err),
+        }
     }
 }
 #[async_trait]
