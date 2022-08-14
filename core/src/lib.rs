@@ -196,6 +196,11 @@ pub mod api_drafting_3 {
 #[cfg(test)]
 #[tokio::test]
 async fn wip() {
-    use fixity_store::{contentid::Hasher, deser::Rkyv, store::Memory};
-    let repo = Fixity::memory().open::<String>("foo").await.unwrap();
+    use fixity_store::{contentid::Hasher, deser::Rkyv, replicaid::Rid, store::Memory};
+    let rid = Rid::<8>::default();
+    let repo = Fixity::memory()
+        .open::<String>("foo")
+        .await
+        .unwrap()
+        .branch("", rid);
 }

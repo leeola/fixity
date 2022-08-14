@@ -14,6 +14,14 @@ impl<const N: usize> ContentId for Rid<N> {
         self.0.len()
     }
 }
+impl<const N: usize> Default for Rid<N>
+where
+    [u8; N]: Default,
+{
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 impl<const N: usize> Display for Rid<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // PERF: Can we fork multibase to make a non-allocating display? I would think
