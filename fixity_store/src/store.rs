@@ -2,7 +2,7 @@
 // pub mod rkyv_store;
 
 use crate::{
-    cid::{ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
+    contentid::{Cid, ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
     deser::{Deserialize, SerdeJson, Serialize},
     storage::{self, ContentStorage, StorageError},
 };
@@ -99,12 +99,12 @@ impl<S, D, H> StoreImpl<S, D, H> {
 #[async_trait]
 impl<S, D, H> Store for StoreImpl<S, D, H>
 where
-    S: ContentStorage<[u8; CID_LENGTH]>,
+    S: ContentStorage<Cid<CID_LENGTH>>,
     D: Send + Sync,
-    H: ContentHasher<[u8; CID_LENGTH]>,
+    H: ContentHasher<Cid<CID_LENGTH>>,
 {
     type Deser = D;
-    type Cid = [u8; CID_LENGTH];
+    type Cid = Cid<CID_LENGTH>;
     type Hasher = H;
     type Storage = S;
 

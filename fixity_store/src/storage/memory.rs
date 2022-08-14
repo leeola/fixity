@@ -1,5 +1,5 @@
 use super::{ContentStorage, MutStorage, StorageError};
-use crate::cid::CID_LENGTH;
+use crate::contentid::CID_LENGTH;
 use async_trait::async_trait;
 use std::{
     collections::{BTreeMap, HashMap},

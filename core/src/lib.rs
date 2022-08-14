@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use fixity_store::{
-    cid::{Hasher, CID_LENGTH},
     container::Container,
+    contentid::{Hasher, CID_LENGTH},
     deser::Rkyv,
     storage,
     store::{self, StoreImpl},
@@ -196,6 +196,6 @@ pub mod api_drafting_3 {
 #[cfg(test)]
 #[tokio::test]
 async fn wip() {
-    use fixity_store::{cid::Hasher, deser::Rkyv, store::Memory};
+    use fixity_store::{contentid::Hasher, deser::Rkyv, store::Memory};
     let repo = Fixity::memory().open::<String>("foo").await.unwrap();
 }

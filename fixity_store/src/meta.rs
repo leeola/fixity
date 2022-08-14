@@ -1,6 +1,6 @@
 use crate::{
-    cid::ContentId,
-    rid::ReplicaId,
+    contentid::ContentId,
+    replicaid::{ReplicaId, Rid},
     storage::{MutStorage, StorageError},
 };
 use async_trait::async_trait;
@@ -63,7 +63,21 @@ pub enum MetaStoreError<Rid, Cid> {
     #[error("invalid content id: {message}")]
     InvalidCid { cid: Cid, message: Box<str> },
     #[error("invalid replica id: {message}")]
-    InvalidRid { rid: Rid, message: Box<str> },
+    InvalidRid { message: Box<str> },
+    #[error("storage {}/{}/{}, : {error}",
+        .remote.unwrap_or(Box::from("")),
+        .repo.unwrap_or(Box::from("")),
+        .branch.unwrap_or(Box::from("")),
+        // .rid.unwrap_or(Box::from("")),
+    )]
+    Storage {
+        remote: Option<Box<str>>,
+        repo: Option<Box<str>>,
+        branch: Option<Box<str>>,
+        rid: Option<Rid>,
+        cid: Option<Cid>,
+        error: StorageError,
+    },
 }
 #[derive(Debug)]
 pub struct Log<Rid, Cid> {
@@ -89,9 +103,18 @@ where
     T: MutStorage,
     Cid: ContentId + 'static,
 {
-    type Rid = [u8; 8];
+    type Rid = Rid<8>;
     async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>> {
-        let dirs = list_dirs(self, format!("{remote}/")).await?;
+        let dirs = list_dirs(self, format!("{remote}/"))
+            .await
+            .map_err(|error| MetaStoreError::Storage {
+                remote: Some(Box::from(remote)),
+                repo: None,
+                branch: None,
+                rid: None,
+                cid: None,
+                error,
+            })?;
         Ok(dirs)
     }
     async fn branches(
@@ -99,7 +122,16 @@ where
         remote: &str,
         repo: &str,
     ) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>> {
-        let dirs = list_dirs(self, format!("{remote}/{repo}/")).await?;
+        let dirs = list_dirs(self, format!("{remote}/{repo}/"))
+            .await
+            .map_err(|error| MetaStoreError::Storage {
+                remote: Some(Box::from(remote)),
+                repo: Some(Box::from(repo)),
+                branch: None,
+                rid: None,
+                cid: None,
+                error,
+            })?;
         Ok(dirs)
     }
     async fn heads(
@@ -109,16 +141,34 @@ where
         branch: &str,
     ) -> Result<Vec<(Self::Rid, Cid)>, MetaStoreError<Self::Rid, Cid>> {
         let branch_path = format!("{remote}/{repo}/{branch}/");
-        let paths = self.list::<_, &str>(&branch_path, None).await?;
+        let paths = self
+            .list::<_, &str>(&branch_path, None)
+            .await
+            .map_err(|error| MetaStoreError::Storage {
+                remote: Some(Box::from(remote)),
+                repo: Some(Box::from(repo)),
+                branch: Some(Box::from(branch)),
+                rid: None,
+                cid: None,
+                error,
+            })?;
         let mut items = Vec::new();
         for path in paths {
             let encoded_rid = path.strip_prefix(&branch_path).unwrap();
-            let (_, rid_bytes) = multibase::decode(&encoded_rid).map_err(|_| ())?;
-            let rid = Self::Rid::from_hash(rid_bytes)?;
-            let cid_value = self.get(&path).await?;
-            let encoded_cid = std::str::from_utf8(cid_value.as_ref()).map_err(|_| ())?;
-            let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|_| ())?;
-            let head = Cid::from_hash(head_bytes)?;
+            let (_, rid_bytes) =
+                multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::InvalidRid {
+                    message: format!("decoding rid: {}", err).into_boxed_str(),
+                })?;
+            let rid =
+                Self::Rid::from_hash(rid_bytes).ok_or_else(|| MetaStoreError::InvalidRid {
+                    message: Box::from("creating rid"),
+                })?;
+            let cid_value = self.get(&path).await.unwrap();
+            let encoded_cid = std::str::from_utf8(cid_value.as_ref())
+                .map_err(|_| ())
+                .unwrap();
+            let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|_| ()).unwrap();
+            let head = Cid::from_hash(head_bytes).unwrap();
             items.push((rid, head));
         }
         Ok(items)

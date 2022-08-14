@@ -2,13 +2,13 @@
 #![feature(generic_associated_types)]
 pub mod deser;
 
-pub mod cid;
 pub mod container;
+pub mod contentid;
 pub mod meta;
 pub mod storage;
 pub mod store;
-pub use cid::ContentHasher;
-pub mod rid;
+pub use contentid::ContentHasher;
+pub mod replicaid;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;

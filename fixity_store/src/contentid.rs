@@ -1,22 +1,45 @@
+use multibase::Base;
 use multihash::MultihashDigest;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt::Display};
 
 pub const CID_LENGTH: usize = 34;
 
-pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> {
+pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Display {
     fn from_hash(hash: Vec<u8>) -> Option<Self>;
     fn len(&self) -> usize;
     fn as_bytes(&self) -> &[u8] {
         self.as_ref()
     }
+    /// Encode this `ContentId` as a string.
+    fn encode(&self) -> Box<str> {
+        // TODO: bind the encoder to generic param perhaps?
+        // thereby letting the ContentStore or MetaStore choose the encoding.
+
+        multibase::encode(Base::Base58Btc, self.as_bytes()).into_boxed_str()
+    }
 }
-impl<const N: usize> ContentId for [u8; N] {
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
+pub struct Cid<const N: usize>([u8; N]);
+impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
-        Self::try_from(hash).ok()
+        <[u8; N]>::try_from(hash).ok().map(Self)
     }
     fn len(&self) -> usize {
-        0
-        // Self::len(self)
+        self.0.len()
+    }
+}
+impl<const N: usize> Display for Cid<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // PERF: Can we fork multibase to make a non-allocating display? I would think
+        // yes offhand, so i think this Display is okay for now - hoping that in the nearish
+        // future we can provide an alt impl of encode that writes chars to the formatter
+        // directly.
+        write!(f, "{}", self.encode())
+    }
+}
+impl<const N: usize> AsRef<[u8]> for Cid<N> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 pub trait ContainedCids<Cid: ContentId> {
