@@ -1,5 +1,5 @@
 use super::{ContentStorage, MutStorage, StorageError};
-use crate::contentid::CID_LENGTH;
+use crate::contentid::{self, CID_LENGTH};
 use async_trait::async_trait;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -9,7 +9,7 @@ use std::{
 };
 /// A test focused in-memory only storage.
 #[derive(Debug)]
-pub struct Memory<Cid = [u8; CID_LENGTH]> {
+pub struct Memory<Cid = contentid::Cid<CID_LENGTH>> {
     content: Mutex<HashMap<Cid, Arc<[u8]>>>,
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }

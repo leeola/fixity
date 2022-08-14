@@ -118,7 +118,7 @@ where
     {
         let buf = t.serialize().unwrap();
         let cid = self.hasher.hash(buf.as_ref());
-        self.storage.write_unchecked(cid, buf).await?;
+        self.storage.write_unchecked(cid.clone(), buf).await?;
         Ok(cid)
     }
     async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>

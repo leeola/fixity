@@ -18,7 +18,7 @@ pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Disp
         multibase::encode(Base::Base58Btc, self.as_bytes()).into_boxed_str()
     }
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Cid<const N: usize>([u8; N]);
 impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
@@ -40,6 +40,16 @@ impl<const N: usize> Display for Cid<N> {
 impl<const N: usize> AsRef<[u8]> for Cid<N> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+impl<const N: usize> From<[u8; N]> for Cid<N> {
+    fn from(arr: [u8; N]) -> Self {
+        Self(arr)
+    }
+}
+impl<const N: usize> PartialEq<[u8; N]> for Cid<N> {
+    fn eq(&self, other: &[u8; N]) -> bool {
+        &self.0 == other
     }
 }
 pub trait ContainedCids<Cid: ContentId> {

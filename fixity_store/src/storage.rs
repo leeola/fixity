@@ -22,6 +22,8 @@ where
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, StorageError>;
     // TODO: Make this take a Into<Vec<u8>> + AsRef<[u8]>. Not gaining anything by requiring
     // the extra From<Vec<u8>> bound.
+    //
+    // TODO: Make cid take a ref. Seems the primary case, avoids owning it.
     async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), StorageError>
     where
         B: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
