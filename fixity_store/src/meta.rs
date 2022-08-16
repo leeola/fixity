@@ -5,7 +5,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use multibase::Base;
-use std::{fmt::Display, ops::Deref};
+use std::fmt::Display;
 use thiserror::Error;
 
 #[async_trait]
@@ -38,7 +38,7 @@ where
         remote: &str,
         repo: &str,
         branch: &str,
-        replica: Self::Rid,
+        replica: &Self::Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Self::Rid, Cid>>;
     async fn append_log<S: Into<String> + Send>(
@@ -65,13 +65,16 @@ async fn get_cid_from_path<MS: MutStorage, Rid: ReplicaId, Cid: ContentId>(
     rid: &Rid,
     path: &str,
 ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
-    let cid_value = ms.get(&path).await.map_err(|err| MetaStoreError::Storage {
-        remote: Some(Box::from(remote)),
-        repo: Some(Box::from(repo)),
-        branch: Some(Box::from(branch)),
-        rid: Some(rid.clone()),
-        cid: None,
-        err,
+    let cid_value = ms.get(&path).await.map_err(|err| match err {
+        StorageError::NotFound => MetaStoreError::NotFound,
+        err => MetaStoreError::Storage {
+            remote: Some(Box::from(remote)),
+            repo: Some(Box::from(repo)),
+            branch: Some(Box::from(branch)),
+            rid: Some(rid.clone()),
+            cid: None,
+            err,
+        },
     })?;
     let encoded_cid =
         std::str::from_utf8(cid_value.as_ref()).map_err(|err| MetaStoreError::Cid {
@@ -273,7 +276,7 @@ where
         remote: &str,
         repo: &str,
         branch: &str,
-        rid: Self::Rid,
+        rid: &Self::Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Self::Rid, Cid>> {
         let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_bytes());
@@ -340,10 +343,10 @@ pub mod meta_mut_storage {
     async fn basic<S: Meta<Cid<4>, Rid = Rid<8>>>(#[case] s: S) {
         let rida = Rid::from([10u8; 8]);
         let ridb = Rid::from([20u8; 8]);
-        s.set_head("remote", "repo", "branch", rida, [1u8; 4].into())
+        s.set_head("remote", "repo", "branch", &rida, [1u8; 4].into())
             .await
             .unwrap();
-        s.set_head("remote", "repo", "branch", ridb, [2u8; 4].into())
+        s.set_head("remote", "repo", "branch", &ridb, [2u8; 4].into())
             .await
             .unwrap();
         assert_eq!(
@@ -361,7 +364,7 @@ pub mod meta_mut_storage {
                 ([20u8; 8].into(), [2u8; 4].into())
             ],
         );
-        s.set_head("remote", "repo", "foo", ridb, [2u8; 4].into())
+        s.set_head("remote", "repo", "foo", &ridb, [2u8; 4].into())
             .await
             .unwrap();
         assert_eq!(

@@ -12,7 +12,6 @@ pub mod replicaid;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
-use thiserror::Error;
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

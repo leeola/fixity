@@ -250,9 +250,11 @@ dependencies = [
 name = "fixity_core"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "async-trait",
  "fixity_store",
  "rstest",
+ "thiserror",
  "tokio",
 ]
 

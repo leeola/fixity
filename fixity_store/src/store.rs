@@ -3,7 +3,7 @@
 
 use crate::{
     contentid::{Cid, ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
-    deser::{Deserialize, SerdeJson, Serialize},
+    deser::{Deserialize, Serialize},
     storage::{self, ContentStorage, StorageError},
 };
 use async_trait::async_trait;
@@ -161,7 +161,6 @@ where
     T: Deserialize<D>,
 {
     pub fn repr_to_owned(&self) -> Result<T, StoreError> {
-        dbg!(&self.buf);
         let value = T::deserialize_owned(self.buf.as_ref()).unwrap();
         Ok(value)
     }
@@ -174,7 +173,7 @@ where
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::deser::{DeserializeRef, Rkyv};
+    use crate::deser::{DeserializeRef, Rkyv, SerdeJson};
     use rstest::*;
     use std::fmt::Debug;
     #[derive(

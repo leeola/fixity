@@ -1,3 +1,4 @@
+use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use fixity_store::{
     container::Container,
@@ -13,12 +14,15 @@ use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
 };
-pub type Error = ();
-// #[derive(Error, Debug)]
-// pub enum Error {
-//     #[error("resource not found")]
-//     NotFound,
-// }
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("cannot implicitly commit an initial value")]
+    CommitInitValue,
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
 pub struct Fixity<Meta, Store> {
     meta: Arc<Meta>,
     store: Arc<Store>,
@@ -38,6 +42,17 @@ where
         // TODO: check stored repo type. Meta doesn't store
         // repo signature yet.
         Repo::<M, S, T>::open(Arc::clone(&self.meta), Arc::clone(&self.store), repo).await
+    }
+    pub async fn branch<T>(
+        &self,
+        repo: &str,
+        branch: &str,
+        replica: M::Rid,
+    ) -> Result<RepoReplica<M, S, T>, Error>
+    where
+        T: Container<S>,
+    {
+        self.open::<T>(repo).await?.branch(branch, replica).await
     }
 }
 // Some type aliases for simplicity.
@@ -130,9 +145,7 @@ where
         let (value, head) = match meta.head("local", repo, branch, &rid).await {
             Ok(head) => (T::open(&*store, &head).await.unwrap(), Some(head)),
             Err(MetaStoreError::NotFound) => (T::new(), None),
-            Err(err) => {
-                todo!()
-            },
+            Err(err) => return Err(Error::Other(anyhow!(err))),
         };
         Ok(Self {
             meta,
@@ -145,8 +158,29 @@ where
             value,
         })
     }
-    pub async fn commit(&self) -> Result<S::Cid, Error> {
-        todo!()
+    pub async fn commit(&mut self) -> Result<S::Cid, Error> {
+        if self.clean {
+            if let Some(head) = self.head.clone() {
+                return Ok(head);
+            }
+            // if clean, but no head - this is an initial value, eg T::init(),
+            // We prevent writing init data by default, as that's likely useless
+            // state. Adding a future `commit_init` would bypass this.
+            return Err(Error::CommitInitValue);
+        }
+        let cid = self.value.save(&*self.store).await.unwrap();
+        self.meta
+            .set_head(
+                "local",
+                &*self.repo,
+                &*self.branch,
+                &self.replica_id,
+                cid.clone(),
+            )
+            .await
+            .unwrap();
+        self.head = Some(cid.clone());
+        Ok(cid)
     }
 }
 impl<M, S, T> Deref for RepoReplica<M, S, T>
@@ -231,17 +265,24 @@ pub mod api_drafting_3 {
 }
 #[cfg(test)]
 #[tokio::test]
-async fn wip() {
-    use fixity_store::{contentid::Hasher, deser::Rkyv, replicaid::Rid, store::Memory};
+async fn basic_mutation() {
+    use fixity_store::replicaid::Rid;
     let rid = Rid::<8>::default();
-    let mut repo = Fixity::memory()
-        .open::<String>("foo")
-        .await
-        .unwrap()
-        .branch("main", rid)
-        .await
-        .unwrap();
-    let t = repo.deref_mut();
-    *t = String::from("foo");
-    repo.commit().await.unwrap();
+    let fixi = Fixity::memory();
+    let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+    let t = repo_a.deref_mut();
+    *t = String::from("value");
+    let head_a = repo_a.commit().await.unwrap();
+    dbg!(head_a);
+    {
+        let repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+        let t = repo.deref();
+        assert_eq!("value", t);
+    }
+    let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
+    let t = repo_b.deref_mut();
+    assert_eq!("", t);
+    *t = String::from("value");
+    let head_b = repo_b.commit().await.unwrap();
+    assert_eq!(head_a, head_b);
 }
