@@ -203,66 +203,6 @@ where
         &mut self.value
     }
 }
-pub mod api_drafting {
-    use async_trait::async_trait;
-    use std::collections::HashSet;
-    #[async_trait]
-    pub trait WriteSer<Cid> {
-        async fn write_serialize(&self, store: ()) -> Result<Cid, ()>;
-    }
-    pub struct FooContainer<T> {
-        foo: Foo<T>,
-    }
-    trait ContentContainer {
-        type DeserType; // :Deser bound,
-        fn write(&mut self, store: ()) -> ();
-    }
-    // IDEA: maybe track loaded ptrs with hierarchy so that a centralized location
-    // can write them in reverse order, efficiently.
-    pub enum Ptr<T> {
-        Ptr {
-            cid: (),
-        },
-        Ref {
-            cid: (),
-            value: T,
-            // children: Vec<Ptr<U>>, // !?
-        },
-        Mut {
-            previous_cid: (),
-            value: T,
-        },
-    }
-    pub struct Foo<T> {
-        items: Option<Ptr<T>>,
-    }
-}
-pub mod api_drafting_2 {
-    pub struct PtrOwner<T, V> {
-        // inner container thing, userland type.
-        inner: T,
-        // registries, but inner can prob return these
-        // via Trait?
-        registries: V, // Can be (V1,V2,V3,etc)
-    }
-    pub struct PtrRegistry<V>(V);
-}
-pub mod api_drafting_3 {
-    use std::{collections::HashMap, sync::Arc};
-
-    // NIT: Is there something cheaper than Arc? Since
-    // i don't care about using the Rc portion of Arc.
-    pub struct Ptr<T>(Arc<PtrInner<T>>);
-    enum PtrInner<T> {
-        Ptr { cid: () },
-        Ref { cid: (), value: T },
-        Mut { value: T },
-    }
-    pub struct PtrRegistry<Cid, Container, T> {
-        container: Container,
-        weak_ptrs: HashMap<Cid, Ptr<T>>,
-    }
-}
 #[cfg(test)]
 #[tokio::test]
 async fn basic_mutation() {

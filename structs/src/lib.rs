@@ -1,12 +1,12 @@
-pub mod gcounter;
+// pub mod gcounter;
 pub mod prolly_tree;
+pub mod ptr;
+/*
 pub mod vclock {
-    use {
-        crate::gcounter::GCounter,
-        std::{
-            cmp::{Ordering, PartialEq, PartialOrd},
-            ops::{Deref, DerefMut},
-        },
+    use crate::gcounter::GCounter;
+    use std::{
+        cmp::{Ordering, PartialEq, PartialOrd},
+        ops::{Deref, DerefMut},
     };
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(
@@ -104,3 +104,4 @@ pub mod pncounter {
         }
     }
 }
+*/
