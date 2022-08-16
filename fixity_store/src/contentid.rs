@@ -1,10 +1,15 @@
 use multibase::Base;
 use multihash::MultihashDigest;
-use std::{convert::TryFrom, fmt::Display};
+use std::{
+    convert::TryFrom,
+    fmt::{Debug, Display},
+};
 
 pub const CID_LENGTH: usize = 34;
 
-pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Display {
+pub trait ContentId:
+    Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Debug + Display
+{
     fn from_hash(hash: Vec<u8>) -> Option<Self>;
     fn len(&self) -> usize;
     fn as_bytes(&self) -> &[u8] {
@@ -18,7 +23,7 @@ pub trait ContentId: Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Disp
         multibase::encode(Base::Base58Btc, self.as_bytes()).into_boxed_str()
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Cid<const N: usize>([u8; N]);
 impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
@@ -26,6 +31,15 @@ impl<const N: usize> ContentId for Cid<N> {
     }
     fn len(&self) -> usize {
         self.0.len()
+    }
+}
+impl<const N: usize> Debug for Cid<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // PERF: Can we fork multibase to make a non-allocating display? I would think
+        // yes offhand, so i think this Display is okay for now - hoping that in the nearish
+        // future we can provide an alt impl of encode that writes chars to the formatter
+        // directly.
+        write!(f, "Cid<{}>({})", self.0.len(), self.encode())
     }
 }
 impl<const N: usize> Display for Cid<N> {

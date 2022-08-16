@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use fixity_store::{
     container::Container,
     contentid::{Hasher, CID_LENGTH},
-    deser::Rkyv,
+    deser::{Deserialize, Rkyv},
+    meta::MetaStoreError,
     storage,
     store::{self, StoreImpl},
     Meta, Store,
@@ -13,6 +14,11 @@ use std::{
     sync::Arc,
 };
 pub type Error = ();
+// #[derive(Error, Debug)]
+// pub enum Error {
+//     #[error("resource not found")]
+//     NotFound,
+// }
 pub struct Fixity<Meta, Store> {
     meta: Arc<Meta>,
     store: Arc<Store>,
@@ -25,7 +31,10 @@ where
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
     }
-    pub async fn open<T: Container<S>>(&self, repo: &str) -> Result<Repo<M, S, T>, Error> {
+    pub async fn open<T>(&self, repo: &str) -> Result<Repo<M, S, T>, Error>
+    where
+        T: Container<S>,
+    {
         // TODO: check stored repo type. Meta doesn't store
         // repo signature yet.
         Repo::<M, S, T>::open(Arc::clone(&self.meta), Arc::clone(&self.store), repo).await
@@ -96,21 +105,47 @@ where
     repo: Box<str>,
     branch: Box<str>,
     replica_id: M::Rid,
+    /// Whether or not mutatable access has been granted for the value.
+    ///
+    /// If `true`, we can use the Head we have stored - if any.
+    clean: bool,
+    /// The cid reported by the `MetaStore`, used to load the most recent
+    /// value for this branch replica.
+    head: Option<S::Cid>,
     value: T,
 }
 impl<M, S, T> RepoReplica<M, S, T>
 where
     S: Store,
     M: Meta<S::Cid>,
+    T: Container<S>,
 {
     pub async fn open(
         meta: Arc<M>,
         store: Arc<S>,
         repo: &str,
         branch: &str,
-        replica: M::Rid,
+        rid: M::Rid,
     ) -> Result<Self, Error> {
-        // let head = meta.head().await?;
+        let (value, head) = match meta.head("local", repo, branch, &rid).await {
+            Ok(head) => (T::open(&*store, &head).await.unwrap(), Some(head)),
+            Err(MetaStoreError::NotFound) => (T::new(), None),
+            Err(err) => {
+                todo!()
+            },
+        };
+        Ok(Self {
+            meta,
+            store,
+            repo: Box::from(repo),
+            branch: Box::from(branch),
+            replica_id: rid,
+            clean: true,
+            head,
+            value,
+        })
+    }
+    pub async fn commit(&self) -> Result<S::Cid, Error> {
         todo!()
     }
 }
@@ -130,6 +165,7 @@ where
     M: Meta<S::Cid>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.clean = false;
         &mut self.value
     }
 }
@@ -198,9 +234,14 @@ pub mod api_drafting_3 {
 async fn wip() {
     use fixity_store::{contentid::Hasher, deser::Rkyv, replicaid::Rid, store::Memory};
     let rid = Rid::<8>::default();
-    let repo = Fixity::memory()
+    let mut repo = Fixity::memory()
         .open::<String>("foo")
         .await
         .unwrap()
-        .branch("", rid);
+        .branch("main", rid)
+        .await
+        .unwrap();
+    let t = repo.deref_mut();
+    *t = String::from("foo");
+    repo.commit().await.unwrap();
 }

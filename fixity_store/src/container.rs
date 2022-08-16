@@ -6,13 +6,14 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait Container<S>: Sized + Send + Default
+pub trait Container<S>: Sized + Send
 where
     S: Store,
 {
     // ^ :TypeName
     // async fn type() -> TypeSig;
     // async fn serialized_type() -> TypeSig;
+    fn new() -> Self;
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError>;
     async fn save(&self, store: &S) -> Result<S::Cid, StoreError>;
     async fn save_with_cids(&self, store: &S, cids_buf: &mut Vec<S::Cid>)
@@ -24,6 +25,9 @@ where
     S: Store,
     T: Serialize<S::Deser> + Deserialize<S::Deser> + Send + Sync + Default,
 {
+    fn new() -> Self {
+        Self::default()
+    }
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError> {
         let repr = store.get::<Self>(cid).await?;
         repr.repr_to_owned()

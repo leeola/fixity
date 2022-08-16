@@ -1,9 +1,9 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use crate::contentid::ContentId;
 
 pub trait ReplicaId: ContentId {}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Rid<const N: usize>([u8; N]);
 impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {
@@ -20,6 +20,15 @@ where
 {
     fn default() -> Self {
         Self(Default::default())
+    }
+}
+impl<const N: usize> Debug for Rid<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // PERF: Can we fork multibase to make a non-allocating display? I would think
+        // yes offhand, so i think this Display is okay for now - hoping that in the nearish
+        // future we can provide an alt impl of encode that writes chars to the formatter
+        // directly.
+        write!(f, "Rid<{}>({})", self.0.len(), self.encode())
     }
 }
 impl<const N: usize> Display for Rid<N> {
