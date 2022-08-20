@@ -35,12 +35,12 @@ pub struct Resolver<Cid, T> {
     weak_ptrs: HashMap<Cid, Ptr<Cid, T>>,
 }
 impl<Cid, T> Resolver<Cid, T> {
-    pub async fn resolve<S: Store>(&mut self, store: &S, ptr: &Ptr<Cid, T>) -> &T {
-        todo!()
-    }
-    pub async fn resolve_mut<S: Store>(&mut self, store: &S, ptr: &mut Ptr<Cid, T>) -> &mut T {
-        todo!()
-    }
+    // pub async fn resolve<S: Store>(&mut self, store: &S, ptr: &Ptr<Cid, T>) -> &T {
+    //     todo!()
+    // }
+    // pub async fn resolve_mut<S: Store>(&mut self, store: &S, ptr: &mut Ptr<Cid, T>) -> &mut T {
+    //     todo!()
+    // }
 }
 impl<Cid, T> Default for Resolver<Cid, T> {
     fn default() -> Self {

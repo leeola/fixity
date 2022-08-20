@@ -1,4 +1,5 @@
 // pub mod gcounter;
+pub mod appendlog;
 pub mod prolly_tree;
 pub mod ptr;
 /*
