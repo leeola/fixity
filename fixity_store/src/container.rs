@@ -15,9 +15,12 @@ where
     // async fn serialized_type() -> TypeSig;
     fn new() -> Self;
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError>;
-    async fn save(&self, store: &S) -> Result<S::Cid, StoreError>;
-    async fn save_with_cids(&self, store: &S, cids_buf: &mut Vec<S::Cid>)
-        -> Result<(), StoreError>;
+    async fn save(&mut self, store: &S) -> Result<S::Cid, StoreError>;
+    async fn save_with_cids(
+        &mut self,
+        store: &S,
+        cids_buf: &mut Vec<S::Cid>,
+    ) -> Result<(), StoreError>;
 }
 #[async_trait]
 impl<T, S> Container<S> for T
@@ -32,11 +35,11 @@ where
         let repr = store.get::<Self>(cid).await?;
         repr.repr_to_owned()
     }
-    async fn save(&self, store: &S) -> Result<S::Cid, StoreError> {
+    async fn save(&mut self, store: &S) -> Result<S::Cid, StoreError> {
         store.put(self).await
     }
     async fn save_with_cids(
-        &self,
+        &mut self,
         store: &S,
         cids_buf: &mut Vec<S::Cid>,
     ) -> Result<(), StoreError> {

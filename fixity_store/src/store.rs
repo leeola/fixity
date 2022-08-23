@@ -16,29 +16,26 @@ pub trait Store: Send + Sync {
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;
-    // TODO: Refactor `put_with_cids` to bubble up, like `save_with_cids`.
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, StoreError>
-    where
-        T: Serialize<Self::Deser> + Send + Sync;
     async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>;
     async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
     where
-        T: Serialize<Self::Deser> + ContainedCids<Self::Cid> + Send + Sync,
-    {
-        let cids = t.contained_cids();
-        self.put_with_cids(t, cids).await
-    }
+        T: Serialize<Self::Deser> + Send + Sync;
+    async fn put_with_cids<T>(
+        &self,
+        t: &T,
+        cids_buf: &mut Vec<Self::Cid>,
+    ) -> Result<(), StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync;
 }
 #[derive(Error, Debug)]
 pub enum StoreError {
     #[error("resource not found")]
     NotFound,
+    #[error("resource not modified")]
+    NotModified,
     #[error("storage: {0}")]
     Storage(StorageError),
 }
@@ -60,21 +57,23 @@ where
     type Cid = U::Cid;
     type Hasher = U::Hasher;
     type Storage = U::Storage;
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        contained_cids: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, StoreError>
-    where
-        T: Serialize<Self::Deser> + Send + Sync,
-    {
-        self.deref().put_with_cids(t, contained_cids).await
-    }
     async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>,
     {
         self.deref().get(cid).await
+    }
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        self.deref().put(t).await
+    }
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Self::Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        self.deref().put_with_cids(t, cids_buf).await
     }
 }
 // NIT: Name sucks.
@@ -108,19 +107,6 @@ where
     type Hasher = H;
     type Storage = S;
 
-    async fn put_with_cids<'a, T>(
-        &self,
-        t: &'a T,
-        _: impl Iterator<Item = &'a Self::Cid> + Send + 'a,
-    ) -> Result<Self::Cid, StoreError>
-    where
-        T: Serialize<Self::Deser> + Send + Sync,
-    {
-        let buf = t.serialize().unwrap();
-        let cid = self.hasher.hash(buf.as_ref());
-        self.storage.write_unchecked(cid.clone(), buf).await?;
-        Ok(cid)
-    }
     async fn get<T>(&self, cid: &Self::Cid) -> Result<Repr<T, Self::Deser>, StoreError>
     where
         T: Deserialize<Self::Deser>,
@@ -131,6 +117,25 @@ where
             _t: PhantomData,
             _d: PhantomData,
         })
+    }
+    async fn put<T>(&self, t: &T) -> Result<Self::Cid, StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        let buf = t.serialize().unwrap();
+        let cid = self.hasher.hash(buf.as_ref());
+        self.storage.write_unchecked(cid.clone(), buf).await?;
+        Ok(cid)
+    }
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Self::Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize<Self::Deser> + Send + Sync,
+    {
+        let buf = t.serialize().unwrap();
+        let cid = self.hasher.hash(buf.as_ref());
+        self.storage.write_unchecked(cid.clone(), buf).await?;
+        cids_buf.push(cid);
+        Ok(())
     }
 }
 pub struct Memory<D, H = Hasher>(StoreImpl<storage::Memory, D, H>);
@@ -148,10 +153,7 @@ impl<D, H> Deref for Memory<D, H> {
         &self.0
     }
 }
-pub struct Repr<T, D>
-where
-    T: Deserialize<D>,
-{
+pub struct Repr<T, D> {
     buf: Arc<[u8]>,
     _t: PhantomData<T>,
     _d: PhantomData<D>,
