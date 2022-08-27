@@ -13,7 +13,7 @@ where
     // ^ :TypeName
     // async fn type() -> TypeSig;
     // async fn serialized_type() -> TypeSig;
-    fn new() -> Self;
+    fn new(store: &S) -> Self;
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError>;
     async fn save(&mut self, store: &S) -> Result<S::Cid, StoreError>;
     async fn save_with_cids(
@@ -28,7 +28,7 @@ where
     S: Store,
     T: Serialize<S::Deser> + Deserialize<S::Deser> + Send + Sync + Default,
 {
-    fn new() -> Self {
+    fn new(_: &S) -> Self {
         Self::default()
     }
     async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError> {

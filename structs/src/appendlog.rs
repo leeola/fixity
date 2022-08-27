@@ -6,34 +6,58 @@ use fixity_store::{
     store::{Repr, StoreError},
     Store,
 };
-use rkyv::{option::ArchivedOption, Infallible};
+use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
-pub struct AppendLog<Cid, T, D = Rkyv>(OwnedRepr<Cid, T, D>);
+pub struct AppendLog<S, Cid, T, D = Rkyv> {
+    store: S,
+    repr: OwnedRepr<Cid, T, D>,
+}
 enum OwnedRepr<Cid, T, D> {
     Owned(AppendNode<Cid, T>),
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
-impl<Cid, T> AppendLog<Cid, T>
+impl<'a, S, Cid, T> AppendLog<S, Cid, T, Rkyv>
 where
-    Cid: rkyv::Archive,
-    T: rkyv::Archive,
+    S: Store<Cid = Cid, Deser = Rkyv>,
+    Cid: rkyv::Archive + 'static,
+    T: Deserialize<Rkyv>,
+    AppendNode<Cid, Cid>:
+        Deserialize<Rkyv, Ref<'a> = &'a ArchivedAppendNode<Cid, Cid>> + Serialize<Rkyv>,
 {
     pub async fn inner(&mut self) -> Result<&T, StoreError> {
-        match &self.0 {
-            OwnedRepr::Owned(node) => Ok(node),
-            OwnedRepr::Repr(repr) => {
-                let ref_node = repr.repr_ref()?;
-                let data = store.get(&ref_node.data).await?;
-                self.0 = OwnedRepr::Owned(AppendNode {
+        // NIT: this early check seems like overhead but lifetime errors were causing headaches
+        // so this just works easier for a minor, possibly none, cost.
+        if let OwnedRepr::Repr(repr) = &self.repr {
+            let owned_node = {
+                let ptr_node = repr.repr_to_owned().unwrap();
+                // Leaving this dead code here, because it illustrates a usage of subfielding
+                // that needs to be supported by `Repr` / Deserialize abstraction traits.
+                // // TODO: Try and abstract this deserialize into part of the `Repr` impl.
+                // let data_cid: Cid = ref_node
+                //     .data
+                //     .deserialize(&mut rkyv::Infallible)
+                //     .unwrap()
+                //     .into_inner();
+                let data = self
+                    .store
+                    .get(&ptr_node.data)
+                    .await?
+                    .repr_to_owned()
+                    .unwrap();
+                drop(repr);
+                AppendNode {
                     data,
-                    prev: ref_node.prev,
-                });
-                match &self.0 {
-                    OwnedRepr::Owned(node) => Ok(node),
-                    // NIT: This unreachable makes me sad.
-                    OwnedRepr::Repr(_) => unreachable!(),
+                    prev: ptr_node.prev,
                 }
+            };
+            self.repr = OwnedRepr::Owned(owned_node);
+        }
+        match &self.repr {
+            OwnedRepr::Owned(node) => Ok(&node.data),
+            // NIT: This unreachable makes me sad.
+            OwnedRepr::Repr(_) => {
+                unreachable!("variant assigned above")
             },
         }
     }

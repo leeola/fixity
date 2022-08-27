@@ -8,7 +8,7 @@ pub trait Serialize<Deser> {
     type Bytes: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
     fn serialize(&self) -> Result<Self::Bytes, DeserError>;
 }
-pub trait DeserializeRef<Deser> {
+pub trait DeserializeRef<Deser>: Sized {
     type Ref<'a>;
 }
 pub trait Deserialize<Deser>: DeserializeRef<Deser> + Sized {
@@ -72,6 +72,7 @@ mod rkyv {
     where
         T: Archive,
         T::Archived: 'static,
+        for<'a> T: From<&'a T::Archived>,
     {
         type Ref<'a> = &'a T::Archived;
     }

@@ -127,6 +127,7 @@ where
     /// The cid reported by the `MetaStore`, used to load the most recent
     /// value for this branch replica.
     head: Option<S::Cid>,
+    /// A container or value,
     value: T,
 }
 impl<M, S, T> RepoReplica<M, S, T>
@@ -180,6 +181,7 @@ where
             .await
             .unwrap();
         self.head = Some(cid.clone());
+        self.clean = true;
         Ok(cid)
     }
 }
