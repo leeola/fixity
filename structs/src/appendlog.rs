@@ -20,12 +20,16 @@ enum OwnedRepr<Cid, T, D> {
 impl<'s, 'a, S, Cid, T> AppendLog<'s, S, Cid, T, Rkyv>
 where
     S: Store<Cid = Cid, Deser = Rkyv>,
-    Cid: rkyv::Archive + 'static,
+    Cid: Deserialize<Rkyv>,
     T: Deserialize<Rkyv>,
-    AppendNode<Cid, Cid>:
-        Deserialize<Rkyv, Ref<'a> = &'a ArchivedAppendNode<Cid, Cid>> + Serialize<Rkyv>,
+    AppendNode<Cid, Cid>: Deserialize<Rkyv> + Serialize<Rkyv>,
 {
     pub async fn inner(&mut self) -> Result<&T, StoreError> {
+        // Because `inner()` mutates self, both inner and inner_mut take the same
+        // borrow, so we can just use the same underlying impl.
+        self.inner_mut().await.map(|t| &*t)
+    }
+    pub async fn inner_mut(&mut self) -> Result<&mut T, StoreError> {
         // NIT: this early check seems like overhead but lifetime errors were causing headaches
         // so this just works easier for a minor, possibly none, cost.
         if let OwnedRepr::Repr(repr) = &self.repr {
@@ -52,17 +56,14 @@ where
             };
             self.repr = OwnedRepr::Owned(owned_node);
         }
-        match &self.repr {
-            OwnedRepr::Owned(node) => Ok(&node.data),
+        match &mut self.repr {
+            OwnedRepr::Owned(node) => Ok(&mut node.data),
             // NIT: This unreachable makes me sad.
             OwnedRepr::Repr(_) => {
                 unreachable!("variant assigned above")
             },
         }
     }
-    // pub fn inner_mut(&mut self) -> &mut T {
-    //     &mut self.0.data
-    // }
 }
 #[async_trait]
 impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<'s, S, Cid, T, D>
