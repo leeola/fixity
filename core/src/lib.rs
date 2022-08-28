@@ -37,7 +37,7 @@ where
     }
     pub async fn open<T>(&self, repo: &str) -> Result<Repo<M, S, T>, Error>
     where
-        T: Container<S>,
+        for<'s> T: Container<'s, S>,
     {
         // TODO: check stored repo type. Meta doesn't store
         // repo signature yet.
@@ -50,7 +50,7 @@ where
         replica: M::Rid,
     ) -> Result<RepoReplica<M, S, T>, Error>
     where
-        T: Container<S>,
+        for<'s> T: Container<'s, S>,
     {
         self.open::<T>(repo).await?.branch(branch, replica).await
     }
@@ -76,7 +76,7 @@ impl<M, S, T> Repo<M, S, T>
 where
     S: Store,
     M: Meta<S::Cid>,
-    T: Container<S>,
+    for<'s> T: Container<'s, S>,
 {
     pub async fn open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Result<Self, Error> {
         Ok(Repo {
@@ -134,7 +134,7 @@ impl<M, S, T> RepoReplica<M, S, T>
 where
     S: Store,
     M: Meta<S::Cid>,
-    T: Container<S>,
+    for<'s> T: Container<'s, S>,
 {
     pub async fn open(
         meta: Arc<M>,
@@ -145,7 +145,7 @@ where
     ) -> Result<Self, Error> {
         let (value, head) = match meta.head("local", repo, branch, &rid).await {
             Ok(head) => (T::open(&*store, &head).await.unwrap(), Some(head)),
-            Err(MetaStoreError::NotFound) => (T::new(), None),
+            Err(MetaStoreError::NotFound) => (T::new(&*store), None),
             Err(err) => return Err(Error::Other(anyhow!(err))),
         };
         Ok(Self {

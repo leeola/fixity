@@ -9,15 +9,15 @@ use fixity_store::{
 use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
-pub struct AppendLog<S, Cid, T, D = Rkyv> {
-    store: S,
+pub struct AppendLog<'s, S, Cid, T, D = Rkyv> {
+    store: &'s S,
     repr: OwnedRepr<Cid, T, D>,
 }
 enum OwnedRepr<Cid, T, D> {
     Owned(AppendNode<Cid, T>),
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
-impl<'a, S, Cid, T> AppendLog<S, Cid, T, Rkyv>
+impl<'s, 'a, S, Cid, T> AppendLog<'s, S, Cid, T, Rkyv>
 where
     S: Store<Cid = Cid, Deser = Rkyv>,
     Cid: rkyv::Archive + 'static,
@@ -45,7 +45,6 @@ where
                     .await?
                     .repr_to_owned()
                     .unwrap();
-                drop(repr);
                 AppendNode {
                     data,
                     prev: ptr_node.prev,
@@ -66,26 +65,32 @@ where
     // }
 }
 #[async_trait]
-impl<Cid, T, S, D> Container<S> for AppendLog<Cid, T, D>
+impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<'s, S, Cid, T, D>
 where
-    S: Store<Cid = Cid, Deser = D>,
-    D: Send + Sync,
-    Cid: ContentId,
-    T: Container<S> + Serialize<S::Deser> + Sync,
+    S: Store<Cid = Cid, Deser = D> + 's,
+    D: Send + Sync + 's,
+    Cid: ContentId + 's,
+    T: Container<'s, S> + Serialize<S::Deser> + Sync,
     AppendNode<Cid, Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
 {
-    fn new() -> Self {
-        Self(OwnedRepr::Owned(AppendNode {
-            data: T::new(),
-            prev: None,
-        }))
+    fn new(store: &'s S) -> Self {
+        Self {
+            store,
+            repr: OwnedRepr::Owned(AppendNode {
+                data: T::new(store),
+                prev: None,
+            }),
+        }
     }
-    async fn open(store: &S, cid: &S::Cid) -> Result<Self, StoreError> {
+    async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError> {
         let repr = store.get::<AppendNode<Cid, Cid>>(cid).await.unwrap();
-        Ok(Self(OwnedRepr::Repr(repr)))
+        Ok(Self {
+            store,
+            repr: OwnedRepr::Repr(repr),
+        })
     }
-    async fn save(&mut self, store: &S) -> Result<S::Cid, StoreError> {
-        let owned_node = match &self.0 {
+    async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError> {
+        let owned_node = match &self.repr {
             OwnedRepr::Owned(node) => node,
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
@@ -101,7 +106,7 @@ where
         store: &S,
         cids_buf: &mut Vec<S::Cid>,
     ) -> Result<(), StoreError> {
-        let owned_node = match &self.0 {
+        let owned_node = match &self.repr {
             OwnedRepr::Owned(node) => node,
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
@@ -118,7 +123,7 @@ where
 #[derive(Debug, Default)]
 #[cfg(feature = "deser_rkyv")]
 #[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-struct AppendNode<Cid, T> {
+pub struct AppendNode<Cid, T> {
     data: T,
     // TODO: experiment with making this non-Option,
     // and doing a fallback () type load for the very first node.

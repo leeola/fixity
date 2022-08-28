@@ -72,7 +72,6 @@ mod rkyv {
     where
         T: Archive,
         T::Archived: 'static,
-        for<'a> T: From<&'a T::Archived>,
     {
         type Ref<'a> = &'a T::Archived;
     }
