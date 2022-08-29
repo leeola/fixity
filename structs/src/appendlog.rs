@@ -9,27 +9,31 @@ use fixity_store::{
 use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
-pub struct AppendLog<'s, S, Cid, T, D = Rkyv> {
-    store: &'s S,
+pub struct AppendLog<Cid, T, D = Rkyv> {
     repr: OwnedRepr<Cid, T, D>,
 }
 enum OwnedRepr<Cid, T, D> {
     Owned(AppendNode<Cid, T>),
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
-impl<'s, 'a, S, Cid, T> AppendLog<'s, S, Cid, T, Rkyv>
+impl<'a, Cid, T> AppendLog<Cid, T, Rkyv>
 where
-    S: Store<Cid = Cid, Deser = Rkyv>,
     Cid: Deserialize<Rkyv>,
     T: Deserialize<Rkyv>,
     AppendNode<Cid, Cid>: Deserialize<Rkyv> + Serialize<Rkyv>,
 {
-    pub async fn inner(&mut self) -> Result<&T, StoreError> {
+    pub async fn inner<S>(&mut self, store: &S) -> Result<&T, StoreError>
+    where
+        S: Store<Cid = Cid, Deser = Rkyv>,
+    {
         // Because `inner()` mutates self, both inner and inner_mut take the same
         // borrow, so we can just use the same underlying impl.
-        self.inner_mut().await.map(|t| &*t)
+        self.inner_mut(store).await.map(|t| &*t)
     }
-    pub async fn inner_mut(&mut self) -> Result<&mut T, StoreError> {
+    pub async fn inner_mut<S>(&mut self, store: &S) -> Result<&mut T, StoreError>
+    where
+        S: Store<Cid = Cid, Deser = Rkyv>,
+    {
         // NIT: this early check seems like overhead but lifetime errors were causing headaches
         // so this just works easier for a minor, possibly none, cost.
         if let OwnedRepr::Repr(repr) = &self.repr {
@@ -43,12 +47,7 @@ where
                 //     .deserialize(&mut rkyv::Infallible)
                 //     .unwrap()
                 //     .into_inner();
-                let data = self
-                    .store
-                    .get(&ptr_node.data)
-                    .await?
-                    .repr_to_owned()
-                    .unwrap();
+                let data = store.get(&ptr_node.data).await?.repr_to_owned().unwrap();
                 AppendNode {
                     data,
                     prev: ptr_node.prev,
@@ -66,17 +65,16 @@ where
     }
 }
 #[async_trait]
-impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<'s, S, Cid, T, D>
+impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<Cid, T, D>
 where
-    S: Store<Cid = Cid, Deser = D> + 's,
+    S: Store<Cid = Cid, Deser = D>,
     D: Send + Sync + 's,
     Cid: ContentId + 's,
-    T: Container<'s, S> + Serialize<S::Deser> + Sync,
+    T: Container<'s, S> + Sync,
     AppendNode<Cid, Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
 {
     fn new(store: &'s S) -> Self {
         Self {
-            store,
             repr: OwnedRepr::Owned(AppendNode {
                 data: T::new(store),
                 prev: None,
@@ -86,16 +84,16 @@ where
     async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError> {
         let repr = store.get::<AppendNode<Cid, Cid>>(cid).await.unwrap();
         Ok(Self {
-            store,
             repr: OwnedRepr::Repr(repr),
         })
     }
     async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError> {
-        let owned_node = match &self.repr {
+        let owned_node = match &mut self.repr {
             OwnedRepr::Owned(node) => node,
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
-        let data_cid = store.put(&owned_node.data).await?;
+        let data_cid = owned_node.data.save(store).await?;
+        // let data_cid = store.put(&owned_node.data).await?;
         let ref_node = AppendNode {
             data: data_cid,
             prev: owned_node.prev.clone(),
@@ -107,11 +105,11 @@ where
         store: &S,
         cids_buf: &mut Vec<S::Cid>,
     ) -> Result<(), StoreError> {
-        let owned_node = match &self.repr {
+        let owned_node = match &mut self.repr {
             OwnedRepr::Owned(node) => node,
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
-        store.put_with_cids(&owned_node.data, cids_buf).await?;
+        owned_node.data.save_with_cids(store, cids_buf).await?;
         // grab the last cid, as that is the one from above.
         let data_cid = cids_buf[cids_buf.len() - 1].clone();
         let ref_node = AppendNode {

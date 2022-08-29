@@ -253,6 +253,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "fixity_store",
+ "fixity_structs",
  "rstest",
  "thiserror",
  "tokio",

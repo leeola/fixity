@@ -12,7 +12,7 @@ use thiserror::Error;
 
 #[async_trait]
 pub trait Store: Send + Sync {
-    type Deser;
+    type Deser: Send + Sync;
     type Cid: ContentId + 'static;
     type Hasher: ContentHasher<Self::Cid>;
     type Storage: ContentStorage<Self::Cid>;

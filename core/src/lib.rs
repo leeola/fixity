@@ -9,6 +9,7 @@ use fixity_store::{
     store::{self, StoreImpl},
     Meta, Store,
 };
+use fixity_structs::appendlog::AppendLog;
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -128,13 +129,15 @@ where
     /// value for this branch replica.
     head: Option<S::Cid>,
     /// A container or value,
-    value: T,
+    // value: T,
+    value: AppendLog<S::Cid, T, S::Deser>,
 }
 impl<M, S, T> RepoReplica<M, S, T>
 where
     S: Store,
     M: Meta<S::Cid>,
     for<'s> T: Container<'s, S>,
+    for<'s> AppendLog<S::Cid, T, S::Deser>: Container<'s, S>,
 {
     pub async fn open(
         meta: Arc<M>,
@@ -144,8 +147,8 @@ where
         rid: M::Rid,
     ) -> Result<Self, Error> {
         let (value, head) = match meta.head("local", repo, branch, &rid).await {
-            Ok(head) => (T::open(&*store, &head).await.unwrap(), Some(head)),
-            Err(MetaStoreError::NotFound) => (T::new(&*store), None),
+            Ok(head) => (AppendLog::open(&*store, &head).await.unwrap(), Some(head)),
+            Err(MetaStoreError::NotFound) => (AppendLog::new(&*store), None),
             Err(err) => return Err(Error::Other(anyhow!(err))),
         };
         Ok(Self {
@@ -183,26 +186,6 @@ where
         self.head = Some(cid.clone());
         self.clean = true;
         Ok(cid)
-    }
-}
-impl<M, S, T> Deref for RepoReplica<M, S, T>
-where
-    S: Store,
-    M: Meta<S::Cid>,
-{
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-impl<M, S, T> DerefMut for RepoReplica<M, S, T>
-where
-    S: Store,
-    M: Meta<S::Cid>,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.clean = false;
-        &mut self.value
     }
 }
 #[cfg(test)]
