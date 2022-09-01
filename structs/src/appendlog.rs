@@ -9,13 +9,14 @@ use fixity_store::{
 use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
-pub struct AppendLog<Cid, T, D = Rkyv> {
+pub struct AppendLog<Cid, T, D> {
     repr: OwnedRepr<Cid, T, D>,
 }
 enum OwnedRepr<Cid, T, D> {
     Owned(AppendNode<Cid, T>),
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
+/*
 impl<'a, Cid, T> AppendLog<Cid, T, Rkyv>
 where
     Cid: Deserialize<Rkyv>,
@@ -64,6 +65,7 @@ where
         }
     }
 }
+*/
 #[async_trait]
 impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<Cid, T, D>
 where
@@ -120,7 +122,9 @@ where
     }
 }
 #[derive(Debug, Default)]
-#[cfg(feature = "deser_rkyv")]
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[cfg(feature = "rkyv")]
 #[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct AppendNode<Cid, T> {
     data: T,
@@ -131,7 +135,7 @@ pub struct AppendNode<Cid, T> {
     // node pays no tax and has no `Option` overhead on storage.
     prev: Option<Cid>,
 }
-#[cfg(feature = "deser_rkyv")]
+#[cfg(feature = "rkyv")]
 mod rkyv_impls {
     use rkyv::option::ArchivedOption;
 
