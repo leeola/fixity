@@ -67,13 +67,15 @@ where
 }
 */
 #[async_trait]
-impl<'s, Cid, T, S, D> Container<'s, S> for AppendLog<Cid, T, D>
+impl<'s, T, S> Container<'s, S> for AppendLog<S::Cid, T, S::Deser>
 where
-    S: Store<Cid = Cid, Deser = D>,
-    D: Send + Sync + 's,
-    Cid: ContentId + 's,
+    // S: Store<Cid = Cid,
+    // Deser = D>,
+    S: Store,
+    S::Deser: 's,
+    S::Cid: ContentId + 's,
     T: Container<'s, S> + Sync,
-    AppendNode<Cid, Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
+    AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
 {
     fn new(store: &'s S) -> Self {
         Self {
@@ -84,7 +86,7 @@ where
         }
     }
     async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError> {
-        let repr = store.get::<AppendNode<Cid, Cid>>(cid).await.unwrap();
+        let repr = store.get::<AppendNode<S::Cid, S::Cid>>(cid).await.unwrap();
         Ok(Self {
             repr: OwnedRepr::Repr(repr),
         })

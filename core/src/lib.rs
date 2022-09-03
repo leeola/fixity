@@ -9,7 +9,7 @@ use fixity_store::{
     store::{self, StoreImpl},
     Meta, Store,
 };
-use fixity_structs::appendlog::AppendLog;
+use fixity_structs::appendlog::{AppendLog, AppendNode};
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -54,11 +54,12 @@ where
     where
         S::Cid: Serialize<S::Deser> + Deserialize<S::Deser>,
         for<'s> T: Container<'s, S> + Sync,
+        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
+        S::Deser: 'static,
     {
         self.open::<T>(repo).await?.branch(branch, replica).await
     }
 }
-/*
 // Some type aliases for simplicity.
 type MemStorage = storage::Memory;
 type MemStore = store::StoreImpl<Arc<MemStorage>, Rkyv, Hasher>;
@@ -70,7 +71,6 @@ impl MemFixity {
         MemFixity::new(storage, store)
     }
 }
-*/
 pub struct Repo<Meta, Store, T> {
     meta: Arc<Meta>,
     store: Arc<Store>,
@@ -92,11 +92,11 @@ where
             _phantom_t: PhantomData,
         })
     }
-    pub async fn branch(
-        &self,
-        branch: &str,
-        replica: M::Rid,
-    ) -> Result<RepoReplica<M, S, T>, Error> {
+    pub async fn branch(&self, branch: &str, replica: M::Rid) -> Result<RepoReplica<M, S, T>, Error>
+    where
+        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
+        S::Deser: 'static,
+    {
         RepoReplica::new_open(
             Arc::clone(&self.meta),
             Arc::clone(&self.store),
@@ -143,6 +143,7 @@ where
     M: Meta<S::Cid>,
     for<'s> T: Container<'s, S>,
     for<'s> AppendLog<S::Cid, T, S::Deser>: Container<'s, S>,
+    AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
 {
     pub async fn new_open(
         meta: Arc<M>,
@@ -198,7 +199,7 @@ where
 async fn basic_mutation() {
     use fixity_store::replicaid::Rid;
     let rid = Rid::<8>::default();
-    // let fixi = Fixity::memory();
+    let fixi = Fixity::memory();
     /*
     let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
     let t = repo_a.deref_mut();
