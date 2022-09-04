@@ -200,10 +200,10 @@ async fn basic_mutation() {
     use fixity_store::replicaid::Rid;
     let rid = Rid::<8>::default();
     let fixi = Fixity::memory();
-    /*
     let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-    let t = repo_a.deref_mut();
-    *t = String::from("value");
+    // let t = repo_a.deref_mut();
+    // *t = String::from("value");
+    /*
     let head_a = repo_a.commit().await.unwrap();
     dbg!(head_a);
     {

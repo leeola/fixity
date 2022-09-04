@@ -4,6 +4,11 @@ use crate::contentid::ContentId;
 
 pub trait ReplicaId: ContentId {}
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+// TODO: Serde doesn't impl for const :(. Can i impl manually perhaps?
+// #[cfg(feature = "serde")]
+// #[derive(serde::Deserialize, serde::Serialize)]
+#[cfg(feature = "rkyv")]
+#[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct Rid<const N: usize>([u8; N]);
 impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {
