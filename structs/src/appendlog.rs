@@ -16,7 +16,6 @@ enum OwnedRepr<Cid, T, D> {
     Owned(AppendNode<Cid, T>),
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
-/*
 impl<'a, Cid, T> AppendLog<Cid, T, Rkyv>
 where
     Cid: Deserialize<Rkyv>,
@@ -65,7 +64,6 @@ where
         }
     }
 }
-*/
 #[async_trait]
 impl<'s, T, S> Container<'s, S> for AppendLog<S::Cid, T, S::Deser>
 where

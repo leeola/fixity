@@ -193,6 +193,34 @@ where
         self.clean = true;
         Ok(cid)
     }
+    // NIT: requiring mut on a inner() method feels bad. AppendLog should be changed
+    // so it's not so abusive. Even if for less perf, perhaps.
+    pub async fn inner(&mut self) -> Result<&T, Error>
+    where
+        // NIT: AppendLog at this time only supports Rkyv, should probably
+        // make it fully generic for the health of the primary APIs, since it's
+        // such a core type.
+        S: Store<Deser = Rkyv>,
+        S::Cid: Deserialize<S::Deser>,
+        T: Deserialize<S::Deser>,
+        AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
+    {
+        let t = self.value.inner(&*self.store).await.unwrap();
+        Ok(t)
+    }
+    pub async fn inner_mut(&mut self) -> Result<&mut T, Error>
+    where
+        // NIT: AppendLog at this time only supports Rkyv, should probably
+        // make it fully generic for the health of the primary APIs, since it's
+        // such a core type.
+        S: Store<Deser = Rkyv>,
+        S::Cid: Deserialize<S::Deser>,
+        T: Deserialize<S::Deser>,
+        AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
+    {
+        let t = self.value.inner_mut(&*self.store).await.unwrap();
+        Ok(t)
+    }
 }
 #[cfg(test)]
 #[tokio::test]
@@ -201,21 +229,19 @@ async fn basic_mutation() {
     let rid = Rid::<8>::default();
     let fixi = Fixity::memory();
     let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-    // let t = repo_a.deref_mut();
-    // *t = String::from("value");
-    /*
+    let t = repo_a.inner_mut().await.unwrap();
+    *t = String::from("value");
     let head_a = repo_a.commit().await.unwrap();
     dbg!(head_a);
     {
-        let repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-        let t = repo.deref();
+        let mut repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+        let t = repo.inner().await.unwrap();
         assert_eq!("value", t);
     }
     let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
-    let t = repo_b.deref_mut();
+    let t = repo_b.inner_mut().await.unwrap();
     assert_eq!("", t);
     *t = String::from("value");
     let head_b = repo_b.commit().await.unwrap();
     assert_eq!(head_a, head_b);
-    */
 }
