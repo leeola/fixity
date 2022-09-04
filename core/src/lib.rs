@@ -179,6 +179,11 @@ where
             return Err(Error::CommitInitValue);
         }
         let cid = self.value.save(&*self.store).await.unwrap();
+        if let Some(head) = self.head.clone() {
+            if cid == head {
+                return Ok(head);
+            }
+        }
         self.meta
             .set_head(
                 "local",
@@ -213,6 +218,7 @@ where
         Ok(t)
     }
     pub async fn inner_mut(&mut self) -> Result<&mut T, Error> {
+        self.clean = false;
         let t = self.value.inner_mut(&*self.store).await.unwrap();
         Ok(t)
     }
