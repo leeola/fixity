@@ -193,31 +193,26 @@ where
         self.clean = true;
         Ok(cid)
     }
+}
+// NIT: Rkyv specific impls. Required current because AppendLog only impls for Rkyv.
+//
+// AppendLog should probably make it fully generic for the health of the primary APIs,
+// since it's such a core type.
+impl<M, S, T> RepoReplica<M, S, T>
+where
+    S: Store<Deser = Rkyv>,
+    M: Meta<S::Cid>,
+    S::Cid: Deserialize<S::Deser>,
+    T: Deserialize<S::Deser>,
+    AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser>,
+{
     // NIT: requiring mut on a inner() method feels bad. AppendLog should be changed
     // so it's not so abusive. Even if for less perf, perhaps.
-    pub async fn inner(&mut self) -> Result<&T, Error>
-    where
-        // NIT: AppendLog at this time only supports Rkyv, should probably
-        // make it fully generic for the health of the primary APIs, since it's
-        // such a core type.
-        S: Store<Deser = Rkyv>,
-        S::Cid: Deserialize<S::Deser>,
-        T: Deserialize<S::Deser>,
-        AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
-    {
+    pub async fn inner(&mut self) -> Result<&T, Error> {
         let t = self.value.inner(&*self.store).await.unwrap();
         Ok(t)
     }
-    pub async fn inner_mut(&mut self) -> Result<&mut T, Error>
-    where
-        // NIT: AppendLog at this time only supports Rkyv, should probably
-        // make it fully generic for the health of the primary APIs, since it's
-        // such a core type.
-        S: Store<Deser = Rkyv>,
-        S::Cid: Deserialize<S::Deser>,
-        T: Deserialize<S::Deser>,
-        AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser> + Serialize<S::Deser>,
-    {
+    pub async fn inner_mut(&mut self) -> Result<&mut T, Error> {
         let t = self.value.inner_mut(&*self.store).await.unwrap();
         Ok(t)
     }

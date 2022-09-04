@@ -20,7 +20,7 @@ impl<'a, Cid, T> AppendLog<Cid, T, Rkyv>
 where
     Cid: Deserialize<Rkyv>,
     T: Deserialize<Rkyv>,
-    AppendNode<Cid, Cid>: Deserialize<Rkyv> + Serialize<Rkyv>,
+    AppendNode<Cid, Cid>: Deserialize<Rkyv>,
 {
     pub async fn inner<S>(&mut self, store: &S) -> Result<&T, StoreError>
     where
