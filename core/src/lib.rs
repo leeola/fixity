@@ -135,7 +135,7 @@ where
     head: Option<S::Cid>,
     /// A container or value,
     // value: T,
-    value: AppendLog<S::Cid, T, S::Deser>,
+    appendlog: AppendLog<S::Cid, T, S::Deser>,
 }
 impl<M, S, T> RepoReplica<M, S, T>
 where
@@ -152,7 +152,7 @@ where
         branch: &str,
         rid: M::Rid,
     ) -> Result<Self, Error> {
-        let (value, head) = match meta.head("local", repo, branch, &rid).await {
+        let (appendlog, head) = match meta.head("local", repo, branch, &rid).await {
             Ok(head) => (AppendLog::open(&*store, &head).await.unwrap(), Some(head)),
             Err(MetaStoreError::NotFound) => (AppendLog::new(&*store), None),
             Err(err) => return Err(Error::Other(anyhow!(err))),
@@ -165,8 +165,11 @@ where
             replica_id: rid,
             clean: true,
             head,
-            value,
+            appendlog,
         })
+    }
+    pub async fn head(&self) -> Option<S::Cid> {
+        self.head.clone()
     }
     pub async fn commit(&mut self) -> Result<S::Cid, Error> {
         if self.clean {
@@ -178,7 +181,7 @@ where
             // state. Adding a future `commit_init` would bypass this.
             return Err(Error::CommitInitValue);
         }
-        let cid = self.value.save(&*self.store).await.unwrap();
+        let cid = self.appendlog.save(&*self.store).await.unwrap();
         if let Some(head) = self.head.clone() {
             if cid == head {
                 return Ok(head);
@@ -214,35 +217,60 @@ where
     // NIT: requiring mut on a inner() method feels bad. AppendLog should be changed
     // so it's not so abusive. Even if for less perf, perhaps.
     pub async fn inner(&mut self) -> Result<&T, Error> {
-        let t = self.value.inner(&*self.store).await.unwrap();
+        let t = self.appendlog.inner(&*self.store).await.unwrap();
         Ok(t)
     }
     pub async fn inner_mut(&mut self) -> Result<&mut T, Error> {
         self.clean = false;
-        let t = self.value.inner_mut(&*self.store).await.unwrap();
+        let t = self.appendlog.inner_mut(&*self.store).await.unwrap();
         Ok(t)
+    }
+    pub async fn commit_value<U: Into<T>>(&mut self, value: U) -> Result<S::Cid, Error>
+    where
+        for<'s> T: Container<'s, S>,
+        for<'s> AppendLog<S::Cid, T, S::Deser>: Container<'s, S>,
+        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser>,
+    {
+        let self_inner = self.inner_mut().await?;
+        *self_inner = value.into();
+        self.commit().await
     }
 }
 #[cfg(test)]
-#[tokio::test]
-async fn basic_mutation() {
-    use fixity_store::replicaid::Rid;
-    let rid = Rid::<8>::default();
-    let fixi = Fixity::memory();
-    let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-    let t = repo_a.inner_mut().await.unwrap();
-    *t = String::from("value");
-    let head_a = repo_a.commit().await.unwrap();
-    dbg!(head_a);
-    {
-        let mut repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-        let t = repo.inner().await.unwrap();
-        assert_eq!("value", t);
+pub mod test {
+    use super::*;
+    #[tokio::test]
+    async fn basic_mutation() {
+        use fixity_store::replicaid::Rid;
+        let rid = Rid::<8>::default();
+        let fixi = Fixity::memory();
+        let mut repo_a = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+        let t = repo_a.inner_mut().await.unwrap();
+        *t = String::from("value");
+        let head_a = repo_a.commit().await.unwrap();
+        dbg!(head_a);
+        {
+            let mut branch = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+            let t = branch.inner().await.unwrap();
+            assert_eq!("value", t);
+        }
+        let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
+        let t = repo_b.inner_mut().await.unwrap();
+        assert_eq!("", t);
+        *t = String::from("value");
+        let head_b = repo_b.commit().await.unwrap();
+        assert_eq!(head_a, head_b);
     }
-    let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
-    let t = repo_b.inner_mut().await.unwrap();
-    assert_eq!("", t);
-    *t = String::from("value");
-    let head_b = repo_b.commit().await.unwrap();
-    assert_eq!(head_a, head_b);
+    #[tokio::test]
+    async fn reports_inner_cid() {
+        use fixity_store::replicaid::Rid;
+        let rid = Rid::<8>::default();
+        let fixi = Fixity::memory();
+        let mut repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+        let head_foo_a = repo.commit_value("foo").await.unwrap();
+        let head_bar = repo.commit_value("bar").await.unwrap();
+        assert_ne!(head_foo_a, head_bar);
+        let head_foo_b = repo.commit_value("foo").await.unwrap();
+        assert_eq!(head_foo_a, head_foo_b);
+    }
 }
