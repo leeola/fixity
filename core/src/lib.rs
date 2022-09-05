@@ -132,10 +132,10 @@ where
     clean: bool,
     /// The cid reported by the `MetaStore`, used to load the most recent
     /// value for this branch replica.
-    head: Option<S::Cid>,
+    log_head: Option<S::Cid>,
     /// A container or value,
     // value: T,
-    appendlog: AppendLog<S::Cid, T, S::Deser>,
+    log: AppendLog<S::Cid, T, S::Deser>,
 }
 impl<M, S, T> RepoReplica<M, S, T>
 where
@@ -164,16 +164,21 @@ where
             branch: Box::from(branch),
             replica_id: rid,
             clean: true,
-            head,
-            appendlog,
+            log_head: head,
+            log: appendlog,
         })
     }
     pub async fn head(&self) -> Option<S::Cid> {
-        self.head.clone()
+        self.log_head.clone()
     }
-    pub async fn commit(&mut self) -> Result<S::Cid, Error> {
+    pub async fn commit(&mut self) -> Result<S::Cid, Error>
+    where
+        S: Store<Deser = Rkyv>,
+        T: Deserialize<Rkyv>,
+        S::Cid: Deserialize<Rkyv>,
+    {
         if self.clean {
-            if let Some(head) = self.head.clone() {
+            if let Some(head) = self.log_head.clone() {
                 return Ok(head);
             }
             // if clean, but no head - this is an initial value, eg T::init(),
@@ -181,10 +186,15 @@ where
             // state. Adding a future `commit_init` would bypass this.
             return Err(Error::CommitInitValue);
         }
-        let cid = self.appendlog.save(&*self.store).await.unwrap();
-        if let Some(head) = self.head.clone() {
-            if cid == head {
-                return Ok(head);
+        // TODO: Add a method to save_with_inner_cid or something, to allow for reporting
+        // both the log_head and inner_head.
+        let log_head = self.log.save(&*self.store).await.unwrap();
+        if let Some(current_log_head) = self.log_head.clone() {
+            if log_head == current_log_head {
+                // TODO: save the data cid alongside the log_head, methinks. Avoid this.
+                let data_cid = self.log.inner_cid(&*self.store).await.unwrap();
+                let data_cid = data_cid.unwrap();
+                return Ok(data_cid);
             }
         }
         self.meta
@@ -193,13 +203,15 @@ where
                 &*self.repo,
                 &*self.branch,
                 &self.replica_id,
-                cid.clone(),
+                log_head.clone(),
             )
             .await
             .unwrap();
-        self.head = Some(cid.clone());
+        self.log_head = Some(log_head.clone());
         self.clean = true;
-        Ok(cid)
+        let data_cid = self.log.inner_cid(&*self.store).await.unwrap();
+        let data_cid = data_cid.unwrap();
+        Ok(data_cid)
     }
 }
 // NIT: Rkyv specific impls. Required current because AppendLog only impls for Rkyv.
@@ -217,12 +229,12 @@ where
     // NIT: requiring mut on a inner() method feels bad. AppendLog should be changed
     // so it's not so abusive. Even if for less perf, perhaps.
     pub async fn inner(&mut self) -> Result<&T, Error> {
-        let t = self.appendlog.inner(&*self.store).await.unwrap();
+        let t = self.log.inner(&*self.store).await.unwrap();
         Ok(t)
     }
     pub async fn inner_mut(&mut self) -> Result<&mut T, Error> {
         self.clean = false;
-        let t = self.appendlog.inner_mut(&*self.store).await.unwrap();
+        let t = self.log.inner_mut(&*self.store).await.unwrap();
         Ok(t)
     }
     pub async fn commit_value<U: Into<T>>(&mut self, value: U) -> Result<S::Cid, Error>

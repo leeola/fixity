@@ -10,11 +10,17 @@ use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
 pub struct AppendLog<Cid, T, D> {
+    /// The CID of the `AppendNode` on disk.
+    ///
+    /// Used to determine `prev` cid on next write.
     node_cid: Option<Cid>,
     repr: OwnedRepr<Cid, T, D>,
 }
 enum OwnedRepr<Cid, T, D> {
-    Owned(AppendNode<Cid, T>),
+    Owned {
+        data_cid: Option<Cid>,
+        node: AppendNode<Cid, T>,
+    },
     Repr(Repr<AppendNode<Cid, Cid>, D>),
 }
 impl<'a, Cid, T> AppendLog<Cid, T, Rkyv>
@@ -23,6 +29,26 @@ where
     T: Deserialize<Rkyv>,
     AppendNode<Cid, Cid>: Deserialize<Rkyv>,
 {
+    pub async fn inner_cid<S>(&mut self, store: &S) -> Result<Option<Cid>, StoreError>
+    where
+        S: Store<Cid = Cid, Deser = Rkyv>,
+        Cid: Clone,
+    {
+        // TODO: this converts the whole node to owned, when all we need is the subfield.
+        // Need to find a way to make `Deser` and/or `Repr<T>` support deserializing subfields
+        // generically.
+        //
+        // NIT: abstracting the inner state conversion would be far better. This is
+        // a prototype shortcut.
+        let _ = self.inner_mut(store).await?;
+        match &self.repr {
+            OwnedRepr::Owned { data_cid, node: _ } => Ok(data_cid.clone()),
+            // NIT: This unreachable makes me sad.
+            OwnedRepr::Repr(_) => {
+                unreachable!("variant assigned above")
+            },
+        }
+    }
     pub async fn inner<S>(&mut self, store: &S) -> Result<&T, StoreError>
     where
         S: Store<Cid = Cid, Deser = Rkyv>,
@@ -38,7 +64,7 @@ where
         // NIT: this early check seems like overhead but lifetime errors were causing headaches
         // so this just works easier for a minor, possibly none, cost.
         if let OwnedRepr::Repr(repr) = &self.repr {
-            let owned_node = {
+            let (data_cid, owned_node) = {
                 let ptr_node = repr.repr_to_owned().unwrap();
                 // Leaving this dead code here, because it illustrates a usage of subfielding
                 // that needs to be supported by `Repr` / Deserialize abstraction traits.
@@ -49,15 +75,21 @@ where
                 //     .unwrap()
                 //     .into_inner();
                 let data = store.get(&ptr_node.data).await?.repr_to_owned().unwrap();
-                AppendNode {
-                    data,
-                    prev: ptr_node.prev,
-                }
+                (
+                    ptr_node.data,
+                    AppendNode {
+                        data,
+                        prev: ptr_node.prev,
+                    },
+                )
             };
-            self.repr = OwnedRepr::Owned(owned_node);
+            self.repr = OwnedRepr::Owned {
+                data_cid: Some(data_cid),
+                node: owned_node,
+            };
         }
         match &mut self.repr {
-            OwnedRepr::Owned(node) => Ok(&mut node.data),
+            OwnedRepr::Owned { data_cid: _, node } => Ok(&mut node.data),
             // NIT: This unreachable makes me sad.
             OwnedRepr::Repr(_) => {
                 unreachable!("variant assigned above")
@@ -77,10 +109,13 @@ where
     fn new(store: &'s S) -> Self {
         Self {
             node_cid: None,
-            repr: OwnedRepr::Owned(AppendNode {
-                data: T::new(store),
-                prev: None,
-            }),
+            repr: OwnedRepr::Owned {
+                data_cid: None,
+                node: AppendNode {
+                    data: T::new(store),
+                    prev: None,
+                },
+            },
         }
     }
     async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError> {
@@ -91,17 +126,18 @@ where
         })
     }
     async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError> {
-        let owned_node = match &mut self.repr {
-            OwnedRepr::Owned(node) => node,
+        let (owned_data_cid, owned_node) = match &mut self.repr {
+            OwnedRepr::Owned { data_cid, node } => (data_cid, node),
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
         let data_cid = owned_node.data.save(store).await?;
         let ref_node = AppendNode {
-            data: data_cid,
+            data: data_cid.clone(),
             prev: self.node_cid.clone(),
         };
         let cid = store.put(&ref_node).await?;
         self.node_cid = Some(cid.clone());
+        *owned_data_cid = Some(data_cid);
         Ok(cid)
     }
     async fn save_with_cids(
@@ -109,20 +145,21 @@ where
         store: &S,
         cids_buf: &mut Vec<S::Cid>,
     ) -> Result<(), StoreError> {
-        let owned_node = match &mut self.repr {
-            OwnedRepr::Owned(node) => node,
+        let (owned_data_cid, owned_node) = match &mut self.repr {
+            OwnedRepr::Owned { data_cid, node } => (data_cid, node),
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
         owned_node.data.save_with_cids(store, cids_buf).await?;
         // grab the last cid, as that is the one from above.
         let data_cid = cids_buf[cids_buf.len() - 1].clone();
         let ref_node = AppendNode {
-            data: data_cid,
+            data: data_cid.clone(),
             prev: owned_node.prev.clone(),
         };
         store.put_with_cids(&ref_node, cids_buf).await?;
         // TODO: store error to support this variant?
         self.node_cid = Some(cids_buf.last().cloned().unwrap());
+        *owned_data_cid = Some(data_cid);
         Ok(())
     }
 }
