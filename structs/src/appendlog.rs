@@ -10,6 +10,7 @@ use rkyv::{option::ArchivedOption, Deserialize as RkyvDeserialize, Infallible};
 use std::{fmt::Debug, ops::Deref};
 
 pub struct AppendLog<Cid, T, D> {
+    node_cid: Option<Cid>,
     repr: OwnedRepr<Cid, T, D>,
 }
 enum OwnedRepr<Cid, T, D> {
@@ -67,8 +68,6 @@ where
 #[async_trait]
 impl<'s, T, S> Container<'s, S> for AppendLog<S::Cid, T, S::Deser>
 where
-    // S: Store<Cid = Cid,
-    // Deser = D>,
     S: Store,
     S::Deser: 's,
     S::Cid: ContentId + 's,
@@ -77,6 +76,7 @@ where
 {
     fn new(store: &'s S) -> Self {
         Self {
+            node_cid: None,
             repr: OwnedRepr::Owned(AppendNode {
                 data: T::new(store),
                 prev: None,
@@ -86,6 +86,7 @@ where
     async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError> {
         let repr = store.get::<AppendNode<S::Cid, S::Cid>>(cid).await.unwrap();
         Ok(Self {
+            node_cid: Some(cid.clone()),
             repr: OwnedRepr::Repr(repr),
         })
     }
@@ -95,12 +96,13 @@ where
             OwnedRepr::Repr(_) => return Err(StoreError::NotModified),
         };
         let data_cid = owned_node.data.save(store).await?;
-        // let data_cid = store.put(&owned_node.data).await?;
         let ref_node = AppendNode {
             data: data_cid,
-            prev: owned_node.prev.clone(),
+            prev: self.node_cid.clone(),
         };
-        store.put(&ref_node).await
+        let cid = store.put(&ref_node).await?;
+        self.node_cid = Some(cid.clone());
+        Ok(cid)
     }
     async fn save_with_cids(
         &mut self,
@@ -118,7 +120,10 @@ where
             data: data_cid,
             prev: owned_node.prev.clone(),
         };
-        store.put_with_cids(&ref_node, cids_buf).await
+        store.put_with_cids(&ref_node, cids_buf).await?;
+        // TODO: store error to support this variant?
+        self.node_cid = Some(cids_buf.last().cloned().unwrap());
+        Ok(())
     }
 }
 #[derive(Debug, Default)]
