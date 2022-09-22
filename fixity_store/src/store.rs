@@ -153,6 +153,7 @@ impl<D, H> Deref for Memory<D, H> {
         &self.0
     }
 }
+#[derive(Clone, PartialEq, Eq)]
 pub struct Repr<T, D> {
     buf: Arc<[u8]>,
     _t: PhantomData<T>,

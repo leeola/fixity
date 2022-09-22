@@ -21,6 +21,23 @@ where
         store: &S,
         cids_buf: &mut Vec<S::Cid>,
     ) -> Result<(), StoreError>;
+
+    // NOTE: other:Cid looks good, but being able to describe a diff should/could
+    // be baked in.. somewhere.
+    //
+    // async fn merge(&mut self, other: &S::Cid) -> Result<(), StoreError>;
+    // async fn merge(&mut self, other: &Self) -> Result<(), StoreError>;
+
+    // TODO: how do we generically describe a diff? Could look to some diffing libraries for
+    // inspiration?
+    //
+    // It's possible we generate another Self of the diff, for a verbose thing at least,
+    // which lets the Container type itself present itself however. Eg a diff of counters
+    // might print as `5`, a diff of SQL could itself be queryable or  CSV-able, etc.
+    //
+    // Seems possibly heavy, not sure if we'd want a "lean" diff presentation or not.
+    //
+    // async fn diff(&self, other: &S::Cid) -> Result<???, StoreError>;
 }
 #[async_trait]
 impl<'s, T, S> Container<'s, S> for T

@@ -1,54 +1,159 @@
-use {
-    async_trait::async_trait,
-    fixity_store::{Content, ContentHasher, Error, Repr, Store},
-    std::collections::{btree_map::Entry, BTreeMap},
+use async_trait::async_trait;
+use fixity_store::{
+    deser::{Deserialize, Rkyv},
+    replicaid::{ReplicaId, Rid},
+    store::Repr,
 };
+use rkyv::collections::ArchivedBTreeMap;
+use std::collections::{btree_map::Entry, BTreeMap};
 
-// TODO: replace with some form of centralized Id type. Likely just
-// rand bytes, maybe u64?
-pub type ReplicaId = u64;
+use self::owned_or_repr::{Oor, OwnedOrRepr};
+
 type GCounterInt = u32;
 
-pub enum CidPtr<Cid, T, R> {
-    Cid(Cid),
-    Owned(T),
-    Repr { cid: Cid, repr: R },
+pub mod owned_or_repr {
+    use std::mem;
+
+    use fixity_store::{
+        deser::Deserialize,
+        store::{Repr, StoreError},
+    };
+
+    // TODO: move .. somewhere? Not sure if Store or Structs..
+
+    #[derive(Clone, PartialEq, Eq)]
+    pub enum OwnedOrRepr<T, D> {
+        Owned(T),
+        Repr(Repr<T, D>),
+    }
+    impl<T, D> Default for OwnedOrRepr<T, D>
+    where
+        T: Default,
+    {
+        fn default() -> Self {
+            Self::Owned(T::default())
+        }
+    }
+
+    pub struct Oor<T, D>(OwnedOrReprInvalid<T, D>);
+    impl<T, D> Oor<T, D> {
+        pub fn inner(&self) -> &OwnedOrRepr<T, D> {
+            match &self.0 {
+                OwnedOrReprInvalid::Oor(oor) => &oor,
+                OwnedOrReprInvalid::Invalid => {
+                    unreachable!("OwnedOrReprInvalid::Invalid reached")
+                },
+            }
+        }
+        pub fn owned_as_mut(&mut self) -> Result<&mut T, StoreError>
+        where
+            T: Deserialize<D>,
+        {
+            let (new_inner, repr_to_owned_res) =
+                match mem::replace(&mut self.0, OwnedOrReprInvalid::Invalid) {
+                    inner @ OwnedOrReprInvalid::Oor(OwnedOrRepr::Owned(_)) => (inner, Ok(())),
+                    OwnedOrReprInvalid::Oor(OwnedOrRepr::Repr(repr)) => {
+                        match repr.repr_to_owned() {
+                            Ok(owned) => {
+                                (OwnedOrReprInvalid::Oor(OwnedOrRepr::Owned(owned)), Ok(()))
+                            },
+                            Err(err) => {
+                                (OwnedOrReprInvalid::Oor(OwnedOrRepr::Repr(repr)), Err(err))
+                            },
+                        }
+                    },
+                    OwnedOrReprInvalid::Invalid => {
+                        unreachable!("OwnedOrReprInvalid::Invalid reached")
+                    },
+                };
+            self.0 = new_inner;
+            match repr_to_owned_res {
+                Ok(()) => match &mut self.0 {
+                    OwnedOrReprInvalid::Oor(OwnedOrRepr::Owned(t)) => Ok(t),
+                    OwnedOrReprInvalid::Oor(OwnedOrRepr::Repr(_)) => {
+                        unreachable!("Repr variant persisted despite above return")
+                    },
+                    OwnedOrReprInvalid::Invalid => {
+                        unreachable!("OwnedOrReprInvalid::Invalid reached")
+                    },
+                },
+                Err(err) => Err(err),
+            }
+        }
+    }
+    impl<T, D> Default for Oor<T, D>
+    where
+        T: Default,
+    {
+        fn default() -> Self {
+            Self(OwnedOrReprInvalid::Oor(OwnedOrRepr::default()))
+        }
+    }
+
+    #[derive(Clone, PartialEq, Eq)]
+    pub enum OwnedOrReprInvalid<T, D> {
+        Oor(OwnedOrRepr<T, D>),
+        Invalid,
+    }
+    impl<T, D> Default for OwnedOrReprInvalid<T, D>
+    where
+        T: Default,
+    {
+        fn default() -> Self {
+            Self::Oor(OwnedOrRepr::default())
+        }
+    }
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-#[archive(compare(PartialEq))]
-#[archive_attr(derive(Debug))]
-pub struct GCounter(
+#[derive(Clone, PartialEq, Eq)]
+struct GCounter<const N: usize, D = Rkyv>(
     // NIT: Optionally use ProllyTree for large concurrent uses.
-    // NIT: Make generic to support multiple sizes?
-    BTreeMap<ReplicaId, GCounterInt>,
+    // NIT: Make int generic to support multiple sizes?
+    Oor<BTreeMap<Rid<N>, GCounterInt>, D>,
 );
-impl GCounter {
+impl<const N: usize> GCounter<N> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn inc(&mut self, rid: ReplicaId) {
-        let value = self.0.entry(rid).or_default();
+}
+impl<const N: usize> GCounter<N, Rkyv> {
+    pub fn inc(&mut self, rid: Rid<N>) {
+        let owned = self.0.owned_as_mut().unwrap();
+        let value = owned.entry(rid).or_default();
         *value += 1;
     }
     pub fn value(&self) -> u32 {
-        self.0.iter().map(|(_, i)| i).sum()
+        match self.0.inner() {
+            OwnedOrRepr::Owned(values) => values.iter().map(|(_, i)| i).sum(),
+            OwnedOrRepr::Repr(repr) => {
+                let values = repr.repr_ref().unwrap();
+                values.iter().map(|(_, i)| i).sum()
+            },
+        }
     }
-    pub fn contains_rid(&self, rid: &ReplicaId) -> bool {
-        self.0.contains_key(rid)
+    pub fn contains_rid(&self, rid: &Rid<N>) -> bool {
+        match self.0.inner() {
+            OwnedOrRepr::Owned(map) => map.contains_key(rid),
+            OwnedOrRepr::Repr(repr) => {
+                let map: &ArchivedBTreeMap<_, _> = repr.repr_ref().unwrap();
+                map.contains_key(rid)
+            },
+        }
     }
-    pub fn get(&self, rid: &ReplicaId) -> Option<&GCounterInt> {
-        self.0.get(rid)
+    pub fn get(&self, rid: &Rid<N>) -> Option<&GCounterInt> {
+        match self.0.inner() {
+            OwnedOrRepr::Owned(map) => map.get(rid),
+            OwnedOrRepr::Repr(repr) => {
+                let map: &ArchivedBTreeMap<_, _> = repr.repr_ref().unwrap();
+                map.get(rid)
+            },
+        }
     }
-    pub fn iter(&self) -> impl Iterator<Item = (&ReplicaId, &GCounterInt)> {
-        self.0.iter()
-    }
+    // pub fn iter(&self) -> impl Iterator<Item = (&Rid<N>, &GCounterInt)> {
+    //     todo!()
+    // }
     pub fn merge(&mut self, other: &Self) {
+        /*
         for (&rid, &other_i) in other.0.iter() {
             match self.0.entry(rid) {
                 Entry::Occupied(mut entry) => {
@@ -60,32 +165,20 @@ impl GCounter {
                 },
             }
         }
+        */
+        todo!()
     }
 }
-#[async_trait]
-impl<S, H> Content<S, H> for GCounter
-where
-    S: Store<Self, H> + Sync,
-    H: ContentHasher,
-{
-    async fn load(store: &S, cid: &H::Cid) -> Result<Self, Error> {
-        let repr = store.get(cid).await?;
-        let self_ = repr.repr_to_owned()?;
-        Ok(self_)
-    }
-    async fn save(&self, store: &S) -> Result<H::Cid, Error> {
-        // TODO: Nix the ownership of `put()` - owning the type seems less likely these days.
-        let cid = store.put(self.clone()).await?;
-        Ok(cid)
+impl<const N: usize, D> Default for GCounter<N, D> {
+    fn default() -> Self {
+        Self(OwnedOrRepr::Owned(BTreeMap::default()))
     }
 }
 #[cfg(test)]
 pub mod test {
-    use {
-        super::*,
-        fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore},
-        rstest::*,
-    };
+    use super::*;
+    use fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore};
+    use rstest::*;
     #[test]
     fn poc() {
         let mut a = GCounter::default();
