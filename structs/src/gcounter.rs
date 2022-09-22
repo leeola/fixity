@@ -35,6 +35,7 @@ pub mod owned_or_repr {
         }
     }
 
+    #[derive(Clone, PartialEq, Eq)]
     pub struct Oor<T, D>(OwnedOrReprInvalid<T, D>);
     impl<T, D> Oor<T, D> {
         pub fn inner(&self) -> &OwnedOrRepr<T, D> {
@@ -109,7 +110,12 @@ pub mod owned_or_repr {
 struct GCounter<const N: usize, D = Rkyv>(
     // NIT: Optionally use ProllyTree for large concurrent uses.
     // NIT: Make int generic to support multiple sizes?
-    Oor<BTreeMap<Rid<N>, GCounterInt>, D>,
+    // TODO: Convert Vec back to BTree for faster lookups? This was made a Vec
+    // due to difficulties in looking up `ArchivedRid`.
+    // Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
+    // in theory we can go back to a Rid.
+    // Oor<BTreeMap<Rid<N>, GCounterInt>, D>,
+    Oor<Vec<(Rid<N>, GCounterInt)>, D>,
 );
 impl<const N: usize> GCounter<N> {
     pub fn new() -> Self {
@@ -119,10 +125,16 @@ impl<const N: usize> GCounter<N> {
 impl<const N: usize> GCounter<N, Rkyv> {
     pub fn inc(&mut self, rid: Rid<N>) {
         let owned = self.0.owned_as_mut().unwrap();
-        let value = owned.entry(rid).or_default();
-        *value += 1;
+        let index_res = owned.binary_search_by_key(&&rid, |(rid, _)| rid);
+        match index_res {
+            Ok(i) => {
+                let (_, count) = owned.get_mut(i).expect("index returned by `binary_search`");
+            },
+            Err(i) => owned.insert(i, (rid, 1)),
+        }
     }
     pub fn value(&self) -> u32 {
+        // TODO: cache the result.
         match self.0.inner() {
             OwnedOrRepr::Owned(values) => values.iter().map(|(_, i)| i).sum(),
             OwnedOrRepr::Repr(repr) => {
@@ -133,10 +145,11 @@ impl<const N: usize> GCounter<N, Rkyv> {
     }
     pub fn contains_rid(&self, rid: &Rid<N>) -> bool {
         match self.0.inner() {
-            OwnedOrRepr::Owned(map) => map.contains_key(rid),
+            OwnedOrRepr::Owned(vals) => vals.binary_search_by_key(&rid, |(rid, _)| rid).is_ok(),
             OwnedOrRepr::Repr(repr) => {
-                let map: &ArchivedBTreeMap<_, _> = repr.repr_ref().unwrap();
-                map.contains_key(rid)
+                let vals = repr.repr_ref().unwrap();
+                vals.binary_search_by(|(rhs, _)| rhs.partial_cmp(rid).unwrap())
+                    .is_ok()
             },
         }
     }
@@ -144,8 +157,11 @@ impl<const N: usize> GCounter<N, Rkyv> {
         match self.0.inner() {
             OwnedOrRepr::Owned(map) => map.get(rid),
             OwnedOrRepr::Repr(repr) => {
+                use fixity_store::replicaid::ArchivedRid;
+                // let arid: ArchivedRid<N> = rid.clone().into();
+                let arid: ArchivedRid<N> = rkyv::to_archived!(rid);
                 let map: &ArchivedBTreeMap<_, _> = repr.repr_ref().unwrap();
-                map.get(rid)
+                map.get(&arid)
             },
         }
     }
