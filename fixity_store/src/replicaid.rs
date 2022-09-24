@@ -12,7 +12,7 @@ pub trait ReplicaId: ContentId {}
 #[cfg(feature = "rkyv")]
 #[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 #[cfg(feature = "rkyv")]
-#[archive(compare(PartialEq))]
+#[archive(compare(PartialEq, PartialOrd))]
 // #[cfg(feature = "rkyv")]
 // #[archive_attr(derive(From))]
 pub struct Rid<const N: usize>([u8; N]);

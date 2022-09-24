@@ -4,7 +4,7 @@ use fixity_store::{
     replicaid::{ReplicaId, Rid},
     store::Repr,
 };
-use rkyv::collections::ArchivedBTreeMap;
+use rkyv::{collections::ArchivedBTreeMap, vec::ArchivedVec};
 use std::collections::{btree_map::Entry, BTreeMap};
 
 use self::owned_or_repr::{Oor, OwnedOrRepr};
@@ -153,15 +153,22 @@ impl<const N: usize> GCounter<N, Rkyv> {
             },
         }
     }
-    pub fn get(&self, rid: &Rid<N>) -> Option<&GCounterInt> {
+    pub fn get(&self, rid: &Rid<N>) -> Option<GCounterInt> {
         match self.0.inner() {
-            OwnedOrRepr::Owned(map) => map.get(rid),
+            OwnedOrRepr::Owned(vals) => {
+                let i = vals.binary_search_by_key(&rid, |(rid, _)| rid).ok()?;
+                let (_, count) = vals.get(i).expect("index returned by `binary_search`");
+                Some(*count)
+            },
             OwnedOrRepr::Repr(repr) => {
-                use fixity_store::replicaid::ArchivedRid;
-                // let arid: ArchivedRid<N> = rid.clone().into();
-                let arid: ArchivedRid<N> = rkyv::to_archived!(rid);
-                let map: &ArchivedBTreeMap<_, _> = repr.repr_ref().unwrap();
-                map.get(&arid)
+                // use fixity_store::replicaid::ArchivedRid;
+                // // let arid: ArchivedRid<N> = rid.clone().into();
+                let vals: &ArchivedVec<_> = repr.repr_ref().unwrap();
+                let i = vals
+                    .binary_search_by(|(rhs, _)| rhs.partial_cmp(rid).unwrap())
+                    .ok()?;
+                let (_, count) = vals.get(i).expect("index returned by `binary_search`");
+                Some(*count)
             },
         }
     }
@@ -187,12 +194,13 @@ impl<const N: usize> GCounter<N, Rkyv> {
 }
 impl<const N: usize, D> Default for GCounter<N, D> {
     fn default() -> Self {
-        Self(OwnedOrRepr::Owned(BTreeMap::default()))
+        Self(Oor::default())
     }
 }
 #[cfg(test)]
 pub mod test {
     use super::*;
+    /*
     use fixity_store::store::{json_store::JsonStore, rkyv_store::RkyvStore};
     use rstest::*;
     #[test]
@@ -222,4 +230,5 @@ pub mod test {
         let cid = counter.save(&store).await.unwrap();
         assert_eq!(GCounter::load(&store, &cid).await.unwrap(), counter);
     }
+    */
 }
