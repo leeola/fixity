@@ -1,9 +1,7 @@
 // A hopefully short term unstable feature, since GATs are stablizing soon.
-#![feature(generic_associated_types)]
-pub mod deser;
-
 pub mod container;
 pub mod contentid;
+pub mod deser;
 pub mod meta;
 pub mod storage;
 pub mod store;

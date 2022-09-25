@@ -98,9 +98,12 @@ impl<S, D, H> StoreImpl<S, D, H> {
 #[async_trait]
 impl<S, D, H> Store for StoreImpl<S, D, H>
 where
-    S: ContentStorage<Cid<CID_LENGTH>>,
+    // FIXME: ... What? CID_LENGTH stopped working in the const Param here
+    // as of beta-2022-09-20. Need to report this if it's still around
+    // whenever i clean this code up.. something is fishy.
+    S: ContentStorage<Cid<34>>,
     D: Send + Sync,
-    H: ContentHasher<Cid<CID_LENGTH>>,
+    H: ContentHasher<Cid<34>>,
 {
     type Deser = D;
     type Cid = Cid<CID_LENGTH>;
