@@ -161,9 +161,7 @@ impl<const N: usize> GCounter<N, Rkyv> {
                 Some(*count)
             },
             OwnedOrRepr::Repr(repr) => {
-                // use fixity_store::replicaid::ArchivedRid;
-                // // let arid: ArchivedRid<N> = rid.clone().into();
-                let vals: &ArchivedVec<_> = repr.repr_ref().unwrap();
+                let vals = repr.repr_ref().unwrap();
                 let i = vals
                     .binary_search_by(|(rhs, _)| rhs.partial_cmp(rid).unwrap())
                     .ok()?;
@@ -176,6 +174,23 @@ impl<const N: usize> GCounter<N, Rkyv> {
     //     todo!()
     // }
     pub fn merge(&mut self, other: &Self) {
+        let self_ = self.0.owned_as_mut().unwrap();
+        match other.0.inner() {
+            OwnedOrRepr::Owned(other) => {
+                let idx = other.binary_search_by_key(&rid, |(rid, _)| rid);
+                match idx {
+                    Ok(idx) => {
+                        let other_i = other[i];
+                        let self_i =
+                            todo!("write this cleanly without nesting the binary_search results");
+                    },
+                }
+            },
+            OwnedOrRepr::Repr(repr) => {
+                todo!()
+            },
+        }
+        // for (rid, other_i) in other.iter() {}
         /*
         for (&rid, &other_i) in other.0.iter() {
             match self.0.entry(rid) {
