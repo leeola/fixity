@@ -11,6 +11,8 @@ use self::owned_or_repr::{Oor, OwnedOrRepr};
 
 type GCounterInt = u32;
 
+pub mod gcounter_v2;
+
 pub mod owned_or_repr {
     use std::mem;
 
