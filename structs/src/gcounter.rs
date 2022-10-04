@@ -177,14 +177,15 @@ impl<const N: usize> GCounter<N, Rkyv> {
         let self_ = self.0.owned_as_mut().unwrap();
         match other.0.inner() {
             OwnedOrRepr::Owned(other) => {
-                let idx = other.binary_search_by_key(&rid, |(rid, _)| rid);
-                match idx {
-                    Ok(idx) => {
-                        let other_i = other[i];
-                        let self_i =
-                            todo!("write this cleanly without nesting the binary_search results");
-                    },
-                }
+                todo!()
+                // let idx = other.binary_search_by_key(&rid, |(rid, _)| rid);
+                // match idx {
+                //     Ok(idx) => {
+                // let other_i = other[i];
+                // let self_i =
+                //     todo!("write this cleanly without nesting the binary_search results");
+                //     },
+                // }
             },
             OwnedOrRepr::Repr(repr) => {
                 todo!()

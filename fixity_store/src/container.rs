@@ -6,6 +6,22 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
+pub trait NewContainer<'s, S>: Sized + Send + 's
+where
+    S: Store,
+{
+    type Ref: TryInto<Self, Error = StoreError>;
+    async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError>;
+    async fn open_ref(store: &'s S, cid: &S::Cid) -> Result<Self::Ref, StoreError>;
+    async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError>;
+    async fn save_with_cids(
+        &mut self,
+        store: &S,
+        cids_buf: &mut Vec<S::Cid>,
+    ) -> Result<(), StoreError>;
+}
+
+#[async_trait]
 pub trait Container<'s, S>: Sized + Send + 's
 where
     S: Store,
