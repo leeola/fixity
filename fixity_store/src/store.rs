@@ -2,13 +2,27 @@
 // pub mod rkyv_store;
 
 use crate::{
-    contentid::{Cid, ContainedCids, ContentHasher, ContentId, Hasher, CID_LENGTH},
+    contentid::{Cid, ContainedCids, ContentHasher, ContentId, Hasher, NewContentId, CID_LENGTH},
     deser::{Deserialize, Serialize},
     storage::{self, ContentStorage, StorageError},
 };
 use async_trait::async_trait;
 use std::{marker::PhantomData, ops::Deref, sync::Arc};
 use thiserror::Error;
+
+#[async_trait]
+pub trait NewStore<Deser, Cid: NewContentId>: Send + Sync {
+    type Storage: ContentStorage<Cid>;
+    async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
+    where
+        T: Deserialize<Deser>;
+    async fn put<T>(&self, t: &T) -> Result<Cid, StoreError>
+    where
+        T: Serialize<Deser> + Send + Sync;
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize<Deser> + Send + Sync;
+}
 
 #[async_trait]
 pub trait Store: Send + Sync {

@@ -4,8 +4,26 @@ use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
 };
+use thiserror::Error;
 
 pub const CID_LENGTH: usize = 34;
+
+pub trait NewContentId: Clone + Sized + Send + Sync + Eq + Ord + Debug + Display {
+    type Hash: AsRef<[u8]>;
+    /// Hash the given bytes and producing a content identifier.
+    fn hash<B: AsRef<[u8]>>(buf: B) -> Self;
+    /// Construct a content identifier from the given hash.
+    fn from_hash<H: TryInto<Self::Hash>>(hash: H) -> Result<Self, FromHashError>;
+    fn as_hash(&self) -> &Self::Hash;
+    fn len(&self) -> usize {
+        self.as_hash().as_ref().len()
+    }
+}
+#[derive(Error, Debug)]
+pub enum FromHashError {
+    #[error("invalid length")]
+    Length,
+}
 
 pub trait ContentId:
     Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Debug + Display
