@@ -2,7 +2,7 @@
 // pub mod rkyv_store;
 
 use crate::{
-    contentid::{Cid, ContainedCids, ContentHasher, ContentId, Hasher, NewContentId, CID_LENGTH},
+    contentid::{Cid, ContentHasher, ContentId, Hasher, NewContentId, CID_LENGTH},
     deser::{Deserialize, Serialize},
     storage::{self, ContentStorage, StorageError},
 };

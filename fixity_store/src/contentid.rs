@@ -1,3 +1,5 @@
+pub mod multihash_256;
+
 use multibase::Base;
 use multihash::MultihashDigest;
 use std::{
