@@ -1,18 +1,21 @@
 use super::{FromHashError, NewContentId};
 use multibase::Base;
 use multihash::MultihashDigest;
+#[cfg(feature = "serde")]
+use serde_big_array::BigArray;
 use std::fmt::{Debug, Display};
 
 const MULTIHASH_256_LEN: usize = 34;
 const MULTIBASE_ENCODE: Base = Base::Base58Btc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-// TODO: Serde doesn't impl for arr 34 :(. Can i impl manually perhaps?
-// #[cfg(feature = "serde")]
-// #[derive(serde::Deserialize, serde::Serialize)]
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[cfg(feature = "rkyv")]
 #[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub struct Multihash256([u8; MULTIHASH_256_LEN]);
+pub struct Multihash256(
+    #[cfg_attr(feature = "rkyv", serde(with = "BigArray"))] [u8; MULTIHASH_256_LEN],
+);
 impl NewContentId for Multihash256 {
     type Hash = [u8; MULTIHASH_256_LEN];
     fn hash<B: AsRef<[u8]>>(buf: B) -> Self {
