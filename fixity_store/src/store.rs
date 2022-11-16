@@ -11,8 +11,7 @@ use std::{marker::PhantomData, ops::Deref, sync::Arc};
 use thiserror::Error;
 
 #[async_trait]
-pub trait NewStore<Deser, Cid: NewContentId>: Send + Sync {
-    type Storage: ContentStorage<Cid>;
+pub trait NewStore<Deser, Cid: NewContentId>: ContentStorage<Cid> {
     async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
     where
         T: Deserialize<Deser>;
