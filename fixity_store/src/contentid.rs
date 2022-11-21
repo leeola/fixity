@@ -5,12 +5,13 @@ use multihash::MultihashDigest;
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
+    hash::Hash,
 };
 use thiserror::Error;
 
 pub const CID_LENGTH: usize = 34;
 
-pub trait NewContentId: Clone + Sized + Send + Sync + Eq + Ord + Debug + Display {
+pub trait NewContentId: Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display {
     type Hash: AsRef<[u8]>;
     /// Hash the given bytes and producing a content identifier.
     fn hash<B: AsRef<[u8]>>(buf: B) -> Self;

@@ -12,6 +12,7 @@ pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
 pub mod byte_store;
 pub mod deser_store;
+pub mod stores;
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
