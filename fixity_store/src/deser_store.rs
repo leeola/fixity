@@ -1,5 +1,3 @@
-use std::{marker::PhantomData, sync::Arc};
-
 use crate::{
     byte_store::ByteStore,
     contentid::NewContentId,
@@ -7,6 +5,7 @@ use crate::{
     store::StoreError,
 };
 use async_trait::async_trait;
+use std::{marker::PhantomData, sync::Arc};
 
 #[async_trait]
 pub trait DeserStore<Deser, Cid: NewContentId>: ByteStore<Cid> {
