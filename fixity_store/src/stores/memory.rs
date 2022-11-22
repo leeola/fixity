@@ -1,5 +1,5 @@
 use crate::{
-    byte_store::{ByteStore, ByteStoreError},
+    content_store::{ContentStore, ContentStoreError},
     contentid::NewContentId,
     mut_store::{MutStore, MutStoreError},
 };
@@ -19,20 +19,20 @@ pub struct Memory<Cid> {
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
 #[async_trait]
-impl<Cid> ByteStore<Cid> for Memory<Cid>
+impl<Cid> ContentStore<Cid> for Memory<Cid>
 where
     Cid: NewContentId,
 {
     type Bytes = Arc<[u8]>;
-    async fn exists(&self, cid: &Cid) -> Result<bool, ByteStoreError> {
+    async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError> {
         Ok(self.bytes.lock().unwrap().contains_key(cid))
     }
-    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ByteStoreError> {
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError> {
         let lock = self.bytes.lock().unwrap();
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ByteStoreError> {
+    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError> {
         let mut lock = self.bytes.lock().unwrap();
         let _ = lock.insert(cid.clone(), Arc::from(bytes));
         Ok(())

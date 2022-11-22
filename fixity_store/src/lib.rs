@@ -10,7 +10,7 @@ pub mod replicaid;
 pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
-pub mod byte_store;
+pub mod content_store;
 pub mod deser_store;
 pub mod mut_store;
 pub mod stores;

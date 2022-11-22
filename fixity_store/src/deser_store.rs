@@ -1,5 +1,5 @@
 use crate::{
-    byte_store::ByteStore,
+    content_store::ContentStore,
     contentid::NewContentId,
     deser::{Deserialize, Serialize},
     store::StoreError,
@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::{marker::PhantomData, sync::Arc};
 
 #[async_trait]
-pub trait DeserStore<Deser, Cid: NewContentId>: ByteStore<Cid> {
+pub trait DeserStore<Deser, Cid: NewContentId>: ContentStore<Cid> {
     async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
     where
         T: Deserialize<Deser>;
@@ -23,7 +23,7 @@ pub trait DeserStore<Deser, Cid: NewContentId>: ByteStore<Cid> {
 impl<Deser, Cid, U> DeserStore<Deser, Cid> for U
 where
     Cid: NewContentId,
-    U: ByteStore<Cid>,
+    U: ContentStore<Cid>,
 {
     async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
     where
