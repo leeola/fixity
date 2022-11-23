@@ -1,6 +1,28 @@
-use std::fmt::{Debug, Display};
+use crate::contentid::{ContentId, NewContentId};
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+};
+use thiserror::Error;
 
-use crate::contentid::ContentId;
+pub trait NewReplicaId: Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display {
+    type Buf: AsRef<[u8]>;
+    /// Generate a new `ReplicaId`.
+    //
+    // TODO: allow for configured randomness. Perhaps taking a `rand` value as a param?
+    fn new() -> Self;
+    /// Construct a replica identifier from the given buffer.
+    fn from_buf<H: TryInto<Self::Buf>>(hash: H) -> Result<Self, FromBufError>;
+    fn as_buf(&self) -> &Self::Buf;
+    fn len(&self) -> usize {
+        self.as_buf().as_ref().len()
+    }
+}
+#[derive(Error, Debug)]
+pub enum FromBufError {
+    #[error("invalid length")]
+    Length,
+}
 
 // TODO: Remove bounds, impl methods manually - so ReplicaId doesn't impl ContentId,
 // since they have no direct relation.

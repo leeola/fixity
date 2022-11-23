@@ -12,6 +12,7 @@ pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
 pub mod content_store;
 pub mod deser_store;
+pub mod meta_store;
 pub mod mut_store;
 pub mod stores;
 
