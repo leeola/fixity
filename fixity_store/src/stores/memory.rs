@@ -18,6 +18,12 @@ pub struct Memory<Cid> {
     bytes: Mutex<HashMap<Cid, Arc<[u8]>>>,
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
+#[cfg(any(test, feature = "test"))]
+impl Memory<crate::contentid::multihash_256::Multihash256> {
+    pub fn test() -> Self {
+        Self::default()
+    }
+}
 #[async_trait]
 impl<Cid> ContentStore<Cid> for Memory<Cid>
 where
@@ -32,9 +38,12 @@ where
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError> {
+    async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
+    where
+        B: AsRef<[u8]> + Into<Arc<[u8]>> + Send,
+    {
         let mut lock = self.bytes.lock().unwrap();
-        let _ = lock.insert(cid.clone(), Arc::from(bytes));
+        let _ = lock.insert(cid.clone(), bytes.into());
         Ok(())
     }
 }

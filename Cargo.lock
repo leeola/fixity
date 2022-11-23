@@ -23,6 +23,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ambassador"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05b8741165d4c4a8e6e8dcf8a2d09a1b0f94d85722fb57caed8babdd421a9837"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -216,6 +228,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
+
+[[package]]
 name = "env_logger"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -263,6 +281,7 @@ dependencies = [
 name = "fixity_store"
 version = "0.0.1"
 dependencies = [
+ "ambassador",
  "anyhow",
  "async-trait",
  "fixity_types",
@@ -343,6 +362,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
 dependencies = [
  "quick-error",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
 ]
 
 [[package]]

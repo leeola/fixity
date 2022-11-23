@@ -1,32 +1,74 @@
 use crate::{
+    contentid::NewContentId,
     deser::{Deserialize, Serialize},
+    deser_store::DeserStore,
     store::StoreError,
+    type_desc::{TypeDescription, ValueDesc},
     Store,
 };
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait NewContainer<'s, S>: Sized + Send + 's
-where
-    S: Store,
-{
-    async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError>;
-    async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError>;
-    async fn save_with_cids(
+pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription {
+    /// A description of the [de]serialized type(s) that this container manages.
+    ///
+    /// Used to determine / validate Fixity repository types.
+    ///
+    /// This is in contrast to the `Container: TypeDescription` bound for `Self`,
+    /// which describes the `Container` itself - which may or may not be what is written
+    /// to stores.
+    fn deser_type_desc() -> ValueDesc;
+    fn new_container<S: DeserStore<Deser, Cid>>(store: &S) -> Self;
+    async fn open<S: DeserStore<Deser, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save<S: DeserStore<Deser, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
+    async fn save_with_cids<S: DeserStore<Deser, Cid>>(
         &mut self,
         store: &S,
-        cids_buf: &mut Vec<S::Cid>,
+        cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError>;
+    async fn merge<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<(), StoreError>;
+    async fn diff<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self, StoreError>;
+    // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
+    // Container and all the cids within it.
 }
 #[async_trait]
-pub trait ContainerRef<'s, S>: NewContainer<'s, S>
-where
-    S: Store,
-{
-    type Ref: TryInto<Self, Error = StoreError>;
-    async fn open_ref(store: &'s S, cid: &S::Cid) -> Result<Self::Ref, StoreError>;
+pub trait ContainerRef<Deser, Cid: NewContentId>: NewContainer<Deser, Cid> {
+    type Ref: ContainerRefInto<Self>;
+    type DiffRef: ContainerRefInto<Self>;
+    async fn open_ref<S: DeserStore<Deser, Cid>>(
+        store: &S,
+        cid: &Cid,
+    ) -> Result<Self::Ref, StoreError>;
+    async fn diff_ref<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self::DiffRef, StoreError>;
 }
-
+// NIT: Infallible conversions were making `TryInto` awkward for `Ref` and `DiffRef` on
+// `ContainerRef`, so this trait fills that role without the infallible issues.
+// I must be misunderstanding how to deal with Infallible `TryInto`'s easily, while
+// also putting bounds on the associated `TryInto::Error` type.
+//
+// Or perhaps it's just awkward because associated type bounds don't exist yet.
+pub trait ContainerRefInto<Owned> {
+    type Error: Into<StoreError>;
+    fn container_ref_into(self) -> Result<Owned, Self::Error>;
+}
+impl<Owned> ContainerRefInto<Owned> for Owned {
+    type Error = StoreError;
+    fn container_ref_into(self) -> Result<Owned, Self::Error> {
+        Ok(self)
+    }
+}
 #[async_trait]
 pub trait Container<'s, S>: Sized + Send + 's
 where

@@ -49,6 +49,12 @@ pub enum StoreError {
     NotFound,
     #[error("resource not modified")]
     NotModified,
+    // TODO: move to merge error type.
+    #[error("type cannot be merged")]
+    UnmergableType,
+    // TODO: move to diff error type.
+    #[error("type cannot be diff'd")]
+    UndiffableType,
     #[error("storage: {0}")]
     Storage(StorageError),
 }
@@ -111,9 +117,10 @@ impl<S, D, H> StoreImpl<S, D, H> {
 #[async_trait]
 impl<S, D, H> Store for StoreImpl<S, D, H>
 where
-    // FIXME: ... What? CID_LENGTH stopped working in the const Param here
-    // as of beta-2022-09-20. Need to report this if it's still around
-    // whenever i clean this code up.. something is fishy.
+    // FIXME: ... What? CID_LENGTH stopped working in the
+    // const Param here as of beta-2022-09-20. Need to
+    // report this if it's still around whenever i clean
+    // this code up.. something is fishy.
     S: ContentStorage<Cid<34>>,
     D: Send + Sync,
     H: ContentHasher<Cid<34>>,

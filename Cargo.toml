@@ -85,3 +85,5 @@ members = [
   # "git_fixi",
 ]
 
+[workspace.dependencies]
+ambassador = "0.3.5" 
