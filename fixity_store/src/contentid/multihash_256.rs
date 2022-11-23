@@ -18,7 +18,7 @@ pub struct Multihash256(
 );
 impl NewContentId for Multihash256 {
     type Hash = [u8; MULTIHASH_256_LEN];
-    fn hash<B: AsRef<[u8]>>(buf: B) -> Self {
+    fn hash(buf: &[u8]) -> Self {
         let hash = multihash::Code::Blake3_256.digest(buf.as_ref()).to_bytes();
         match Self::from_hash(hash) {
             Ok(cid) => cid,
@@ -27,7 +27,7 @@ impl NewContentId for Multihash256 {
             },
         }
     }
-    fn from_hash<H: TryInto<Self::Hash>>(hash: H) -> Result<Self, FromHashError> {
+    fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError> {
         hash.try_into()
             .map_or(Err(FromHashError::Length), |hash| Ok(Self(hash)))
     }

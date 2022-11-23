@@ -1,7 +1,10 @@
 use std::fmt::Display;
 
 use crate::{
-    contentid::NewContentId, mut_store::MutStore, replicaid::NewReplicaId, storage::StorageError,
+    contentid::NewContentId,
+    mut_store::{MutStore, MutStoreError},
+    replicaid::NewReplicaId,
+    storage::StorageError,
 };
 use async_trait::async_trait;
 use multibase::Base;
@@ -61,7 +64,7 @@ async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
     path: &str,
 ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
     let cid_value = ms.get(&path).await.map_err(|err| match err {
-        StorageError::NotFound => MetaStoreError::NotFound,
+        MutStoreError::NotFound => MetaStoreError::NotFound,
         err => MetaStoreError::Storage {
             remote: Some(String::from(remote)),
             repo: Some(String::from(repo)),
@@ -77,16 +80,16 @@ async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
             repo: Some(String::from(repo)),
             branch: Some(String::from(branch)),
             rid: Some(rid.clone()),
-            message: format!("verifying cid utf8: {}", err).into_boxed_str(),
+            message: format!("verifying cid utf8: {}", err),
         })?;
     let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|err| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
         repo: Some(String::from(repo)),
         branch: Some(String::from(branch)),
         rid: Some(rid.clone()),
-        message: format!("decoding head cid: {}", err).into_boxed_str(),
+        message: format!("decoding head cid: {}", err),
     })?;
-    Cid::from_hash(head_bytes).ok_or_else(|| MetaStoreError::Cid {
+    Cid::from_hash(head_bytes).map_err(|_| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
         repo: Some(String::from(repo)),
         branch: Some(String::from(branch)),
@@ -127,7 +130,7 @@ pub enum MetaStoreError<Rid, Cid> {
         branch: Option<String>,
         rid: Option<Rid>,
         cid: Option<Cid>,
-        err: StorageError,
+        err: MutStoreError,
     },
     #[error("{}/{}/{}, {}: {message}",
         .remote.clone().unwrap_or(String::from("")),
@@ -242,9 +245,9 @@ where
                     remote: Some(String::from(remote)),
                     repo: Some(String::from(repo)),
                     branch: Some(String::from(branch)),
-                    message: format!("decoding rid: {}", err).into_boxed_str(),
+                    message: format!("decoding rid: {}", err),
                 })?;
-            let rid = Rid::from_hash(rid_bytes).ok_or_else(|| MetaStoreError::Rid {
+            let rid = Rid::from_buf(rid_bytes).map_err(|_| MetaStoreError::Rid {
                 remote: Some(String::from(remote)),
                 repo: Some(String::from(repo)),
                 branch: Some(String::from(branch)),
@@ -262,7 +265,7 @@ where
         branch: &str,
         rid: &Rid,
     ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_bytes());
+        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         get_cid_from_path(self, remote, repo, branch, rid, &path).await
     }
@@ -274,8 +277,8 @@ where
         rid: &Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_bytes());
-        let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_bytes());
+        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+        let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_hash());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         self.put(path, head)
             .await
@@ -312,7 +315,7 @@ where
 async fn list_dirs<S: MutStore>(
     storage: &S,
     base_path: String,
-) -> Result<Vec<String>, StorageError> {
+) -> Result<Vec<String>, MutStoreError> {
     let paths = storage.list::<_, &str>(&base_path, Some("/")).await?;
     let dirs = paths
         .into_iter()

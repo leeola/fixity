@@ -5,14 +5,16 @@ use std::{
 };
 use thiserror::Error;
 
-pub trait NewReplicaId: Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display {
+pub trait NewReplicaId:
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
+{
     type Buf: AsRef<[u8]>;
     /// Generate a new `ReplicaId`.
     //
     // TODO: allow for configured randomness. Perhaps taking a `rand` value as a param?
     fn new() -> Self;
     /// Construct a replica identifier from the given buffer.
-    fn from_buf<H: TryInto<Self::Buf>>(hash: H) -> Result<Self, FromBufError>;
+    fn from_buf(hash: Vec<u8>) -> Result<Self, FromBufError>;
     fn as_buf(&self) -> &Self::Buf;
     fn len(&self) -> usize {
         self.as_buf().as_ref().len()

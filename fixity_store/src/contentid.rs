@@ -11,12 +11,14 @@ use thiserror::Error;
 
 pub const CID_LENGTH: usize = 34;
 
-pub trait NewContentId: Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display {
+pub trait NewContentId:
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
+{
     type Hash: AsRef<[u8]>;
     /// Hash the given bytes and producing a content identifier.
-    fn hash<B: AsRef<[u8]>>(buf: B) -> Self;
+    fn hash(buf: &[u8]) -> Self;
     /// Construct a content identifier from the given hash.
-    fn from_hash<H: TryInto<Self::Hash>>(hash: H) -> Result<Self, FromHashError>;
+    fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError>;
     fn as_hash(&self) -> &Self::Hash;
     fn len(&self) -> usize {
         self.as_hash().as_ref().len()
