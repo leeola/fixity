@@ -12,21 +12,20 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-        rusttmp = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
-        rust = rusttmp.override {
+        rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain).override {
           extensions = [ "rust-analysis" ];
         };
       in
       {
         devShell = pkgs.mkShell {
-          buildInputs = [
-            pkgs.rust-analyzer
+          buildInputs = with pkgs; [
+            pkg-config
+            binutils
+            gcc
+            rust-analyzer
             # using a hardcoded rustfmt version to support nightly rustfmt features.
-            pkgs.rust-bin.nightly."2022-09-20".rustfmt
-            rust
-            pkgs.pkg-config
-            pkgs.binutils
-            pkgs.gcc
+            rust-bin.nightly."2022-09-20".rustfmt
+            rust-toolchain
           ];
         };
       }
