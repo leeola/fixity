@@ -1,8 +1,10 @@
 use super::GCounterInt;
 use async_trait::async_trait;
 use fixity_store::{
-    container::NewContainer,
+    container::{ContainerRef, NewContainer},
+    contentid::NewContentId,
     deser::Rkyv,
+    deser_store::DeserStore,
     replicaid::Rid,
     store::{Repr, StoreError},
     Store,
@@ -11,34 +13,50 @@ use fixity_store::{
 pub struct GCounter<const N: usize>(Vec<(Rid<N>, GCounterInt)>);
 
 #[async_trait]
-impl<'s, const N: usize, S> NewContainer<'s, S> for GCounter<N>
-where
-    S: Store,
-{
-    type Ref = GCounterRef<N, S::Deser>;
-    async fn open(
-        store: &'s S,
-        cid: &<S as Store>::Cid,
-    ) -> Result<Self, fixity_store::store::StoreError> {
+impl<'s, const N: usize, Cid: NewContentId> NewContainer<Rkyv, Cid> for GCounter<N> {
+    async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
         todo!()
     }
-    async fn open_ref(
-        store: &'s S,
-        cid: &<S as Store>::Cid,
-    ) -> Result<Self::Ref, fixity_store::store::StoreError> {
+    async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
         todo!()
     }
-    async fn save(
-        &mut self,
-        store: &'s S,
-    ) -> Result<<S as Store>::Cid, fixity_store::store::StoreError> {
-        todo!()
-    }
-    async fn save_with_cids(
+    async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
         &mut self,
         store: &S,
-        cids_buf: &mut Vec<<S as Store>::Cid>,
-    ) -> Result<(), fixity_store::store::StoreError> {
+        cids_buf: &mut Vec<Cid>,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+    async fn merge<S: DeserStore<Rkyv, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+    async fn diff<S: DeserStore<Rkyv, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self, StoreError> {
+        todo!()
+    }
+}
+#[async_trait]
+impl<'s, const N: usize, Cid: NewContentId> ContainerRef<Rkyv, Cid> for GCounter<N> {
+    type Ref = GCounterRef<N, Rkyv>;
+    type DiffRef = GCounterRef<N, Rkyv>;
+    async fn open_ref<S: DeserStore<Rkyv, Cid>>(
+        store: &S,
+        cid: &Cid,
+    ) -> Result<Self::Ref, StoreError> {
+        todo!()
+    }
+    async fn diff_ref<S: DeserStore<Rkyv, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self::DiffRef, StoreError> {
         todo!()
     }
 }

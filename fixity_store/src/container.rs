@@ -1,30 +1,45 @@
 use crate::{
+    contentid::NewContentId,
     deser::{Deserialize, Serialize},
+    deser_store::DeserStore,
     store::StoreError,
     Store,
 };
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait NewContainer<'s, S>: Sized + Send + 's
-where
-    S: Store,
-{
-    async fn open(store: &'s S, cid: &S::Cid) -> Result<Self, StoreError>;
-    async fn save(&mut self, store: &'s S) -> Result<S::Cid, StoreError>;
-    async fn save_with_cids(
+pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send {
+    async fn open<S: DeserStore<Deser, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save<S: DeserStore<Deser, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
+    async fn save_with_cids<S: DeserStore<Deser, Cid>>(
         &mut self,
         store: &S,
-        cids_buf: &mut Vec<S::Cid>,
+        cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError>;
+    async fn merge<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<(), StoreError>;
+    async fn diff<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self, StoreError>;
 }
 #[async_trait]
-pub trait ContainerRef<'s, S>: NewContainer<'s, S>
-where
-    S: Store,
-{
+pub trait ContainerRef<Deser, Cid: NewContentId>: NewContainer<Deser, Cid> {
     type Ref: TryInto<Self, Error = StoreError>;
-    async fn open_ref(store: &'s S, cid: &S::Cid) -> Result<Self::Ref, StoreError>;
+    type DiffRef: TryInto<Self, Error = StoreError>;
+    async fn open_ref<S: DeserStore<Deser, Cid>>(
+        store: &S,
+        cid: &Cid,
+    ) -> Result<Self::Ref, StoreError>;
+    async fn diff_ref<S: DeserStore<Deser, Cid>>(
+        &mut self,
+        store: &S,
+        other: &Cid,
+    ) -> Result<Self::DiffRef, StoreError>;
 }
 
 #[async_trait]
