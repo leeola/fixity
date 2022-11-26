@@ -1,4 +1,7 @@
-use crate::contentid::{ContentId, NewContentId};
+use crate::{
+    contentid::{ContentId, NewContentId},
+    type_desc::TypeDescription,
+};
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -6,7 +9,7 @@ use std::{
 use thiserror::Error;
 
 pub trait NewReplicaId:
-    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
 {
     type Buf: AsRef<[u8]>;
     /// Generate a new `ReplicaId`.

@@ -1,9 +1,14 @@
+use crate::type_desc::{TypeDescription, ValueDesc};
+
 use super::{FromHashError, NewContentId};
 use multibase::Base;
 use multihash::MultihashDigest;
 #[cfg(feature = "serde")]
 use serde_big_array::BigArray;
-use std::fmt::{Debug, Display};
+use std::{
+    any::TypeId,
+    fmt::{Debug, Display},
+};
 
 const MULTIHASH_256_LEN: usize = 34;
 const MULTIBASE_ENCODE: Base = Base::Base58Btc;
@@ -36,6 +41,20 @@ impl NewContentId for Multihash256 {
     }
     fn len(&self) -> usize {
         self.0.len()
+    }
+}
+impl TypeDescription for Multihash256 {
+    fn type_desc() -> ValueDesc {
+        // TODO: use the inner TypeDescription impls ..
+        ValueDesc::Struct {
+            name: "Multihash256",
+            type_id: TypeId::of::<Multihash256>(),
+            values: vec![ValueDesc::Array {
+                value: Box::new(ValueDesc::Number(TypeId::of::<u8>())),
+                type_id: TypeId::of::<<Self as NewContentId>::Hash>(),
+                len: MULTIHASH_256_LEN,
+            }],
+        }
     }
 }
 impl Debug for Multihash256 {

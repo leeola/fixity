@@ -9,10 +9,12 @@ use std::{
 };
 use thiserror::Error;
 
+use crate::type_desc::TypeDescription;
+
 pub const CID_LENGTH: usize = 34;
 
 pub trait NewContentId:
-    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
 {
     type Hash: AsRef<[u8]>;
     /// Hash the given bytes and producing a content identifier.

@@ -8,6 +8,7 @@ pub mod store;
 pub use contentid::ContentHasher;
 pub mod replicaid;
 pub use meta::Meta;
+pub mod type_desc;
 pub use storage::{ContentStorage, MutStorage};
 pub use store::Store;
 pub mod content_store;

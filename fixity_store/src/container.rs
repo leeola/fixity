@@ -3,12 +3,21 @@ use crate::{
     deser::{Deserialize, Serialize},
     deser_store::DeserStore,
     store::StoreError,
+    type_desc::{TypeDescription, ValueDesc},
     Store,
 };
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send {
+pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription {
+    /// A description of the [de]serialized type(s) that this container manages.
+    ///
+    /// Used to determine / validate Fixity repository types.
+    ///
+    /// This is in contrast to the `Container: TypeDescription` bound for `Self`,
+    /// which describes the `Container` itself - which may or may not be what is written
+    /// to stores.
+    fn deser_desc() -> ValueDesc;
     async fn open<S: DeserStore<Deser, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
     async fn save<S: DeserStore<Deser, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
     async fn save_with_cids<S: DeserStore<Deser, Cid>>(

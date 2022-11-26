@@ -7,13 +7,21 @@ use fixity_store::{
     deser_store::DeserStore,
     replicaid::Rid,
     store::{Repr, StoreError},
+    type_desc::{TypeDescription, ValueDesc},
     Store,
 };
 
 pub struct GCounter<const N: usize>(Vec<(Rid<N>, GCounterInt)>);
-
+impl<const N: usize> TypeDescription for GCounter<N> {
+    fn type_desc() -> ValueDesc {
+        todo!()
+    }
+}
 #[async_trait]
 impl<'s, const N: usize, Cid: NewContentId> NewContainer<Rkyv, Cid> for GCounter<N> {
+    fn deser_desc() -> ValueDesc {
+        todo!()
+    }
     async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
         todo!()
     }
