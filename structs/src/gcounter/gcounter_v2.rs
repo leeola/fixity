@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use super::GCounterInt;
 use async_trait::async_trait;
 use fixity_store::{
@@ -17,7 +19,11 @@ where
     Rid: NewReplicaId,
 {
     fn type_desc() -> ValueDesc {
-        todo!()
+        ValueDesc::Struct {
+            name: "GCounter",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::of::<Vec<(Rid, GCounterInt)>>()],
+        }
     }
 }
 #[async_trait]
