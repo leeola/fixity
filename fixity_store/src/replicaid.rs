@@ -1,5 +1,6 @@
 use crate::{
     contentid::{ContentId, NewContentId},
+    deser::{Deserialize, Serialize},
     type_desc::TypeDescription,
 };
 use std::{
@@ -15,6 +16,8 @@ pub trait NewReplicaId:
     /// Generate a new `ReplicaId`.
     //
     // TODO: allow for configured randomness. Perhaps taking a `rand` value as a param?
+    // Though ideally not tied to the `rand` lib. Perhaps some associated type for input
+    // state.
     fn new() -> Self;
     /// Construct a replica identifier from the given buffer.
     fn from_buf(hash: Vec<u8>) -> Result<Self, FromBufError>;
@@ -22,6 +25,11 @@ pub trait NewReplicaId:
     fn len(&self) -> usize {
         self.as_buf().as_ref().len()
     }
+}
+pub trait ReplicaIdDeser<Deser>: NewReplicaId + Serialize<Deser> + Deserialize<Deser> {}
+impl<Deser, T> ReplicaIdDeser<Deser> for T where
+    T: NewReplicaId + Serialize<Deser> + Deserialize<Deser>
+{
 }
 #[derive(Error, Debug)]
 pub enum FromBufError {

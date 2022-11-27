@@ -1,5 +1,9 @@
 pub mod multihash_256;
 
+use crate::{
+    deser::{Deserialize, Serialize},
+    type_desc::TypeDescription,
+};
 use multibase::Base;
 use multihash::MultihashDigest;
 use std::{
@@ -8,8 +12,6 @@ use std::{
     hash::Hash,
 };
 use thiserror::Error;
-
-use crate::type_desc::TypeDescription;
 
 pub const CID_LENGTH: usize = 34;
 
@@ -25,6 +27,11 @@ pub trait NewContentId:
     fn len(&self) -> usize {
         self.as_hash().as_ref().len()
     }
+}
+pub trait ContentIdDeser<Deser>: NewContentId + Serialize<Deser> + Deserialize<Deser> {}
+impl<Deser, T> ContentIdDeser<Deser> for T where
+    T: NewContentId + Serialize<Deser> + Deserialize<Deser>
+{
 }
 #[derive(Error, Debug)]
 pub enum FromHashError {
