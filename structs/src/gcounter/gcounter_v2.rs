@@ -13,7 +13,37 @@ use fixity_store::{
     Store,
 };
 
-pub struct GCounter<Rid>(Vec<(Rid, GCounterInt)>);
+type Ints<Rid> = Vec<(Rid, GCounterInt)>;
+
+#[derive(Debug)]
+pub struct GCounter<Rid>(Ints<Rid>);
+impl<Rid> GCounter<Rid> {
+    pub fn new() -> Self {
+        Self(Ints::default())
+    }
+}
+impl<Rid: NewReplicaId> GCounter<Rid> {
+    pub fn inc(&mut self, rid: Rid) {
+        let self_ = &mut self.0;
+        let index_res = self_.binary_search_by_key(&&rid, |(rid, _)| rid);
+        match index_res {
+            Ok(i) => {
+                let (_, count) = self_.get_mut(i).expect("index returned by `binary_search`");
+                *count += 1;
+            },
+            Err(i) => self_.insert(i, (rid, 1)),
+        }
+    }
+    pub fn value(&self) -> GCounterInt {
+        // TODO: cache the result.
+        self.0.iter().map(|(_, i)| i).sum()
+    }
+    pub fn get(&self, rid: &Rid) -> Option<GCounterInt> {
+        let i = self.0.binary_search_by_key(&rid, |(rid, _)| rid).ok()?;
+        let (_, count) = self.0.get(i).expect("index returned by `binary_search`");
+        Some(*count)
+    }
+}
 impl<Rid> TypeDescription for GCounter<Rid>
 where
     Rid: NewReplicaId,
@@ -22,7 +52,7 @@ where
         ValueDesc::Struct {
             name: "GCounter",
             type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::of::<Vec<(Rid, GCounterInt)>>()],
+            values: vec![ValueDesc::of::<Ints<Rid>>()],
         }
     }
 }
@@ -30,23 +60,29 @@ where
 impl<'s, Rid, Cid> NewContainer<Rkyv, Cid> for GCounter<Rid>
 where
     Cid: NewContentId,
-    Rid: ReplicaIdDeser<Rkyv>,
+    Rid: NewReplicaId,
+    Ints<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     fn deser_type_desc() -> ValueDesc {
+        Self::type_desc()
+    }
+    fn new_container<S: DeserStore<Rkyv, Cid>>(_: &S) -> Self {
         todo!()
     }
     async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
-        todo!()
+        let repr = store.get::<Ints<Rid>>(cid).await?;
+        let inner = repr.repr_to_owned()?;
+        Ok(Self(inner))
     }
     async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
-        todo!()
+        store.put::<Ints<Rid>>(&self.0).await
     }
     async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
-        todo!()
+        store.put_with_cids::<Ints<Rid>>(&self.0, cids_buf).await
     }
     async fn merge<S: DeserStore<Rkyv, Cid>>(
         &mut self,
@@ -67,7 +103,8 @@ where
 impl<'s, Rid, Cid> ContainerRef<Rkyv, Cid> for GCounter<Rid>
 where
     Cid: NewContentId,
-    Rid: ReplicaIdDeser<Rkyv>,
+    Rid: NewReplicaId,
+    Ints<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     type Ref = GCounterRef<Rid, Rkyv>;
     type DiffRef = GCounterRef<Rid, Rkyv>;
@@ -85,7 +122,11 @@ where
         todo!()
     }
 }
-
+impl<Rid> Default for GCounter<Rid> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 // TODO: Convert Vec back to BTree for faster lookups? This was made a Vec
 // due to difficulties in looking up `ArchivedRid`.
 // Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
@@ -95,5 +136,23 @@ impl<Rid, D> TryInto<GCounter<Rid>> for GCounterRef<Rid, D> {
     type Error = StoreError;
     fn try_into(self) -> Result<GCounter<Rid>, Self::Error> {
         todo!()
+    }
+}
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    #[test]
+    fn poc() {
+        let mut a = GCounter::default();
+        a.inc(1);
+        assert_eq!(a.value(), 1);
+        a.inc(1);
+        a.inc(0);
+        assert_eq!(a.value(), 3);
+        let mut b = GCounter::default();
+        b.inc(1);
+        b.inc(1);
+        // b.merge(&a);
+        // assert_eq!(b.value(), 4);
     }
 }

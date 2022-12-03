@@ -49,11 +49,22 @@ impl TypeDescription for u32 {
         ValueDesc::Number(TypeId::of::<Self>())
     }
 }
-// TODO: Make Generic
+impl TypeDescription for i32 {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Number(TypeId::of::<Self>())
+    }
+}
+impl TypeDescription for i64 {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Number(TypeId::of::<Self>())
+    }
+}
+// TODO: Make Generic over tuple length
 impl<T1, T2> TypeDescription for (T1, T2)
 where
-    T1: TypeDescription,
-    T2: TypeDescription,
+    // NIT: Why is static needed? :confused:
+    T1: TypeDescription + 'static,
+    T2: TypeDescription + 'static,
 {
     fn type_desc() -> ValueDesc {
         ValueDesc::Tuple {

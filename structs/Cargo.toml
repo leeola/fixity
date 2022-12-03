@@ -23,5 +23,6 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 fixity_core = { path = "../core" }
+fixity_store = { path = "../fixity_store", features = ["test"] }
 tokio = { version = "1.17", features = ["test-util", "macros"] }
 rstest = "0.12"

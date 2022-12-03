@@ -7,6 +7,8 @@ license-file = "LICENSE"
 
 [features]
 default = ["rkyv", "json"]
+# Provide various test helpers or test focused implementations.
+test = []
 json = ["serde_json", "serde"]
 
 [dependencies]

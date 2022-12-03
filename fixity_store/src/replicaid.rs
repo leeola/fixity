@@ -1,27 +1,26 @@
 use crate::{
     contentid::{ContentId, NewContentId},
     deser::{Deserialize, Serialize},
-    type_desc::TypeDescription,
+    type_desc::{TypeDescription, ValueDesc},
 };
 use std::{
+    any::TypeId,
     fmt::{Debug, Display},
     hash::Hash,
 };
 use thiserror::Error;
 
+pub trait NewNewReplicaId {
+    type Rid: NewReplicaId;
+    fn new(&mut self) -> Self::Rid;
+}
 pub trait NewReplicaId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
 {
-    type Buf: AsRef<[u8]>;
-    /// Generate a new `ReplicaId`.
-    //
-    // TODO: allow for configured randomness. Perhaps taking a `rand` value as a param?
-    // Though ideally not tied to the `rand` lib. Perhaps some associated type for input
-    // state.
-    fn new() -> Self;
+    type Buf<'a>: AsRef<[u8]>;
     /// Construct a replica identifier from the given buffer.
-    fn from_buf(hash: Vec<u8>) -> Result<Self, FromBufError>;
-    fn as_buf(&self) -> &Self::Buf;
+    fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError>;
+    fn as_buf(&self) -> Self::Buf<'_>;
     fn len(&self) -> usize {
         self.as_buf().as_ref().len()
     }
@@ -58,6 +57,33 @@ impl<const N: usize> ContentId for Rid<N> {
     }
     fn len(&self) -> usize {
         self.0.len()
+    }
+}
+impl<const N: usize> NewReplicaId for Rid<N> {
+    type Buf<'a> = &'a [u8; N];
+    fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
+        let inner = <[u8; N]>::try_from(buf).map_err(|_| FromBufError::Length)?;
+        Ok(Self(inner))
+    }
+    fn as_buf(&self) -> Self::Buf<'_> {
+        &self.0
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+impl<const N: usize> TypeDescription for Rid<N> {
+    fn type_desc() -> ValueDesc {
+        // TODO: use the inner TypeDescription impls ..
+        ValueDesc::Struct {
+            name: "Rid",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::Array {
+                value: Box::new(ValueDesc::Number(TypeId::of::<u8>())),
+                type_id: TypeId::of::<<Self as NewReplicaId>::Buf<'_>>(),
+                len: N,
+            }],
+        }
     }
 }
 impl<const N: usize> Default for Rid<N>
@@ -99,6 +125,49 @@ impl<const N: usize> From<[u8; N]> for Rid<N> {
 impl<const N: usize> PartialEq<[u8; N]> for Rid<N> {
     fn eq(&self, other: &[u8; N]) -> bool {
         &self.0 == other
+    }
+}
+#[cfg(any(test, feature = "test"))]
+mod test_rids {
+    //! Test focused `ReplicaId` implementations over integers and conversions from integers
+    //! for `Rid<N>`.
+    //!
+    //! ## Endian
+    //! Note that all integer representations use Big Endian to ensure stable representations
+    //! and thus Content IDs when written to test stores.
+    use super::{FromBufError, NewReplicaId, Rid};
+
+    // TODO: macro these impls.
+
+    impl NewReplicaId for i32 {
+        type Buf<'a> = [u8; 4];
+        fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
+            let buf = Self::Buf::try_from(buf).map_err(|_| FromBufError::Length)?;
+            Ok(Self::from_be_bytes(buf))
+        }
+        fn as_buf(&self) -> Self::Buf<'static> {
+            self.to_be_bytes()
+        }
+    }
+    impl NewReplicaId for i64 {
+        type Buf<'a> = [u8; 8];
+        fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
+            let buf = Self::Buf::try_from(buf).map_err(|_| FromBufError::Length)?;
+            Ok(Self::from_be_bytes(buf))
+        }
+        fn as_buf(&self) -> Self::Buf<'static> {
+            self.to_be_bytes()
+        }
+    }
+    impl From<i32> for Rid<4> {
+        fn from(i: i32) -> Self {
+            Self::from(i.to_be_bytes())
+        }
+    }
+    impl From<i64> for Rid<8> {
+        fn from(i: i64) -> Self {
+            Self::from(i.to_be_bytes())
+        }
     }
 }
 #[cfg(feature = "rkyv")]

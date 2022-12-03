@@ -18,6 +18,7 @@ pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
+    fn new_container<S: DeserStore<Deser, Cid>>(store: &S) -> Self;
     async fn open<S: DeserStore<Deser, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
     async fn save<S: DeserStore<Deser, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
     async fn save_with_cids<S: DeserStore<Deser, Cid>>(
