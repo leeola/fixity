@@ -24,7 +24,7 @@
             gcc
             rust-analyzer
             # using a hardcoded rustfmt version to support nightly rustfmt features.
-            rust-bin.nightly."2022-11-20".rustfmt
+            rust-bin.nightly."2022-12-01".rustfmt
             rust-toolchain
           ];
         };
