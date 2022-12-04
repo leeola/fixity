@@ -7,10 +7,9 @@ use fixity_store::{
     contentid::NewContentId,
     deser::{Deserialize, Rkyv, Serialize},
     deser_store::DeserStore,
-    replicaid::{NewReplicaId, ReplicaIdDeser, Rid},
+    replicaid::NewReplicaId,
     store::{Repr, StoreError},
     type_desc::{TypeDescription, ValueDesc},
-    Store,
 };
 
 type Ints<Rid> = Vec<(Rid, GCounterInt)>;
@@ -67,7 +66,7 @@ where
         Self::type_desc()
     }
     fn new_container<S: DeserStore<Rkyv, Cid>>(_: &S) -> Self {
-        todo!()
+        Self::new()
     }
     async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
         let repr = store.get::<Ints<Rid>>(cid).await?;
@@ -89,12 +88,30 @@ where
         store: &S,
         other: &Cid,
     ) -> Result<(), StoreError> {
-        todo!()
+        let other = {
+            let repr = store.get::<Ints<Rid>>(other).await?;
+            repr.repr_to_owned()?
+        };
+        for (other_rid, other_value) in other {
+            let idx = self.0.binary_search_by_key(&&other_rid, |(rid, _)| rid);
+            match idx {
+                Ok(idx) => {
+                    let (_, self_value) = &mut self.0[idx];
+                    if other_value > *self_value {
+                        *self_value = other_value;
+                    }
+                },
+                Err(idx) => {
+                    self.0.insert(idx, (other_rid, other_value));
+                },
+            }
+        }
+        Ok(())
     }
     async fn diff<S: DeserStore<Rkyv, Cid>>(
         &mut self,
-        store: &S,
-        other: &Cid,
+        _store: &S,
+        _other: &Cid,
     ) -> Result<Self, StoreError> {
         todo!()
     }
@@ -109,15 +126,15 @@ where
     type Ref = GCounterRef<Rid, Rkyv>;
     type DiffRef = GCounterRef<Rid, Rkyv>;
     async fn open_ref<S: DeserStore<Rkyv, Cid>>(
-        store: &S,
-        cid: &Cid,
+        _store: &S,
+        _cid: &Cid,
     ) -> Result<Self::Ref, StoreError> {
         todo!()
     }
     async fn diff_ref<S: DeserStore<Rkyv, Cid>>(
         &mut self,
-        store: &S,
-        other: &Cid,
+        _store: &S,
+        _other: &Cid,
     ) -> Result<Self::DiffRef, StoreError> {
         todo!()
     }
