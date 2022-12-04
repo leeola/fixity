@@ -41,14 +41,21 @@ where
     where
         T: Serialize<Deser> + Send + Sync,
     {
-        todo!()
+        let buf = t.serialize().unwrap();
+        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        self.write_unchecked(&cid, buf.into()).await.unwrap();
+        Ok(cid)
     }
 
     async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>
     where
         T: Serialize<Deser> + Send + Sync,
     {
-        todo!()
+        let buf = t.serialize().unwrap();
+        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        self.write_unchecked(&cid, buf.into()).await.unwrap();
+        cids_buf.push(cid);
+        Ok(())
     }
 }
 #[derive(Clone, PartialEq, Eq)]

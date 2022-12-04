@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use super::GCounterInt;
 use async_trait::async_trait;
 use fixity_store::{
@@ -11,6 +9,7 @@ use fixity_store::{
     store::{Repr, StoreError},
     type_desc::{TypeDescription, ValueDesc},
 };
+use std::any::TypeId;
 
 type Ints<Rid> = Vec<(Rid, GCounterInt)>;
 

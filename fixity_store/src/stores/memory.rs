@@ -38,9 +38,12 @@ where
         let buf = lock.get(cid).unwrap();
         Ok(Arc::clone(&buf))
     }
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError> {
+    async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
+    where
+        B: AsRef<[u8]> + Into<Arc<[u8]>> + Send,
+    {
         let mut lock = self.bytes.lock().unwrap();
-        let _ = lock.insert(cid.clone(), Arc::from(bytes));
+        let _ = lock.insert(cid.clone(), bytes.into());
         Ok(())
     }
 }

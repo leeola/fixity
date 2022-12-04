@@ -12,10 +12,18 @@ pub enum ContentStoreError {
 }
 #[async_trait]
 pub trait ContentStore<Cid: NewContentId>: Send + Sync {
+    // NIT: The conversion around the the generic byte types is .. annoying.
+    // A single type (Into<Vec<u8>> for example) doesn't cover common cases.
+    // So we either add a lot of conversions on the type, and hope they align..
+    // or some types just end up needlessly converting. Which is unfortunate.
+    //
+    // Not sure the ideal solution.
     type Bytes: AsRef<[u8]> + Into<Arc<[u8]>>;
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError>;
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError>;
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError>;
+    async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
+    where
+        B: AsRef<[u8]> + Into<Arc<[u8]>> + Send;
 }
 #[async_trait]
 impl<T, Cid> ContentStore<Cid> for Arc<T>
@@ -30,7 +38,10 @@ where
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError> {
         self.deref().read_unchecked(cid).await
     }
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError> {
+    async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
+    where
+        B: AsRef<[u8]> + Into<Arc<[u8]>> + Send,
+    {
         self.deref().write_unchecked(cid, bytes).await
     }
 }
