@@ -1,7 +1,7 @@
 use super::GCounterInt;
 use async_trait::async_trait;
 use fixity_store::{
-    container::{ContainerRef, NewContainer},
+    container::{ContainerRef, ContainerRefInto, NewContainer},
     contentid::NewContentId,
     deser::{Deserialize, Rkyv, Serialize},
     deser_store::DeserStore,
@@ -136,7 +136,7 @@ where
     Ints<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     type Ref = GCounterRef<Rid, Rkyv>;
-    type DiffRef = GCounterRef<Rid, Rkyv>;
+    type DiffRef = GCounter<Rid>;
     async fn open_ref<S: DeserStore<Rkyv, Cid>>(
         _store: &S,
         _cid: &Cid,
@@ -161,9 +161,9 @@ impl<Rid> Default for GCounter<Rid> {
 // Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
 // in theory we can go back to a Rid.
 pub struct GCounterRef<Rid, D>(Repr<Vec<(Rid, GCounterInt)>, D>);
-impl<Rid, D> TryInto<GCounter<Rid>> for GCounterRef<Rid, D> {
+impl<Rid> ContainerRefInto<GCounter<Rid>> for GCounterRef<Rid, Rkyv> {
     type Error = StoreError;
-    fn try_into(self) -> Result<GCounter<Rid>, Self::Error> {
+    fn container_ref_into(self) -> Result<GCounter<Rid>, Self::Error> {
         todo!()
     }
 }

@@ -39,8 +39,8 @@ pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription
 }
 #[async_trait]
 pub trait ContainerRef<Deser, Cid: NewContentId>: NewContainer<Deser, Cid> {
-    type Ref: TryInto<Self, Error = StoreError>;
-    type DiffRef: TryInto<Self, Error = StoreError>;
+    type Ref: ContainerRefInto<Self>;
+    type DiffRef: ContainerRefInto<Self>;
     async fn open_ref<S: DeserStore<Deser, Cid>>(
         store: &S,
         cid: &Cid,
@@ -51,7 +51,22 @@ pub trait ContainerRef<Deser, Cid: NewContentId>: NewContainer<Deser, Cid> {
         other: &Cid,
     ) -> Result<Self::DiffRef, StoreError>;
 }
-
+// NIT: Infallible conversions were making `TryInto` awkward for `Ref` and `DiffRef` on
+// `ContainerRef`, so this trait fills that role without the infallible issues.
+// I must be misunderstanding how to deal with Infallible `TryInto`'s easily, while
+// also putting bounds on the associated `TryInto::Error` type.
+//
+// Or perhaps it's just awkward because associated type bounds don't exist yet.
+pub trait ContainerRefInto<Owned> {
+    type Error: Into<StoreError>;
+    fn container_ref_into(self) -> Result<Owned, Self::Error>;
+}
+impl<Owned> ContainerRefInto<Owned> for Owned {
+    type Error = StoreError;
+    fn container_ref_into(self) -> Result<Owned, Self::Error> {
+        Ok(self)
+    }
+}
 #[async_trait]
 pub trait Container<'s, S>: Sized + Send + 's
 where
