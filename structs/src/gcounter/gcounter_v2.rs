@@ -157,9 +157,11 @@ impl<Rid, D> TryInto<GCounter<Rid>> for GCounterRef<Rid, D> {
 }
 #[cfg(test)]
 pub mod test {
+    use fixity_store::stores::memory::Memory;
+
     use super::*;
-    #[test]
-    fn poc() {
+    #[tokio::test]
+    async fn poc() {
         let mut a = GCounter::default();
         a.inc(1);
         assert_eq!(a.value(), 1);
@@ -169,6 +171,8 @@ pub mod test {
         let mut b = GCounter::default();
         b.inc(1);
         b.inc(1);
+        let store = Memory::test();
+        let cid = b.save(&store).await.unwrap();
         // b.merge(&a);
         // assert_eq!(b.value(), 4);
     }

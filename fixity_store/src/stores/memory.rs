@@ -18,6 +18,12 @@ pub struct Memory<Cid> {
     bytes: Mutex<HashMap<Cid, Arc<[u8]>>>,
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
+#[cfg(any(test, feature = "test"))]
+impl Memory<crate::contentid::multihash_256::Multihash256> {
+    pub fn test() -> Self {
+        Self::default()
+    }
+}
 #[async_trait]
 impl<Cid> ContentStore<Cid> for Memory<Cid>
 where
