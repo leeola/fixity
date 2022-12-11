@@ -2,6 +2,7 @@ pub mod appendlog;
 pub mod gcounter;
 pub mod prolly_tree;
 pub mod ptr;
+pub mod replicalog;
 /*
 pub mod vclock {
     use crate::gcounter::GCounter;

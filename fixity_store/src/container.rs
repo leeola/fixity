@@ -36,6 +36,8 @@ pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription
         store: &S,
         other: &Cid,
     ) -> Result<Self, StoreError>;
+    // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
+    // Container and all the cids within it.
 }
 #[async_trait]
 pub trait ContainerRef<Deser, Cid: NewContentId>: NewContainer<Deser, Cid> {
