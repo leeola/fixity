@@ -6,23 +6,26 @@ pub struct ReplicaLog<Rid, Cid> {
 }
 pub struct LogEntry<Rid, Cid> {
     pub previous_entry: Option<Cid>,
-    pub type_: LogType<Rid, Cid>,
+    pub type_: EntryType<Rid, Cid>,
     // TODO: Placeholder for signature chain. Need to mock up
     // replica sig and identity sig.
     pub _replica_sig: (),
 }
-pub enum LogType<Rid, Cid> {
+pub enum EntryType<Rid, Cid> {
     Init { replica_id: Rid },
-    // /// A claim that this replica is the same as the other specified replica for
-    // /// the given repo.
-    //
-    // NIT: Maybe metadata should store a map of replica to repo? Depends if
-    // we want the same replica being used in multiple repos.
-    //
+    // /// A claim that this replica is the same as the other specified replica.
+    // ///
     // /// This claim is only valid if both replicas claim each other.
-    // IdentityClaim { repo: String, replica_id: Rid },
-    // /// Shared metadata between all
-    // IdentityMetadata(CrdtMap<String, Value>)
+    // IdentityClaim {
+    //     replica_id: Rid,
+    //     /// The HEAD at the time of claim.
+    //     replica_log_head: Cid,
+    //     /// Merged Metadata with the newly claimed replica identity.
+    //     identity_metadata: Cid,
+    // },
+    // /// Mutations against the metadata between all replicas which this replica claims
+    // /// to be.
+    // IdentityMetadataMutation(CrdtMap<String, Value> CID)
     // ActiveBranch,
     Commit(CommitLog<Cid>),
 }

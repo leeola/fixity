@@ -200,8 +200,8 @@ where
         self.meta
             .set_head(
                 "local",
-                &*self.repo,
-                &*self.branch,
+                &self.repo,
+                &self.branch,
                 &self.replica_id,
                 log_head.clone(),
             )
