@@ -1,17 +1,34 @@
+pub mod identity;
+
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 pub struct ReplicaLog<Rid, Cid> {
-    inner: Cid,
-    entry: LogEntry<Rid, Cid>,
+    pub previous_entry: Option<Cid>,
+    pub inner: Cid,
+    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
+    pub branches: Option<Cid>,
+    // /// An [`Identity`] pointer for this Replica.
+    // pub identity: Option<Cid>,
+    pub type_: EntryType<Rid, Cid>,
+    // // TODO: Placeholder for signature chain. Need to mock up
+    // // replica sig and identity sig.
+    // pub _replica_sig: (),
 }
 pub struct LogEntry<Rid, Cid> {
     pub previous_entry: Option<Cid>,
+    pub inner: Cid,
+    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
+    pub branches: Option<Cid>,
+    // /// An [`Identity`] pointer for this Replica.
+    // pub identity: Option<Cid>,
     pub type_: EntryType<Rid, Cid>,
-    // TODO: Placeholder for signature chain. Need to mock up
-    // replica sig and identity sig.
-    pub _replica_sig: (),
+    // // TODO: Placeholder for signature chain. Need to mock up
+    // // replica sig and identity sig.
+    // pub _replica_sig: (),
 }
 pub enum EntryType<Rid, Cid> {
+    // NIT: Using the replica as the root will mean it shares the same root in all repos.
+    // Not sure if i like that or not..
     Init { replica_id: Rid },
     // /// A claim that this replica is the same as the other specified replica.
     // ///
