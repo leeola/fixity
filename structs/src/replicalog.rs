@@ -1,51 +1,51 @@
-pub mod identity;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
+#[derive(Debug, Default)]
 pub struct ReplicaLog<Rid, Cid> {
     pub previous_entry: Option<Cid>,
-    pub inner: Cid,
     /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    pub branches: Option<Cid>,
+    pub branches: Option<Branches<Cid>>,
     // /// An [`Identity`] pointer for this Replica.
+    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
-    pub type_: EntryType<Rid, Cid>,
+    pub identity: Option<Identity<Rid>>,
     // // TODO: Placeholder for signature chain. Need to mock up
     // // replica sig and identity sig.
     // pub _replica_sig: (),
 }
-pub struct LogEntry<Rid, Cid> {
-    pub previous_entry: Option<Cid>,
-    pub inner: Cid,
+#[derive(Debug)]
+pub struct Branches<Cid> {
+    /// The name of the active branch.
+    pub active: String,
+    /// The content id of the active branch.
+    pub content: Cid,
     /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    pub branches: Option<Cid>,
-    // /// An [`Identity`] pointer for this Replica.
-    // pub identity: Option<Cid>,
-    pub type_: EntryType<Rid, Cid>,
-    // // TODO: Placeholder for signature chain. Need to mock up
-    // // replica sig and identity sig.
-    // pub _replica_sig: (),
+    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
+    // pub branches: Option<Cid>,
+    pub inactive: BTreeMap<String, Cid>,
 }
-pub enum EntryType<Rid, Cid> {
-    // NIT: Using the replica as the root will mean it shares the same root in all repos.
-    // Not sure if i like that or not..
-    Init { replica_id: Rid },
-    // /// A claim that this replica is the same as the other specified replica.
-    // ///
-    // /// This claim is only valid if both replicas claim each other.
-    // IdentityClaim {
-    //     replica_id: Rid,
-    //     /// The HEAD at the time of claim.
-    //     replica_log_head: Cid,
-    //     /// Merged Metadata with the newly claimed replica identity.
-    //     identity_metadata: Cid,
-    // },
-    // /// Mutations against the metadata between all replicas which this replica claims
-    // /// to be.
-    // IdentityMetadataMutation(CrdtMap<String, Value> CID)
-    // ActiveBranch,
-    Commit(CommitLog<Cid>),
+#[derive(Debug)]
+pub struct Identity<Rid> {
+    pub claimed_replicas: BTreeSet<Rid>,
+    // pub metadata: CrdtMap<String, Value>
 }
-pub struct CommitLog<Cid> {
-    previous: Option<Cid>,
+#[cfg(test)]
+pub mod test {
+    use fixity_store::stores::memory::Memory;
+
+    use super::*;
+    #[tokio::test]
+    async fn poc() {
+        let store = Memory::test();
+        let r = ReplicaLog::default();
+        // let b_cid = b.save(&store).await.unwrap();
+        // a.merge(&store, &b_cid).await.unwrap();
+        // assert_eq!(a.value(), 3);
+        // b.inc(1);
+        // let b_cid = b.save(&store).await.unwrap();
+        // a.merge(&store, &b_cid).await.unwrap();
+        // assert_eq!(a.value(), 4);
+    }
 }
