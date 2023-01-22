@@ -18,13 +18,13 @@ pub const CID_LENGTH: usize = 34;
 pub trait NewContentId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
 {
-    type Hash: AsRef<[u8]>;
+    type Hash<'a>: AsRef<[u8]>;
     /// Hash the given bytes and producing a content identifier.
     fn hash(buf: &[u8]) -> Self;
     /// Construct a content identifier from the given hash.
     fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError>;
-    fn as_hash(&self) -> &Self::Hash;
-    fn len(&self) -> usize {
+    fn as_hash(&self) -> Self::Hash<'_>;
+    fn size(&self) -> usize {
         self.as_hash().as_ref().len()
     }
 }
@@ -154,6 +154,53 @@ impl From<Hasher> for multihash::Code {
         // we use the same codes as multihash.
         match h {
             Hasher::Blake3_256 => multihash::Code::Blake3_256,
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test"))]
+pub mod test {
+    use super::{FromHashError, NewContentId};
+    use multihash::MultihashDigest;
+
+    // TODO: macro these impls.
+
+    impl NewContentId for i32 {
+        type Hash<'a> = [u8; 4];
+        fn hash(buf: &[u8]) -> Self {
+            let mhash = multihash::Code::Blake2s128.digest(buf.as_ref());
+            let digest = &mhash.digest()[0..4];
+            Self::from_be_bytes(
+                digest
+                    .try_into()
+                    .expect("Blake2s128 truncated to 4 bytes fits into a [u8; 4]"),
+            )
+        }
+        fn from_hash(hash: Vec<u8>) -> Result<Self, super::FromHashError> {
+            let hash = Self::Hash::try_from(hash).map_err(|_| FromHashError::Length)?;
+            Ok(Self::from_be_bytes(hash))
+        }
+        fn as_hash(&self) -> Self::Hash<'static> {
+            self.to_be_bytes()
+        }
+    }
+    impl NewContentId for i64 {
+        type Hash<'a> = [u8; 8];
+        fn hash(buf: &[u8]) -> Self {
+            let mhash = multihash::Code::Blake2s128.digest(buf.as_ref());
+            let digest = &mhash.digest()[0..8];
+            Self::from_be_bytes(
+                digest
+                    .try_into()
+                    .expect("Blake2s128 truncated to 8 bytes fits into a [u8; 8]"),
+            )
+        }
+        fn from_hash(hash: Vec<u8>) -> Result<Self, super::FromHashError> {
+            let hash = Self::Hash::try_from(hash).map_err(|_| FromHashError::Length)?;
+            Ok(Self::from_be_bytes(hash))
+        }
+        fn as_hash(&self) -> Self::Hash<'static> {
+            self.to_be_bytes()
         }
     }
 }

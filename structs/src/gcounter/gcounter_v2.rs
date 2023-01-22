@@ -11,13 +11,13 @@ use fixity_store::{
 };
 use std::any::TypeId;
 
-type Ints<Rid> = Vec<(Rid, GCounterInt)>;
+type IVec<Rid> = Vec<(Rid, GCounterInt)>;
 
 #[derive(Debug)]
-pub struct GCounter<Rid>(Ints<Rid>);
+pub struct GCounter<Rid>(IVec<Rid>);
 impl<Rid> GCounter<Rid> {
     pub fn new() -> Self {
-        Self(Ints::default())
+        Self(IVec::default())
     }
 }
 impl<Rid: NewReplicaId> GCounter<Rid> {
@@ -53,16 +53,16 @@ where
         ValueDesc::Struct {
             name: "GCounter",
             type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::of::<Ints<Rid>>()],
+            values: vec![ValueDesc::of::<IVec<Rid>>()],
         }
     }
 }
 #[async_trait]
-impl<'s, Rid, Cid> NewContainer<Rkyv, Cid> for GCounter<Rid>
+impl<Rid, Cid> NewContainer<Rkyv, Cid> for GCounter<Rid>
 where
     Cid: NewContentId,
     Rid: NewReplicaId,
-    Ints<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
+    IVec<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
@@ -71,19 +71,19 @@ where
         Self::new()
     }
     async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
-        let repr = store.get::<Ints<Rid>>(cid).await?;
+        let repr = store.get::<IVec<Rid>>(cid).await?;
         let inner = repr.repr_to_owned()?;
         Ok(Self(inner))
     }
     async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
-        store.put::<Ints<Rid>>(&self.0).await
+        store.put::<IVec<Rid>>(&self.0).await
     }
     async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
-        store.put_with_cids::<Ints<Rid>>(&self.0, cids_buf).await
+        store.put_with_cids::<IVec<Rid>>(&self.0, cids_buf).await
     }
     async fn merge<S: DeserStore<Rkyv, Cid>>(
         &mut self,
@@ -91,7 +91,7 @@ where
         other: &Cid,
     ) -> Result<(), StoreError> {
         let other = {
-            let repr = store.get::<Ints<Rid>>(other).await?;
+            let repr = store.get::<IVec<Rid>>(other).await?;
             repr.repr_to_owned()?
         };
         let mut start_idx = 0;
@@ -129,11 +129,11 @@ where
     }
 }
 #[async_trait]
-impl<'s, Rid, Cid> ContainerRef<Rkyv, Cid> for GCounter<Rid>
+impl<Rid, Cid> ContainerRef<Rkyv, Cid> for GCounter<Rid>
 where
     Cid: NewContentId,
     Rid: NewReplicaId,
-    Ints<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
+    IVec<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     type Ref = GCounterRef<Rid, Rkyv>;
     type DiffRef = GCounter<Rid>;

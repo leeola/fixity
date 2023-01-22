@@ -22,7 +22,7 @@ pub struct Multihash256(
     #[cfg_attr(feature = "rkyv", serde(with = "BigArray"))] [u8; MULTIHASH_256_LEN],
 );
 impl NewContentId for Multihash256 {
-    type Hash = [u8; MULTIHASH_256_LEN];
+    type Hash<'a> = &'a [u8; MULTIHASH_256_LEN];
     fn hash(buf: &[u8]) -> Self {
         let hash = multihash::Code::Blake3_256.digest(buf.as_ref()).to_bytes();
         match Self::from_hash(hash) {
@@ -36,10 +36,10 @@ impl NewContentId for Multihash256 {
         hash.try_into()
             .map_or(Err(FromHashError::Length), |hash| Ok(Self(hash)))
     }
-    fn as_hash(&self) -> &Self::Hash {
+    fn as_hash(&self) -> Self::Hash<'_> {
         &self.0
     }
-    fn len(&self) -> usize {
+    fn size(&self) -> usize {
         self.0.len()
     }
 }
@@ -51,7 +51,7 @@ impl TypeDescription for Multihash256 {
             type_id: TypeId::of::<Multihash256>(),
             values: vec![ValueDesc::Array {
                 value: Box::new(ValueDesc::Number(TypeId::of::<u8>())),
-                type_id: TypeId::of::<<Self as NewContentId>::Hash>(),
+                type_id: TypeId::of::<<Self as NewContentId>::Hash<'_>>(),
                 len: MULTIHASH_256_LEN,
             }],
         }

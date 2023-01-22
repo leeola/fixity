@@ -1,4 +1,8 @@
-use std::{any::TypeId, fmt::Display};
+use std::{
+    any::TypeId,
+    collections::{BTreeMap, BTreeSet},
+    fmt::Display,
+};
 
 pub trait TypeDescription {
     fn type_desc() -> ValueDesc;
@@ -33,7 +37,7 @@ impl ValueDesc {
         T::type_desc()
     }
     /// An equality check for the inner type values of a given type.
-    pub fn type_eq(&self, other: &Self) -> bool {
+    pub fn type_eq(&self, _other: &Self) -> bool {
         todo!()
     }
 }
@@ -54,9 +58,19 @@ impl TypeDescription for i32 {
         ValueDesc::Number(TypeId::of::<Self>())
     }
 }
+impl TypeDescription for u64 {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Number(TypeId::of::<Self>())
+    }
+}
 impl TypeDescription for i64 {
     fn type_desc() -> ValueDesc {
         ValueDesc::Number(TypeId::of::<Self>())
+    }
+}
+impl TypeDescription for String {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::String(TypeId::of::<Self>())
     }
 }
 // TODO: Make Generic over tuple length
@@ -79,5 +93,45 @@ where
 {
     fn type_desc() -> ValueDesc {
         todo!()
+    }
+}
+impl<T> TypeDescription for Option<T>
+where
+    // NIT: Why is static needed? :confused:
+    T: TypeDescription + 'static,
+{
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "Option",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::of::<T>()],
+        }
+    }
+}
+impl<K, V> TypeDescription for BTreeMap<K, V>
+where
+    // NIT: Why is static needed? :confused:
+    K: TypeDescription + 'static,
+    V: TypeDescription + 'static,
+{
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "BTreeMap",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::of::<K>(), ValueDesc::of::<V>()],
+        }
+    }
+}
+impl<T> TypeDescription for BTreeSet<T>
+where
+    // NIT: Why is static needed? :confused:
+    T: TypeDescription + 'static,
+{
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "BTreeSet",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::of::<T>()],
+        }
     }
 }
