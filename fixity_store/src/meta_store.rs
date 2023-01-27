@@ -12,48 +12,12 @@ use thiserror::Error;
 
 #[async_trait]
 pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
-    async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Rid, Cid>>;
-    async fn branches(
+    async fn list_replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError<Rid, Cid>>;
+    async fn list_heads(
         &self,
         remote: &str,
-        repo: &str,
-    ) -> Result<Vec<String>, MetaStoreError<Rid, Cid>>;
-    async fn heads(
-        &self,
-        remote: &str,
-        repo: &str,
-        branch: &str,
-    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>>;
-    async fn head(
-        &self,
-        remote: &str,
-        repo: &str,
-        branch: &str,
-        replica: &Rid,
-    ) -> Result<Cid, MetaStoreError<Rid, Cid>>;
-    async fn set_head(
-        &self,
-        remote: &str,
-        repo: &str,
-        branch: &str,
-        replica: &Rid,
-        head: Cid,
-    ) -> Result<(), MetaStoreError<Rid, Cid>>;
-    async fn append_log<S: Into<String> + Send>(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        message: S,
-    ) -> Result<(), MetaStoreError<Rid, Cid>>;
-    async fn logs(
-        &self,
-        remote: &str,
-        repo: &str,
-        replica: Rid,
-        offset: usize,
-        limit: usize,
-    ) -> Result<Vec<Log<Rid, Cid>>, MetaStoreError<Rid, Cid>>;
+        replicas: &[Rid],
+    ) -> Result<Vec<Cid>, MetaStoreError<Rid, Cid>>;
 }
 async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
     ms: &MS,
@@ -292,25 +256,6 @@ where
             })?;
         Ok(())
     }
-    async fn append_log<S: Into<String> + Send>(
-        &self,
-        _remote: &str,
-        _repo: &str,
-        _replica: Rid,
-        _message: S,
-    ) -> Result<(), MetaStoreError<Rid, Cid>> {
-        todo!()
-    }
-    async fn logs(
-        &self,
-        _remote: &str,
-        _repo: &str,
-        _replica: Rid,
-        _offset: usize,
-        _limit: usize,
-    ) -> Result<Vec<Log<Rid, Cid>>, MetaStoreError<Rid, Cid>> {
-        todo!()
-    }
 }
 async fn list_dirs<S: MutStore>(
     storage: &S,
@@ -332,42 +277,32 @@ async fn list_dirs<S: MutStore>(
 }
 #[cfg(test)]
 pub mod meta_mut_storage {
-    use crate::{contentid::Cid, replicaid::Rid, storage::Memory, Meta};
-
+    use super::*;
+    use crate::{contentid::Cid, replicaid::Rid, storage::Memory};
     use rstest::*;
+
     #[rstest]
-    #[case::test_storage(Memory::<Cid<4>>::default())]
+    #[case::test_storage(Memory::<_>::default())]
     #[tokio::test]
-    async fn basic<S: Meta<Cid<4>, Rid = Rid<8>>>(#[case] s: S) {
-        let rida = Rid::from([10u8; 8]);
-        let ridb = Rid::from([20u8; 8]);
-        s.set_head("remote", "repo", "branch", &rida, [1u8; 4].into())
+    async fn basic<S: MetaStore<i32, i32>>(#[case] s: S) {
+        s.set_head("remote", "repo", "branch", &1, 10)
             .await
             .unwrap();
-        s.set_head("remote", "repo", "branch", &ridb, [2u8; 4].into())
+        s.set_head("remote", "repo", "branch", &2, 20)
             .await
             .unwrap();
-        assert_eq!(
-            s.head("remote", "repo", "branch", &rida).await.unwrap(),
-            [1u8; 4],
-        );
-        assert_eq!(
-            s.head("remote", "repo", "branch", &ridb).await.unwrap(),
-            [2u8; 4],
-        );
+        assert_eq!(s.head("remote", "repo", "branch", &1).await.unwrap(), 10,);
+        assert_eq!(s.head("remote", "repo", "branch", &2).await.unwrap(), 20,);
         assert_eq!(
             s.heads("remote", "repo", "branch").await.unwrap(),
-            vec![
-                ([10u8; 8].into(), [1u8; 4].into()),
-                ([20u8; 8].into(), [2u8; 4].into())
-            ],
+            vec![(10, 1), (20, 20)],
         );
-        s.set_head("remote", "repo", "foo", &ridb, [2u8; 4].into())
+        s.set_head("remote", "repo", "branch-foo", &2, 20)
             .await
             .unwrap();
         assert_eq!(
             s.branches("remote", "repo").await.unwrap(),
-            vec!["branch", "foo"]
+            vec!["branch", "branch-foo"]
         );
         assert_eq!(s.repos("remote").await.unwrap(), vec!["repo"]);
     }

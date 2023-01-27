@@ -18,20 +18,36 @@ use fixity_store::{
 /// Replica. non-CRDT.
 #[derive(Debug)]
 pub struct ReplicaLog<Rid, Cid> {
-    pub previous_entry: Option<Cid>,
-    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    pub branches: Option<Branches<Cid>>,
-    // /// An [`Identity`] pointer for this Replica.
-    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
-    // pub identity: Option<Cid>,
-    pub identity: Option<Identity<Rid>>,
-    // // TODO: Placeholder for signature chain. Need to mock up
-    // // replica sig and identity sig.
-    // pub _replica_sig: (),
+    entry: Option<LogEntry<Rid, Cid>>,
 }
 impl<Rid, Cid> ReplicaLog<Rid, Cid> {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn set_commit(&mut self, cid: Cid) {
+        match self.entry.as_mut() {
+            Some(entry) => {
+                entry.branches.content = cid;
+            },
+            None => {
+                self.entry = Some(LogEntry {
+                    previous_entry: None,
+                    branches: Branches {
+                        active: "main".to_string(),
+                        content: cid,
+                        inactive: Default::default(),
+                    },
+                    identity: Default::default(),
+                })
+            },
+        }
+    }
+}
+impl<Rid, Cid> Default for ReplicaLog<Rid, Cid> {
+    fn default() -> Self {
+        Self {
+            entry: Default::default(),
+        }
     }
 }
 impl<Rid, Cid> TypeDescription for ReplicaLog<Rid, Cid>
@@ -43,23 +59,39 @@ where
         ValueDesc::Struct {
             name: "ReplicaLog",
             type_id: TypeId::of::<Self>(),
-            values: vec![
-                ValueDesc::of::<Option<Cid>>(),
-                ValueDesc::of::<Option<Branches<Cid>>>(),
-                ValueDesc::of::<Option<Identity<Rid>>>(),
-            ],
+            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
         }
     }
 }
-impl<Rid, Cid> Default for ReplicaLog<Rid, Cid> {
-    fn default() -> Self {
-        Self {
-            previous_entry: Default::default(),
-            branches: Default::default(),
-            identity: Default::default(),
-        }
-    }
+// // TODO: Placeholder for signature chain. Need to mock up
+// // replica sig and identity sig.
+// #[cfg_attr(
+//     feature = "rkyv",
+//     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+// )]
+// #[derive(Debug)]
+// pub struct SignedLogEntry<Rid, Cid> {
+//     pub entry: LogEntry<Rid,Cid>,
+//     pub replica_sig: (),
+// }
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[derive(Debug)]
+pub struct LogEntry<Rid, Cid> {
+    pub previous_entry: Option<Cid>,
+    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
+    pub branches: Branches<Cid>,
+    // /// An [`Identity`] pointer for this Replica.
+    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
+    // pub identity: Option<Cid>,
+    pub identity: Option<Identity<Rid>>,
 }
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
 #[derive(Debug)]
 pub struct Branches<Cid> {
     /// The name of the active branch.
@@ -87,6 +119,10 @@ where
         }
     }
 }
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
 #[derive(Debug)]
 pub struct Identity<Rid> {
     pub claimed_replicas: BTreeSet<Rid>,
@@ -107,9 +143,9 @@ where
 #[async_trait]
 impl<Rid, Cid> NewContainer<Rkyv, Cid> for ReplicaLog<Rid, Cid>
 where
-    Rid: NewReplicaId,
-    Cid: NewContentId,
-    Self: Serialize<Rkyv> + Deserialize<Rkyv>,
+    Rid: NewReplicaId + Serialize<Rkyv> + Deserialize<Rkyv>,
+    Cid: NewContentId + Serialize<Rkyv> + Deserialize<Rkyv>,
+    LogEntry<Rid, Cid>: Serialize<Rkyv> + Deserialize<Rkyv>,
 {
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
@@ -118,19 +154,29 @@ where
         Self::default()
     }
     async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
-        let repr = store.get::<Self>(cid).await?;
-        let self_ = repr.repr_to_owned()?;
-        Ok(self_)
+        let repr = store.get::<LogEntry<Rid, Cid>>(cid).await?;
+        let entry = repr.repr_to_owned()?;
+        Ok(Self { entry: Some(entry) })
     }
     async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
-        store.put(self).await
+        // TODO: standardized error, not initialized or something?
+        let entry = self.entry.as_mut().unwrap();
+        let cid = store.put(&*entry).await?;
+        entry.previous_entry = Some(cid.clone());
+        Ok(cid)
     }
     async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
-        store.put_with_cids(self, cids_buf).await
+        // TODO: standardized error, not initialized or something?
+        let entry = self.entry.as_mut().unwrap();
+        store.put_with_cids(entry, cids_buf).await?;
+        // TODO: add standardized error for cid missing from buf, store did not write to cid buf
+        let cid = cids_buf.last().cloned().unwrap();
+        entry.previous_entry = Some(cid);
+        Ok(())
     }
     async fn merge<S: DeserStore<Rkyv, Cid>>(
         &mut self,
@@ -154,14 +200,14 @@ pub mod test {
     use super::*;
     #[tokio::test]
     async fn poc() {
-        let store = Memory::test();
-        let rl = ReplicaLog::default();
-        let b_cid = rl.save(&store).await.unwrap();
-        // a.merge(&store, &b_cid).await.unwrap();
-        // assert_eq!(a.value(), 3);
-        // b.inc(1);
-        // let b_cid = b.save(&store).await.unwrap();
-        // a.merge(&store, &b_cid).await.unwrap();
-        // assert_eq!(a.value(), 4);
+        let store = Memory::default();
+        let mut rl = ReplicaLog::<i32, _>::default();
+        rl.set_commit(1);
+        dbg!(&rl);
+        let cid = rl.save(&store).await.unwrap();
+        dbg!(cid, &rl);
+        rl.set_commit(2);
+        let cid = rl.save(&store).await.unwrap();
+        dbg!(cid, &rl);
     }
 }
