@@ -14,7 +14,7 @@ path = "src/lib.rs"
 
 [dependencies]
 fixity = { path = "..", features = ["structopt"] }
-tokio = { version = "1.4", features = ["rt-multi-thread", "macros", "io-std"] }
+tokio = { version = "1.18", features = ["rt-multi-thread", "macros", "io-std"] }
 structopt = "0.3"
 thiserror = "1.0.21"
 env_logger = "0.7"
