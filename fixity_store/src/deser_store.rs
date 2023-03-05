@@ -1,3 +1,5 @@
+pub mod deser_store_v3;
+
 use crate::{
     content_store::ContentStore,
     contentid::NewContentId,
