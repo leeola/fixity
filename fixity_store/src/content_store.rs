@@ -24,6 +24,8 @@ pub trait ContentStore<Cid: NewContentId>: Send + Sync {
     async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
     where
         B: AsRef<[u8]> + Into<Arc<[u8]>> + Send;
+    // TODO: Allow the caller to own the buf, for mutation of buf.
+    // async fn read_unchecked_vec(&self, cid: &Cid) -> Result<Vec<u8>, ContentStoreError>;
 }
 #[async_trait]
 impl<T, Cid> ContentStore<Cid> for Arc<T>
@@ -44,4 +46,13 @@ where
     {
         self.deref().write_unchecked(cid, bytes).await
     }
+}
+#[async_trait]
+pub trait ContentStoreV2<Cid: NewContentId>: Send + Sync {
+    type Bytes: AsRef<[u8]>;
+    async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError>;
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError>;
+    /// Return the owned Vec of bytes for the given [`NewContentId`].
+    async fn read_unchecked_vec(&self, cid: &Cid) -> Result<Vec<u8>, ContentStoreError>;
+    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError>
 }
