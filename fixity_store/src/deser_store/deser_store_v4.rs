@@ -1,14 +1,14 @@
 use crate::{
     content_store::ContentStore,
     contentid::NewContentId,
-    deser::{ Serialize},
+    deser::{DeserError, Serialize},
     store::StoreError,
 };
 use async_trait::async_trait;
 use std::{marker::PhantomData, sync::Arc};
 
-pub trait Deserialize + Sized {
-type Ref<'a>;
+pub trait Deserialize: Sized {
+    type Ref<'a>;
     fn deserialize_owned(buf: &[u8]) -> Result<Self, DeserError>;
     fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, DeserError>;
 }
@@ -34,7 +34,7 @@ pub struct DeserBuf<B, T> {
     buf: B,
     _t: PhantomData<T>,
 }
-impl<B,T, > DeserBuf<B,T, >
+impl<B, T> DeserBuf<B, T>
 where
     B: AsRef<[u8]>,
     T: Deserialize,

@@ -49,10 +49,8 @@ where
 }
 #[async_trait]
 pub trait ContentStoreV2<Cid: NewContentId>: Send + Sync {
-    type Bytes: AsRef<[u8]>;
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError>;
-    async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError>;
-    /// Return the owned Vec of bytes for the given [`NewContentId`].
-    async fn read_unchecked_vec(&self, cid: &Cid) -> Result<Vec<u8>, ContentStoreError>;
-    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError>
+    // NIT: This return type will probably need to change to work with mmap.
+    async fn read_unchecked(&self, cid: &Cid) -> Result<Arc<[u8]>, ContentStoreError>;
+    async fn write_unchecked(&self, cid: &Cid, bytes: Vec<u8>) -> Result<(), ContentStoreError>;
 }

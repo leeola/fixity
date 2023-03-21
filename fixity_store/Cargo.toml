@@ -18,6 +18,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 multihash = "0.16"
 multibase = "0.9"
+ambassador.workspace = true
 # Feature: rkyv
 rkyv = { version = "0.7", optional = true } 
 # Feature: json
