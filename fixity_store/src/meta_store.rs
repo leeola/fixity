@@ -177,7 +177,23 @@ where
         }
         Ok(items)
     }
-    async fn heads(&self, remote: &str) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>> {
+    async fn heads(
+        &self,
+        remote: &str,
+        replicas: &[Rid],
+    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>> {
+        for rid in replicas {
+            let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+            let path = format!("{remote}/{repo}/{replica}");
+            let (_, rid_bytes) =
+                multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::Rid {
+                    remote: Some(String::from(remote)),
+                    repo: Some(String::from(repo)),
+                    branch: None,
+                    message: format!("decoding rid: {}", err),
+                })?;
+            let head = get_cid_from_path(self, remote, repo, branch, &rid, &path).await?;
+        }
         let remote_path = format!("{remote}/");
         let paths = self.list::<_, &str>(&remote_path, None).await.unwrap();
         let mut items = Vec::new();
@@ -200,17 +216,6 @@ where
             items.push((rid, head));
         }
         Ok(items)
-    }
-    async fn head(
-        &self,
-        remote: &str,
-        repo: &str,
-        branch: &str,
-        rid: &Rid,
-    ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
-        let path = format!("{remote}/{repo}/{branch}/{replica}");
-        get_cid_from_path(self, remote, repo, branch, rid, &path).await
     }
     async fn set_head(
         &self,

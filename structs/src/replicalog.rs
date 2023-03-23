@@ -81,6 +81,7 @@ where
 #[derive(Debug)]
 pub struct LogEntry<Rid, Cid> {
     pub previous_entry: Option<Cid>,
+    // TODO: Move under a new `Repo<>` struct.
     /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
     pub branches: Branches<Cid>,
     // /// An [`Identity`] pointer for this Replica.
