@@ -4,7 +4,6 @@ use crate::{
     contentid::NewContentId,
     mut_store::{MutStore, MutStoreError},
     replicaid::NewReplicaId,
-    storage::StorageError,
 };
 use async_trait::async_trait;
 use multibase::Base;
@@ -14,11 +13,13 @@ use thiserror::Error;
 pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
     /// List all Replicas under a specific Remote.
     async fn replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError<Rid, Cid>>;
+    /// Get the head for the given Replica.
+    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError<Rid, Cid>>;
     /// List the heads for the provided Replicas.
     async fn heads(
         &self,
         remote: &str,
-        replicas: &[Rid],
+        rids: &[Rid],
     ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>>;
     async fn set_head(
         &self,
@@ -26,6 +27,9 @@ pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
         rid: &Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Rid, Cid>>;
+    // Not sure if i want to keep this. Need to handle config storage somewhere, but syncing
+    // it to remotes feels wrong.
+    //
     // async fn set_remote_config(
     //     &self,
     //     remote: &str,
@@ -35,8 +39,6 @@ pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
 async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
     ms: &MS,
     remote: &str,
-    repo: &str,
-    branch: &str,
     rid: &Rid,
     path: &str,
 ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
@@ -44,8 +46,8 @@ async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
         MutStoreError::NotFound => MetaStoreError::NotFound,
         err => MetaStoreError::Storage {
             remote: Some(String::from(remote)),
-            repo: Some(String::from(repo)),
-            branch: Some(String::from(branch)),
+            repo: None,
+            branch: None,
             rid: Some(rid.clone()),
             cid: None,
             err,
@@ -54,22 +56,22 @@ async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
     let encoded_cid =
         std::str::from_utf8(cid_value.as_ref()).map_err(|err| MetaStoreError::Cid {
             remote: Some(String::from(remote)),
-            repo: Some(String::from(repo)),
-            branch: Some(String::from(branch)),
+            repo: None,
+            branch: None,
             rid: Some(rid.clone()),
             message: format!("verifying cid utf8: {}", err),
         })?;
     let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|err| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
-        repo: Some(String::from(repo)),
-        branch: Some(String::from(branch)),
+        repo: None,
+        branch: None,
         rid: Some(rid.clone()),
         message: format!("decoding head cid: {}", err),
     })?;
     Cid::from_hash(head_bytes).map_err(|_| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
-        repo: Some(String::from(repo)),
-        branch: Some(String::from(branch)),
+        repo: None,
+        branch: None,
         rid: Some(rid.clone()),
         message: String::from("creating cid from head bytes"),
     })
@@ -170,89 +172,68 @@ where
         let paths = self.list::<_, &str>(&remote_path, None).await.unwrap();
         let mut items = Vec::new();
         for path in paths {
-            let encoded_rid = path.strip_prefix(&paths).unwrap();
+            let encoded_rid = path.strip_prefix(&remote_path).unwrap();
             let (_, rid_bytes) = multibase::decode(&encoded_rid).unwrap();
             let rid = Rid::from_buf(rid_bytes).unwrap();
             items.push(rid);
         }
         Ok(items)
     }
-    async fn heads(&self, remote: &str) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>> {
-        let remote_path = format!("{remote}/");
-        let paths = self.list::<_, &str>(&remote_path, None).await.unwrap();
-        let mut items = Vec::new();
-        for path in paths {
-            let encoded_rid = path.strip_prefix(&paths).unwrap();
+    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError<Rid, Cid>> {
+        let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+        let path = format!("{remote}/{encoded_rid}");
+        let (_, rid_bytes) =
+            multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::Rid {
+                remote: Some(String::from(remote)),
+                repo: None,
+                branch: None,
+                message: format!("decoding rid: {}", err),
+            })?;
+        let head = get_cid_from_path(self, remote, rid, &path).await?;
+        Ok(head)
+    }
+    async fn heads(
+        &self,
+        remote: &str,
+        replicas: &[Rid],
+    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>> {
+        let mut heads = Vec::with_capacity(replicas.len());
+        for rid in replicas {
+            let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+            let path = format!("{remote}/{encoded_rid}");
             let (_, rid_bytes) =
                 multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::Rid {
                     remote: Some(String::from(remote)),
-                    repo: Some(String::from(repo)),
-                    branch: Some(String::from(branch)),
+                    repo: None,
+                    branch: None,
                     message: format!("decoding rid: {}", err),
                 })?;
-            let rid = Rid::from_buf(rid_bytes).map_err(|_| MetaStoreError::Rid {
-                remote: Some(String::from(remote)),
-                repo: Some(String::from(repo)),
-                branch: Some(String::from(branch)),
-                message: String::from("creating rid"),
-            })?;
-            let head = get_cid_from_path(self, remote, repo, branch, &rid, &path).await?;
-            items.push((rid, head));
+            let head: Cid = get_cid_from_path(self, remote, rid, &path).await?;
+            heads.push((rid.clone(), head));
         }
-        Ok(items)
-    }
-    async fn head(
-        &self,
-        remote: &str,
-        repo: &str,
-        branch: &str,
-        rid: &Rid,
-    ) -> Result<Cid, MetaStoreError<Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
-        let path = format!("{remote}/{repo}/{branch}/{replica}");
-        get_cid_from_path(self, remote, repo, branch, rid, &path).await
+        Ok(heads)
     }
     async fn set_head(
         &self,
         remote: &str,
-        repo: &str,
-        branch: &str,
         rid: &Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
-        let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_hash());
-        let path = format!("{remote}/{repo}/{branch}/{replica}");
-        self.put(path, head)
+        let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+        let encoded_head = multibase::encode(MUT_CID_RID_ENCODING, head.as_hash());
+        let path = format!("{remote}/{encoded_rid}");
+        self.put(path, encoded_head)
             .await
             .map_err(|err| MetaStoreError::Storage {
                 remote: Some(String::from(remote)),
-                repo: Some(String::from(repo)),
-                branch: Some(String::from(branch)),
+                repo: None,
+                branch: None,
                 rid: Some(rid.clone()),
                 cid: None,
                 err,
             })?;
         Ok(())
     }
-}
-async fn list_dirs<S: MutStore>(
-    storage: &S,
-    base_path: String,
-) -> Result<Vec<String>, MutStoreError> {
-    let paths = storage.list::<_, &str>(&base_path, Some("/")).await?;
-    let dirs = paths
-        .into_iter()
-        .filter_map(|path| {
-            // silently dropping items in the repo that may not be great, but we can't
-            // fail either since users could make the repo dirty. So in general, ignore.
-            let mut dir = path.strip_prefix(&base_path)?.to_owned();
-            // each dir ends in a delim, so drop it.
-            let _ = dir.pop();
-            Some(dir)
-        })
-        .collect::<Vec<_>>();
-    Ok(dirs)
 }
 #[cfg(test)]
 pub mod meta_mut_storage {
@@ -264,25 +245,14 @@ pub mod meta_mut_storage {
     #[case::test_storage(Memory::<_>::default())]
     #[tokio::test]
     async fn basic<S: MetaStore<i32, i32>>(#[case] s: S) {
-        s.set_head("remote", "repo", "branch", &1, 10)
-            .await
-            .unwrap();
-        s.set_head("remote", "repo", "branch", &2, 20)
-            .await
-            .unwrap();
-        assert_eq!(s.head("remote", "repo", "branch", &1).await.unwrap(), 10,);
-        assert_eq!(s.head("remote", "repo", "branch", &2).await.unwrap(), 20,);
+        s.set_head("remote", &1, 10).await.unwrap();
+        s.set_head("remote", &2, 20).await.unwrap();
+        assert_eq!(s.head("remote", &1).await.unwrap(), 10);
+        assert_eq!(s.head("remote", &2).await.unwrap(), 20);
         assert_eq!(
-            s.heads("remote", "repo", "branch").await.unwrap(),
-            vec![(10, 1), (20, 20)],
+            s.heads("remote", &[1, 2]).await.unwrap(),
+            vec![(1, 10), (20, 20)],
         );
-        s.set_head("remote", "repo", "branch-foo", &2, 20)
-            .await
-            .unwrap();
-        assert_eq!(
-            s.branches("remote", "repo").await.unwrap(),
-            vec!["branch", "branch-foo"]
-        );
-        assert_eq!(s.repos("remote").await.unwrap(), vec!["repo"]);
+        s.set_head("remote", &2, 20).await.unwrap();
     }
 }
