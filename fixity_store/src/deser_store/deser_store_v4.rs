@@ -1,22 +1,24 @@
 use crate::{
-    content_store::ContentStore,
-    contentid::NewContentId,
-    deser::{DeserError, Serialize},
-    store::StoreError,
+    content_store::ContentStore, contentid::NewContentId, deser::DeserError, store::StoreError,
 };
 use async_trait::async_trait;
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
+pub trait Serialize {
+    // NIT: It would be nice if constructing an Arc<[u8]> from this was more clean.
+    type Bytes: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
+    fn serialize(&self) -> Result<Self::Bytes, DeserError>;
+}
 pub trait Deserialize: Sized {
     type Ref<'a>;
     fn deserialize_owned(buf: &[u8]) -> Result<Self, DeserError>;
     fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, DeserError>;
 }
 
-/// An extension trait for [`ContentStore`].
+/// An extension trait for [`ContentStore`], [de]serializing content as needed.
 #[async_trait]
 pub trait DeserExt<Cid: NewContentId>: ContentStore<Cid> {
-    async fn get_unchecked<T>(&self, cid: &Cid) -> Result<DeserBuf<T>, StoreError>
+    async fn get_unchecked<T>(&self, cid: &Cid) -> Result<DeserBuf<Self::Bytes, T>, StoreError>
     where
         T: Deserialize;
     async fn get_owned_unchecked<T>(&self, cid: &Cid) -> Result<T, StoreError>

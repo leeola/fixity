@@ -1,12 +1,36 @@
 use crate::{
     contentid::NewContentId,
     deser::{Deserialize, Serialize},
-    deser_store::DeserStore,
+    deser_store::{deser_store_v4::DeserExt, DeserStore},
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
     Store,
 };
 use async_trait::async_trait;
+
+#[async_trait]
+pub trait ContainerV4<Cid: NewContentId>: Sized + Send + TypeDescription {
+    /// A description of the [de]serialized type(s) that this container manages.
+    ///
+    /// Used to determine / validate Fixity repository types.
+    ///
+    /// This is in contrast to the `Container: TypeDescription` bound for `Self`,
+    /// which describes the `Container` itself - which may or may not be what is written
+    /// to stores.
+    fn deser_type_desc() -> ValueDesc;
+    fn new_container<S: DeserExt<Cid>>(store: &S) -> Self;
+    async fn open<S: DeserExt<Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save<S: DeserExt<Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
+    async fn save_with_cids<S: DeserExt<Cid>>(
+        &mut self,
+        store: &S,
+        cids_buf: &mut Vec<Cid>,
+    ) -> Result<(), StoreError>;
+    async fn merge<S: DeserExt<Cid>>(&mut self, store: &S, other: &Cid) -> Result<(), StoreError>;
+    async fn diff<S: DeserExt<Cid>>(&mut self, store: &S, other: &Cid) -> Result<Self, StoreError>;
+    // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
+    // Container and all the cids within it.
+}
 
 #[async_trait]
 pub trait NewContainer<Deser, Cid: NewContentId>: Sized + Send + TypeDescription {
