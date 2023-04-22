@@ -8,7 +8,7 @@ use fixity_store::{
     container::NewContainer,
     contentid::NewContentId,
     deser::{Deserialize, Rkyv, Serialize},
-    deser_store::DeserStore,
+    deser_store::{deser_store_v4, DeserStore},
     replicaid::NewReplicaId,
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
@@ -128,6 +128,21 @@ where
 pub struct Identity<Rid> {
     pub claimed_replicas: BTreeSet<Rid>,
     // pub metadata: CrdtMap<String, Value>
+}
+#[cfg_attr(feature = "rkyv")]
+impl<Rid> deser_store_v4::Deserialize for Identity<Rid>
+where
+    Rid: rkyv::Archive,
+{
+    type Ref<'a> = ArchivedIdentity<Rid>;
+    fn deserialize_owned(buf: &[u8]) -> Result<Self, fixity_store::deser::DeserError> {
+        let archived = Self::deserialize_ref(buf)?;
+        let t: T = archived.deserialize(&mut rkyv::Infallible).unwrap();
+        Ok(t)
+    }
+    fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, fixity_store::deser::DeserError> {
+        todo!()
+    }
 }
 impl<Rid> TypeDescription for Identity<Rid>
 where
