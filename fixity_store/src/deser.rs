@@ -48,7 +48,8 @@ mod serde_json {
         type Ref<'a> = &'a str;
     }
 }
-mod rkyv {
+#[cfg(feature = "rkyv")]
+pub mod rkyv {
     use super::{DeserError, Deserialize, DeserializeRef, Serialize};
     use rkyv::{
         ser::serializers::AllocSerializer, AlignedVec, Archive, Deserialize as RkyvDeserialize,
@@ -102,5 +103,22 @@ mod rkyv {
         assert_eq!(s, "foo");
         let s = <String as Deserialize<Rkyv>>::deserialize_owned(buf.as_slice()).unwrap();
         assert_eq!(s, "foo");
+    }
+    /// A utility func to use Rkyv deserialize for T with feature flags to control unsafe vs safe
+    /// deserialization.
+    pub fn deserialize_owned<T>(buf: &[u8]) -> Result<T, DeserError>
+    where
+        T: Archive,
+        T::Archived: rkyv::Deserialize<T, Infallible>,
+    {
+        let archived = deserialize_ref::<T>(buf)?;
+        let t: T = archived.deserialize(&mut rkyv::Infallible).unwrap();
+        Ok(t)
+    }
+    /// A utility func to use Rkyv deserialize for T with feature flags to control unsafe vs safe
+    /// deserialization.
+    pub fn deserialize_ref<T: Archive>(buf: &[u8]) -> Result<&T::Archived, DeserError> {
+        let archived = unsafe { rkyv::archived_root::<T>(buf) };
+        Ok(archived)
     }
 }
