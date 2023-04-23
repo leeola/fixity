@@ -50,3 +50,23 @@ where
         Ok(value)
     }
 }
+#[cfg(feature = "rkyv")]
+mod rkyv {
+    use super::Deserialize;
+    use crate::deser;
+    use rkyv::Infallible;
+
+    impl<T> Deserialize for T
+    where
+        T: rkyv::Archive,
+        for<'a> <Self as rkyv::Archive>::Archived: rkyv::Deserialize<T, Infallible> + 'a,
+    {
+        type Ref<'a> = &'a <Self as rkyv::Archive>::Archived;
+        fn deserialize_owned(buf: &[u8]) -> Result<Self, deser::DeserError> {
+            crate::deser::rkyv::deserialize_owned::<Self>(buf)
+        }
+        fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, deser::DeserError> {
+            crate::deser::rkyv::deserialize_ref::<Self>(buf)
+        }
+    }
+}

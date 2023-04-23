@@ -7,14 +7,12 @@ use async_trait::async_trait;
 use fixity_store::{
     container::NewContainer,
     contentid::NewContentId,
-    deser::{self, Deserialize, Rkyv, Serialize},
-    deser_store::{deser_store_v4, DeserStore},
+    deser::{Deserialize, Rkyv, Serialize},
+    deser_store::DeserStore,
     replicaid::NewReplicaId,
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
 };
-#[cfg(feature = "rkyv")]
-use rkyv::{Deserialize as RkyvDeserialize, Infallible};
 
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
@@ -130,20 +128,6 @@ where
 pub struct Identity<Rid> {
     pub claimed_replicas: BTreeSet<Rid>,
     // pub metadata: CrdtMap<String, Value>
-}
-#[cfg(feature = "rkyv")]
-impl<Rid> deser_store_v4::Deserialize for Identity<Rid>
-where
-    Self: rkyv::Archive,
-    for<'a> <Self as rkyv::Archive>::Archived: rkyv::Deserialize<Self, Infallible> + 'a,
-{
-    type Ref<'a> = &'a <Self as rkyv::Archive>::Archived;
-    fn deserialize_owned(buf: &[u8]) -> Result<Self, fixity_store::deser::DeserError> {
-        deser::rkyv::deserialize_owned::<Self>(buf)
-    }
-    fn deserialize_ref(buf: &[u8]) -> Result<Self::Ref<'_>, fixity_store::deser::DeserError> {
-        deser::rkyv::deserialize_ref::<Self>(buf)
-    }
 }
 impl<Rid> TypeDescription for Identity<Rid>
 where
