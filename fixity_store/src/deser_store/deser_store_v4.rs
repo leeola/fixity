@@ -6,6 +6,9 @@ use std::marker::PhantomData;
 
 pub trait Serialize {
     // NIT: It would be nice if constructing an Arc<[u8]> from this was more clean.
+    //
+    // Also, keeping the AlignedVec from Rkyv would be really nice... this part of the API
+    // is tough to keep compatible between Rkyv and Serde/etc.
     type Bytes: AsRef<[u8]> + Into<Vec<u8>> + Send + 'static;
     fn serialize(&self) -> Result<Self::Bytes, DeserError>;
 }
@@ -30,6 +33,53 @@ pub trait DeserExt<Cid: NewContentId>: ContentStore<Cid> {
     async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>
     where
         T: Serialize + Send + Sync;
+}
+#[async_trait]
+impl<Cid, S> DeserExt<Cid> for S
+where
+    Cid: NewContentId,
+    S: ContentStore<Cid>,
+{
+    async fn get_unchecked<T>(&self, cid: &Cid) -> Result<DeserBuf<Self::Bytes, T>, StoreError>
+    where
+        T: Deserialize,
+    {
+        let buf = self.read_unchecked(cid).await.unwrap();
+        Ok(DeserBuf {
+            buf,
+            _t: PhantomData,
+        })
+    }
+    async fn get_owned_unchecked<T>(&self, cid: &Cid) -> Result<T, StoreError>
+    where
+        T: Deserialize,
+    {
+        let buf = self.read_unchecked(cid).await.unwrap();
+        DeserBuf {
+            buf,
+            _t: PhantomData,
+        }
+        .buf_to_owned()
+    }
+    async fn put<T>(&self, t: &T) -> Result<Cid, StoreError>
+    where
+        T: Serialize + Send + Sync,
+    {
+        let buf = t.serialize().unwrap();
+        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        self.write_unchecked(&cid, buf.into()).await.unwrap();
+        Ok(cid)
+    }
+    async fn put_with_cids<T>(&self, t: &T, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>
+    where
+        T: Serialize + Send + Sync,
+    {
+        let buf = t.serialize().unwrap();
+        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        self.write_unchecked(&cid, buf.into()).await.unwrap();
+        cids_buf.push(cid);
+        Ok(())
+    }
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct DeserBuf<B, T> {
