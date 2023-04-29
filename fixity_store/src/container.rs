@@ -32,6 +32,8 @@ pub trait ContainerV4: Sized + Send + TypeDescription {
         store: &S,
         other: &Cid,
     ) -> Result<(), StoreError>;
+    // TODO: Probably convert the return value to a `type Diff;`, to allow for container impls to
+    // return a different type where that makes sense.
     async fn diff<S: ContentStore<Cid>>(
         &mut self,
         store: &S,
