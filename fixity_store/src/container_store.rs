@@ -10,7 +10,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait ContainerStoreExt {
+pub trait ContainerStoreExt: ContentStore {
     fn new_container<T: ContainerV4>(&self) -> WithStore<T, &Self>;
     async fn open<T: ContainerV4>(&self, cid: &Cid) -> Result<WithStore<T, &Self>, StoreError>;
 }
@@ -55,7 +55,7 @@ impl<T, S> DerefMut for WithStore<T, S> {
 }
 /// A trait to wrap a [`Container`] and pass in an associated store to container methods..
 #[async_trait]
-pub trait ContainerWithStore: Sized + Send + TypeDescription {
+pub trait ContainerWithStore: Send + TypeDescription {
     type Container: ContainerV4;
     fn deser_type_desc() -> ValueDesc;
     async fn save(&mut self) -> Result<Cid, StoreError>;
