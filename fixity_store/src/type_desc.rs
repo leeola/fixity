@@ -18,13 +18,13 @@ pub enum ValueDesc {
         values: Vec<ValueDesc>,
     },
     Vec {
-        value: Box<ValueDesc>,
         type_id: TypeId,
+        value: Box<ValueDesc>,
     },
     Array {
-        value: Box<ValueDesc>,
         type_id: TypeId,
         len: usize,
+        value: Box<ValueDesc>,
     },
     Struct {
         name: &'static str,
@@ -46,6 +46,11 @@ impl ValueDesc {
 impl Display for ValueDesc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+impl TypeDescription for u8 {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Number(TypeId::of::<Self>())
     }
 }
 impl TypeDescription for u32 {
@@ -71,6 +76,15 @@ impl TypeDescription for i64 {
 impl TypeDescription for String {
     fn type_desc() -> ValueDesc {
         ValueDesc::String(TypeId::of::<Self>())
+    }
+}
+impl<const N: usize> TypeDescription for [u8; N] {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Array {
+            type_id: TypeId::of::<Self>(),
+            len: N,
+            value: Box::new(ValueDesc::of::<u8>()),
+        }
     }
 }
 // TODO: Make Generic over tuple length

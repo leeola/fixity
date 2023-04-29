@@ -1,6 +1,6 @@
 use crate::{
     content_store::ContentStore,
-    contentid::NewContentId,
+    contentid::{Cid, NewContentId},
     deser::{Deserialize, Serialize},
     deser_store::{deser_store_v4::DeserExt, DeserStore},
     store::StoreError,
@@ -10,7 +10,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait ContainerV4<Cid: NewContentId>: Sized + Send + TypeDescription {
+pub trait ContainerV4: Sized + Send + TypeDescription {
     /// A description of the [de]serialized type(s) that this container manages.
     ///
     /// Used to determine / validate Fixity repository types.

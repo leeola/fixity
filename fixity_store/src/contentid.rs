@@ -2,11 +2,12 @@ pub mod multihash_256;
 
 use crate::{
     deser::{Deserialize, Serialize},
-    type_desc::TypeDescription,
+    type_desc::{TypeDescription, ValueDesc},
 };
 use multibase::Base;
 use multihash::MultihashDigest;
 use std::{
+    any::TypeId,
     convert::TryFrom,
     fmt::{Debug, Display},
     hash::Hash,
@@ -59,14 +60,48 @@ pub trait ContentId:
 // TODO: Serde doesn't impl for const :(. Can i impl manually perhaps?
 // #[cfg(feature = "serde")]
 // #[derive(serde::Deserialize, serde::Serialize)]
-#[cfg(feature = "rkyv")]
-#[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub struct Cid<const N: usize>([u8; N]);
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
+)]
+pub struct Cid<const N: usize = 34>([u8; N]);
 impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
         <[u8; N]>::try_from(hash).ok().map(Self)
     }
     fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+impl<const N: usize> TypeDescription for Cid<N> {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "Cid",
+            type_id: TypeId::of::<Self>(),
+            values: vec![ValueDesc::of::<[u8; N]>()],
+        }
+    }
+}
+impl<const N: usize> NewContentId for Cid<N> {
+    type Hash<'a> = &'a [u8; N];
+    fn hash(buf: &[u8]) -> Self {
+        let multihash = multihash::Code::Blake2s128.digest(buf);
+        dbg!(multihash.digest().len());
+        Self(
+            multihash
+                .digest()
+                .try_into()
+                .expect("Blake2s128 truncated to 4 bytes fits into a [u8; 4]"),
+        )
+    }
+    fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError> {
+        let arr = <[u8; N]>::try_from(hash).map_err(|_| FromHashError::Length)?;
+        Ok(Self(arr))
+    }
+    fn as_hash(&self) -> Self::Hash<'_> {
+        &self.0
+    }
+    fn size(&self) -> usize {
         self.0.len()
     }
 }
