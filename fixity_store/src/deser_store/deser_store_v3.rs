@@ -1,6 +1,6 @@
 use crate::{
     content_store::{ContentStore, ContentStoreError},
-    contentid::NewContentId,
+    contentid::{Cid, NewContentId},
     deser::DeserError,
     store::StoreError,
 };
@@ -18,7 +18,7 @@ pub trait DeserializeRef<Repr>: Sized {
 }
 
 #[async_trait]
-pub trait DeserStoreV3<Cid: NewContentId>: ContentStore<Cid> {
+pub trait DeserStoreV3<Cid: NewContentId>: ContentStore {
     type DeserRepr<T, Repr>: Deserialize<T, Repr>
     where
         T: DeserializeRef<Repr>;
@@ -63,10 +63,9 @@ impl<D, S> From<S> for DeserStoreImpl<D, S> {
     }
 }
 #[async_trait]
-impl<D, S, Cid> ContentStore<Cid> for DeserStoreImpl<D, S>
+impl<D, S> ContentStore for DeserStoreImpl<D, S>
 where
-    Cid: NewContentId,
-    S: ContentStore<Cid>,
+    S: ContentStore,
     D: Send + Sync,
 {
     type Bytes = S::Bytes;
@@ -87,7 +86,7 @@ where
 impl<S, Cid> DeserStoreV3<Cid> for DeserStoreImpl<DeserJson, S>
 where
     Cid: NewContentId,
-    S: ContentStore<Cid>,
+    S: ContentStore,
 {
     type DeserRepr<T: DeserializeRef<Repr>, Repr> = DeserReprImpl<DeserJson, T, Repr>;
     // type DeserRepr<T: DeserializeRef<Repr>, Repr> = DeserReprImpl<D, T, Repr>;

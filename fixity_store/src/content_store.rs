@@ -1,4 +1,4 @@
-use crate::contentid::NewContentId;
+use crate::contentid::{Cid, NewContentId};
 use async_trait::async_trait;
 use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
@@ -11,7 +11,7 @@ pub enum ContentStoreError {
     InvalidInput { message: String },
 }
 #[async_trait]
-pub trait ContentStore<Cid: NewContentId>: Send + Sync {
+pub trait ContentStore: Send + Sync {
     // NIT: The conversion around the the generic byte types is .. annoying.
     // A single type (Into<Vec<u8>> for example) doesn't cover common cases.
     // So we either add a lot of conversions on the type, and hope they align..
@@ -28,10 +28,9 @@ pub trait ContentStore<Cid: NewContentId>: Send + Sync {
     // async fn read_unchecked_vec(&self, cid: &Cid) -> Result<Vec<u8>, ContentStoreError>;
 }
 #[async_trait]
-impl<T, Cid> ContentStore<Cid> for Arc<T>
+impl<T> ContentStore for Arc<T>
 where
-    Cid: NewContentId,
-    T: ContentStore<Cid>,
+    T: ContentStore,
 {
     type Bytes = T::Bytes;
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError> {

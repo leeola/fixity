@@ -1,6 +1,6 @@
 use crate::{
     content_store::{ContentStore, ContentStoreError},
-    contentid::NewContentId,
+    contentid::Cid,
     mut_store::{MutStore, MutStoreError},
 };
 use async_trait::async_trait;
@@ -25,10 +25,7 @@ impl Memory<crate::contentid::multihash_256::Multihash256> {
     }
 }
 #[async_trait]
-impl<Cid> ContentStore<Cid> for Memory<Cid>
-where
-    Cid: NewContentId,
-{
+impl ContentStore for Memory<Cid> {
     type Bytes = Arc<[u8]>;
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError> {
         Ok(self.bytes.lock().unwrap().contains_key(cid))

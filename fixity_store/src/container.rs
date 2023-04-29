@@ -19,26 +19,18 @@ pub trait ContainerV4: Sized + Send + TypeDescription {
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
-    fn new_container<S: ContentStore<Cid>>(store: &S) -> Self;
-    async fn open<S: ContentStore<Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
-    async fn save<S: ContentStore<Cid>>(&mut self, store: &S) -> Result<Cid, StoreError>;
-    async fn save_with_cids<S: ContentStore<Cid>>(
+    fn new_container<S: ContentStore>(store: &S) -> Self;
+    async fn open<S: ContentStore>(store: &S, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save<S: ContentStore>(&mut self, store: &S) -> Result<Cid, StoreError>;
+    async fn save_with_cids<S: ContentStore>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError>;
-    async fn merge<S: ContentStore<Cid>>(
-        &mut self,
-        store: &S,
-        other: &Cid,
-    ) -> Result<(), StoreError>;
+    async fn merge<S: ContentStore>(&mut self, store: &S, other: &Cid) -> Result<(), StoreError>;
     // TODO: Probably convert the return value to a `type Diff;`, to allow for container impls to
     // return a different type where that makes sense.
-    async fn diff<S: ContentStore<Cid>>(
-        &mut self,
-        store: &S,
-        other: &Cid,
-    ) -> Result<Self, StoreError>;
+    async fn diff<S: ContentStore>(&mut self, store: &S, other: &Cid) -> Result<Self, StoreError>;
     // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
     // Container and all the cids within it.
 }

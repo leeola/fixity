@@ -17,7 +17,7 @@ pub trait ContainerStoreExt {
 #[async_trait]
 impl<S> ContainerStoreExt for S
 where
-    S: ContentStore<Cid>,
+    S: ContentStore,
 {
     fn new_container<T: ContainerV4>(&self) -> WithStore<T, &Self> {
         WithStore {
@@ -67,7 +67,7 @@ pub trait ContainerWithStore: Sized + Send + TypeDescription {
 impl<T, S> ContainerWithStore for WithStore<T, S>
 where
     T: ContainerV4,
-    S: ContentStore<Cid>,
+    S: ContentStore,
 {
     type Container = T;
     fn deser_type_desc() -> ValueDesc {
