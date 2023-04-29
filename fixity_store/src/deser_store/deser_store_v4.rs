@@ -23,7 +23,7 @@ pub trait Deserialize: Sized {
 
 /// An rait for [`ContentStore`], [de]serializing content as needed.
 #[async_trait]
-pub trait DeserExt<Cid: NewContentId>: ContentStore {
+pub trait DeserExt: ContentStore {
     async fn get_unchecked<T>(&self, cid: &Cid) -> Result<DeserBuf<Self::Bytes, T>, StoreError>
     where
         T: Deserialize;
@@ -38,9 +38,8 @@ pub trait DeserExt<Cid: NewContentId>: ContentStore {
         T: Serialize + Send + Sync;
 }
 #[async_trait]
-impl<S> DeserExt<Cid> for S
+impl<S> DeserExt for S
 where
-    Cid: NewContentId,
     S: ContentStore,
 {
     async fn get_unchecked<T>(&self, cid: &Cid) -> Result<DeserBuf<Self::Bytes, T>, StoreError>
