@@ -2,7 +2,7 @@ use crate::{
     content_store::ContentStore,
     contentid::{Cid, NewContentId},
     deser::{Deserialize, Serialize},
-    deser_store::{deser_store_v4::DeserExt, DeserStore},
+    deser_store::DeserStore,
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
     Store,
