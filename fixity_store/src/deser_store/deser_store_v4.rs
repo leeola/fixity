@@ -104,10 +104,20 @@ where
 }
 #[cfg(feature = "rkyv")]
 mod rkyv {
-    use super::Deserialize;
+    use super::{Deserialize, Serialize};
     use crate::deser;
-    use rkyv::Infallible;
+    use rkyv::{ser::serializers::AllocSerializer, AlignedVec, Infallible};
 
+    impl<T> Serialize for T
+    where
+        T: rkyv::Archive + rkyv::Serialize<AllocSerializer<256>> + Send + Sync + 'static,
+        T::Archived: rkyv::Deserialize<T, Infallible>,
+    {
+        type Bytes = AlignedVec;
+        fn serialize(&self) -> Result<Self::Bytes, deser::DeserError> {
+            todo!()
+        }
+    }
     impl<T> Deserialize for T
     where
         T: rkyv::Archive,

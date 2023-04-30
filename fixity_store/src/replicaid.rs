@@ -138,38 +138,23 @@ mod test_rids {
     //! ## Endian
     //! Note that all integer representations use Big Endian to ensure stable representations
     //! and thus Content IDs when written to test stores.
-    use super::{FromBufError, NewReplicaId, Rid};
+    use super::Rid;
 
     // TODO: macro these impls.
-
-    impl NewReplicaId for i32 {
-        type Buf<'a> = [u8; 4];
-        fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
-            let buf = Self::Buf::try_from(buf).map_err(|_| FromBufError::Length)?;
-            Ok(Self::from_be_bytes(buf))
-        }
-        fn as_buf(&self) -> Self::Buf<'static> {
-            self.to_be_bytes()
-        }
-    }
-    impl NewReplicaId for i64 {
-        type Buf<'a> = [u8; 8];
-        fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
-            let buf = Self::Buf::try_from(buf).map_err(|_| FromBufError::Length)?;
-            Ok(Self::from_be_bytes(buf))
-        }
-        fn as_buf(&self) -> Self::Buf<'static> {
-            self.to_be_bytes()
-        }
-    }
-    impl From<i32> for Rid<4> {
+    impl<const N: usize> From<i32> for Rid<N> {
         fn from(i: i32) -> Self {
-            Self::from(i.to_be_bytes())
+            let mut buf = [0; N];
+            let size = N.min((i32::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
         }
     }
-    impl From<i64> for Rid<8> {
+    impl<const N: usize> From<i64> for Rid<N> {
         fn from(i: i64) -> Self {
-            Self::from(i.to_be_bytes())
+            let mut buf = [0; N];
+            let size = N.min((i64::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
         }
     }
 }

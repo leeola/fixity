@@ -5,22 +5,23 @@ use std::{
 
 use async_trait::async_trait;
 use fixity_store::{
-    container::NewContainer,
-    contentid::NewContentId,
-    deser::{Deserialize, Rkyv, Serialize},
-    deser_store::DeserStore,
-    replicaid::NewReplicaId,
+    container::ContainerV4,
+    content_store::ContentStore,
+    contentid::Cid,
+    deser_store::deser_store_v4::{DeserExt, Serialize},
+    replicaid::Rid,
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
 };
+use rkyv::AlignedVec;
 
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 #[derive(Debug)]
-pub struct ReplicaLog<Rid, Cid> {
-    entry: Option<LogEntry<Rid, Cid>>,
+pub struct ReplicaLog {
+    entry: Option<LogEntry>,
 }
-impl<Rid, Cid> ReplicaLog<Rid, Cid> {
+impl ReplicaLog {
     pub fn new() -> Self {
         Self::default()
     }
@@ -43,18 +44,14 @@ impl<Rid, Cid> ReplicaLog<Rid, Cid> {
         }
     }
 }
-impl<Rid, Cid> Default for ReplicaLog<Rid, Cid> {
+impl Default for ReplicaLog {
     fn default() -> Self {
         Self {
             entry: Default::default(),
         }
     }
 }
-impl<Rid, Cid> TypeDescription for ReplicaLog<Rid, Cid>
-where
-    Rid: NewReplicaId,
-    Cid: NewContentId,
-{
+impl TypeDescription for ReplicaLog {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
             name: "ReplicaLog",
@@ -79,22 +76,22 @@ where
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[derive(Debug)]
-pub struct LogEntry<Rid, Cid> {
+pub struct LogEntry {
     pub previous_entry: Option<Cid>,
     // TODO: Move under a new `Repo<>` struct.
     /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    pub branches: Branches<Cid>,
+    pub branches: Branches,
     // /// An [`Identity`] pointer for this Replica.
     // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
-    pub identity: Option<Identity<Rid>>,
+    pub identity: Option<Identity>,
 }
 #[cfg_attr(
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[derive(Debug)]
-pub struct Branches<Cid> {
+pub struct Branches {
     /// The name of the active branch.
     pub active: String,
     /// The content id of the active branch.
@@ -104,10 +101,7 @@ pub struct Branches<Cid> {
     // pub branches: Option<Cid>,
     pub inactive: BTreeMap<String, Cid>,
 }
-impl<Cid> TypeDescription for Branches<Cid>
-where
-    Cid: NewContentId,
-{
+impl TypeDescription for Branches {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
             name: "Branches",
@@ -125,14 +119,11 @@ where
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[derive(Debug)]
-pub struct Identity<Rid> {
+pub struct Identity {
     pub claimed_replicas: BTreeSet<Rid>,
     // pub metadata: CrdtMap<String, Value>
 }
-impl<Rid> TypeDescription for Identity<Rid>
-where
-    Rid: NewReplicaId,
-{
+impl TypeDescription for Identity {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
             name: "Identity",
@@ -142,31 +133,25 @@ where
     }
 }
 #[async_trait]
-impl<Rid, Cid> NewContainer<Rkyv, Cid> for ReplicaLog<Rid, Cid>
-where
-    Rid: NewReplicaId + Serialize<Rkyv> + Deserialize<Rkyv>,
-    Cid: NewContentId + Serialize<Rkyv> + Deserialize<Rkyv>,
-    LogEntry<Rid, Cid>: Serialize<Rkyv> + Deserialize<Rkyv>,
-{
+impl ContainerV4 for ReplicaLog {
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
     }
-    fn new_container<S: DeserStore<Rkyv, Cid>>(_: &S) -> Self {
+    fn new_container<S: ContentStore>(_: &S) -> Self {
         Self::default()
     }
-    async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
-        let repr = store.get::<LogEntry<Rid, Cid>>(cid).await?;
-        let entry = repr.repr_to_owned()?;
+    async fn open<S: ContentStore>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
+        let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(Self { entry: Some(entry) })
     }
-    async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
+    async fn save<S: ContentStore>(&mut self, store: &S) -> Result<Cid, StoreError> {
         // TODO: standardized error, not initialized or something?
         let entry = self.entry.as_mut().unwrap();
         let cid = store.put(&*entry).await?;
         entry.previous_entry = Some(cid.clone());
         Ok(cid)
     }
-    async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
+    async fn save_with_cids<S: ContentStore>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
@@ -179,14 +164,10 @@ where
         entry.previous_entry = Some(cid);
         Ok(())
     }
-    async fn merge<S: DeserStore<Rkyv, Cid>>(
-        &mut self,
-        _store: &S,
-        _other: &Cid,
-    ) -> Result<(), StoreError> {
+    async fn merge<S: ContentStore>(&mut self, _store: &S, _other: &Cid) -> Result<(), StoreError> {
         Err(StoreError::UnmergableType)
     }
-    async fn diff<S: DeserStore<Rkyv, Cid>>(
+    async fn diff<S: ContentStore>(
         &mut self,
         _store: &S,
         _other: &Cid,
@@ -202,7 +183,7 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let store = Memory::default();
-        let mut rl = ReplicaLog::<i32, _>::default();
+        let mut rl = ReplicaLog::default();
         rl.set_commit(1);
         dbg!(&rl);
         let cid = rl.save(&store).await.unwrap();
