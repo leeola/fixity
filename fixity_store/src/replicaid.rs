@@ -10,14 +10,14 @@ use std::{
 };
 use thiserror::Error;
 
-pub trait NewNewReplicaId {
-    type Rid: NewReplicaId;
-    fn new(&mut self) -> Self::Rid;
+pub trait RandReplicaBuf {
+    fn new(&mut self, len: usize) -> Vec<u8>;
 }
 pub trait NewReplicaId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
 {
     type Buf<'a>: AsRef<[u8]>;
+    fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError>;
     /// Construct a replica identifier from the given buffer.
     fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError>;
     fn as_buf(&self) -> Self::Buf<'_>;
@@ -49,7 +49,7 @@ pub trait ReplicaId: ContentId {}
 #[archive(compare(PartialEq, PartialOrd))]
 // #[cfg(feature = "rkyv")]
 // #[archive_attr(derive(From))]
-pub struct Rid<const N: usize>([u8; N]);
+pub struct Rid<const N: usize = 34>([u8; N]);
 impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
@@ -61,6 +61,9 @@ impl<const N: usize> ContentId for Rid<N> {
 }
 impl<const N: usize> NewReplicaId for Rid<N> {
     type Buf<'a> = &'a [u8; N];
+    fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError> {
+        Self::from_buf(rand.new(N))
+    }
     fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
         let inner = <[u8; N]>::try_from(buf).map_err(|_| FromBufError::Length)?;
         Ok(Self(inner))
