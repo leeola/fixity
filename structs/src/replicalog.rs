@@ -184,11 +184,11 @@ pub mod test {
     async fn poc() {
         let store = Memory::default();
         let mut rl = ReplicaLog::default();
-        rl.set_commit(1);
+        rl.set_commit(1.into());
         dbg!(&rl);
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
-        rl.set_commit(2);
+        rl.set_commit(2.into());
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
     }

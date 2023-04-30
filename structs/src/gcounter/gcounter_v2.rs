@@ -169,25 +169,25 @@ impl<Rid> ContainerRefInto<GCounter<Rid>> for GCounterRef<Rid, Rkyv> {
 }
 #[cfg(test)]
 pub mod test {
-    use fixity_store::stores::memory::Memory;
+    use fixity_store::{replicaid::Rid, stores::memory::Memory};
 
     use super::*;
     #[tokio::test]
     async fn poc() {
         let store = Memory::test();
-        let mut a = GCounter::default();
-        a.inc(1);
+        let mut a = GCounter::<Rid>::default();
+        a.inc(1.into());
         assert_eq!(a.value(), 1);
-        a.inc(1);
-        a.inc(0);
+        a.inc(1.into());
+        a.inc(0.into());
         assert_eq!(a.value(), 3);
-        let mut b = GCounter::default();
-        b.inc(1);
-        b.inc(1);
+        let mut b = GCounter::<Rid>::default();
+        b.inc(1.into());
+        b.inc(1.into());
         let b_cid = b.save(&store).await.unwrap();
         a.merge(&store, &b_cid).await.unwrap();
         assert_eq!(a.value(), 3);
-        b.inc(1);
+        b.inc(1.into());
         let b_cid = b.save(&store).await.unwrap();
         a.merge(&store, &b_cid).await.unwrap();
         assert_eq!(a.value(), 4);

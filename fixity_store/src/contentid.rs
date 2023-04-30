@@ -14,7 +14,7 @@ use std::{
 };
 use thiserror::Error;
 
-pub const CID_LENGTH: usize = 34;
+pub const CID_LENGTH: usize = 36;
 
 pub trait NewContentId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
@@ -64,7 +64,7 @@ pub trait ContentId:
     feature = "rkyv",
     derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
 )]
-pub struct Cid<const N: usize = 34>([u8; N]);
+pub struct Cid<const N: usize = CID_LENGTH>([u8; N]);
 impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
         <[u8; N]>::try_from(hash).ok().map(Self)
@@ -82,20 +82,19 @@ impl<const N: usize> TypeDescription for Cid<N> {
         }
     }
 }
-impl<const N: usize> NewContentId for Cid<N> {
-    type Hash<'a> = &'a [u8; N];
+impl NewContentId for Cid<CID_LENGTH> {
+    type Hash<'a> = &'a [u8; CID_LENGTH];
     fn hash(buf: &[u8]) -> Self {
-        let multihash = multihash::Code::Blake2s128.digest(buf);
-        dbg!(multihash.digest().len());
+        let multihash = multihash::Code::Blake2b256.digest(buf);
         Self(
             multihash
                 .digest()
                 .try_into()
-                .expect("Blake2s128 truncated to 4 bytes fits into a [u8; 4]"),
+                .expect("Blake2b256 fits into 36 bytes"),
         )
     }
     fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError> {
-        let arr = <[u8; N]>::try_from(hash).map_err(|_| FromHashError::Length)?;
+        let arr = <[u8; CID_LENGTH]>::try_from(hash).map_err(|_| FromHashError::Length)?;
         Ok(Self(arr))
     }
     fn as_hash(&self) -> Self::Hash<'_> {
@@ -195,47 +194,29 @@ impl From<Hasher> for multihash::Code {
 
 #[cfg(any(test, feature = "test"))]
 pub mod test {
-    use super::{FromHashError, NewContentId};
-    use multihash::MultihashDigest;
+    //! Test focused `ReplicaId` implementations over integers and conversions from integers
+    //! for `Rid<N>`.
+    //!
+    //! ## Endian
+    //! Note that all integer representations use Big Endian to ensure stable representations
+    //! and thus Content IDs when written to test stores.
+    use super::Cid;
 
     // TODO: macro these impls.
-
-    impl NewContentId for i32 {
-        type Hash<'a> = [u8; 4];
-        fn hash(buf: &[u8]) -> Self {
-            let mhash = multihash::Code::Blake2s128.digest(buf.as_ref());
-            let digest = &mhash.digest()[0..4];
-            Self::from_be_bytes(
-                digest
-                    .try_into()
-                    .expect("Blake2s128 truncated to 4 bytes fits into a [u8; 4]"),
-            )
-        }
-        fn from_hash(hash: Vec<u8>) -> Result<Self, super::FromHashError> {
-            let hash = Self::Hash::try_from(hash).map_err(|_| FromHashError::Length)?;
-            Ok(Self::from_be_bytes(hash))
-        }
-        fn as_hash(&self) -> Self::Hash<'static> {
-            self.to_be_bytes()
+    impl<const N: usize> From<i32> for Cid<N> {
+        fn from(i: i32) -> Self {
+            let mut buf = [0; N];
+            let size = N.min((i32::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
         }
     }
-    impl NewContentId for i64 {
-        type Hash<'a> = [u8; 8];
-        fn hash(buf: &[u8]) -> Self {
-            let mhash = multihash::Code::Blake2s128.digest(buf.as_ref());
-            let digest = &mhash.digest()[0..8];
-            Self::from_be_bytes(
-                digest
-                    .try_into()
-                    .expect("Blake2s128 truncated to 8 bytes fits into a [u8; 8]"),
-            )
-        }
-        fn from_hash(hash: Vec<u8>) -> Result<Self, super::FromHashError> {
-            let hash = Self::Hash::try_from(hash).map_err(|_| FromHashError::Length)?;
-            Ok(Self::from_be_bytes(hash))
-        }
-        fn as_hash(&self) -> Self::Hash<'static> {
-            self.to_be_bytes()
+    impl<const N: usize> From<i64> for Cid<N> {
+        fn from(i: i64) -> Self {
+            let mut buf = [0; N];
+            let size = N.min((i64::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
         }
     }
 }

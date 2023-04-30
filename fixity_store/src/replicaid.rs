@@ -137,7 +137,7 @@ mod test_rids {
     //!
     //! ## Endian
     //! Note that all integer representations use Big Endian to ensure stable representations
-    //! and thus Content IDs when written to test stores.
+    //! and thus Replica IDs when written to test stores.
     use super::Rid;
 
     // TODO: macro these impls.

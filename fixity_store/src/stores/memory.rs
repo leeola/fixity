@@ -19,7 +19,7 @@ pub struct Memory<Cid> {
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
 #[cfg(any(test, feature = "test"))]
-impl Memory<crate::contentid::multihash_256::Multihash256> {
+impl Memory<Cid> {
     pub fn test() -> Self {
         Self::default()
     }
