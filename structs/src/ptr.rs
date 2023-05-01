@@ -4,8 +4,6 @@ use std::{
     sync::Arc,
 };
 
-use fixity_store::Store;
-
 // NIT: Is there something cheaper than Arc? Since
 // i don't care about using the Rc portion of Arc.
 pub struct Ptr<Cid, T>(Arc<PtrInner<Cid, T>>);

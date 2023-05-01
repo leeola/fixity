@@ -1,26 +1,27 @@
 use super::GCounterInt;
 use async_trait::async_trait;
 use fixity_store::{
-    container::{ContainerRef, ContainerRefInto, NewContainer},
-    contentid::NewContentId,
-    deser::{Deserialize, Rkyv, Serialize},
+    container::{ContainerRef, ContainerRefInto, ContainerV4},
+    content_store::ContentStore,
+    contentid::Cid,
+    deser::Rkyv,
     deser_store::DeserStore,
-    replicaid::NewReplicaId,
-    store::{Repr, StoreError},
+    replicaid::Rid,
+    store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
 };
-use std::any::TypeId;
+use std::any::{self, TypeId};
 
-type IVec<Rid> = Vec<(Rid, GCounterInt)>;
+type IVec = Vec<(Rid, GCounterInt)>;
 
 #[derive(Debug)]
-pub struct GCounter<Rid>(IVec<Rid>);
-impl<Rid> GCounter<Rid> {
+pub struct GCounter(IVec);
+impl GCounter {
     pub fn new() -> Self {
         Self(IVec::default())
     }
 }
-impl<Rid: NewReplicaId> GCounter<Rid> {
+impl GCounter {
     pub fn inc(&mut self, rid: Rid) {
         let self_ = &mut self.0;
         let idx_result = self_.binary_search_by_key(&&rid, |(rid, _)| rid);
@@ -45,53 +46,41 @@ impl<Rid: NewReplicaId> GCounter<Rid> {
         Some(*count)
     }
 }
-impl<Rid> TypeDescription for GCounter<Rid>
-where
-    Rid: NewReplicaId,
-{
+impl TypeDescription for GCounter {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
-            name: "GCounter",
+            name: any::type_name::<Self>(),
             type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::of::<IVec<Rid>>()],
+            values: vec![ValueDesc::of::<IVec>()],
         }
     }
 }
 #[async_trait]
-impl<Rid, Cid> NewContainer<Rkyv, Cid> for GCounter<Rid>
-where
-    Cid: NewContentId,
-    Rid: NewReplicaId,
-    IVec<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
-{
+impl ContainerV4 for GCounter {
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
     }
-    fn new_container<S: DeserStore<Rkyv, Cid>>(_: &S) -> Self {
+    fn new_container<S: ContentStore>(_: &S) -> Self {
         Self::new()
     }
-    async fn open<S: DeserStore<Rkyv, Cid>>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
-        let repr = store.get::<IVec<Rid>>(cid).await?;
+    async fn open<S: ContentStore>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
+        let repr = store.get::<IVec>(cid).await?;
         let inner = repr.repr_to_owned()?;
         Ok(Self(inner))
     }
-    async fn save<S: DeserStore<Rkyv, Cid>>(&mut self, store: &S) -> Result<Cid, StoreError> {
-        store.put::<IVec<Rid>>(&self.0).await
+    async fn save<S: ContentStore>(&mut self, store: &S) -> Result<Cid, StoreError> {
+        store.put::<IVec>(&self.0).await
     }
-    async fn save_with_cids<S: DeserStore<Rkyv, Cid>>(
+    async fn save_with_cids<S: ContentStore>(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
-        store.put_with_cids::<IVec<Rid>>(&self.0, cids_buf).await
+        store.put_with_cids::<IVec>(&self.0, cids_buf).await
     }
-    async fn merge<S: DeserStore<Rkyv, Cid>>(
-        &mut self,
-        store: &S,
-        other: &Cid,
-    ) -> Result<(), StoreError> {
+    async fn merge<S: ContentStore>(&mut self, store: &S, other: &Cid) -> Result<(), StoreError> {
         let other = {
-            let repr = store.get::<IVec<Rid>>(other).await?;
+            let repr = store.get::<IVec>(other).await?;
             repr.repr_to_owned()?
         };
         let mut start_idx = 0;
@@ -120,7 +109,7 @@ where
         debug_assert!(self.0.windows(2).all(|w| w[0] <= w[1]));
         Ok(())
     }
-    async fn diff<S: DeserStore<Rkyv, Cid>>(
+    async fn diff<S: ContentStore>(
         &mut self,
         _store: &S,
         _other: &Cid,
@@ -128,42 +117,14 @@ where
         todo!()
     }
 }
-#[async_trait]
-impl<Rid, Cid> ContainerRef<Rkyv, Cid> for GCounter<Rid>
-where
-    Cid: NewContentId,
-    Rid: NewReplicaId,
-    IVec<Rid>: Serialize<Rkyv> + Deserialize<Rkyv>,
-{
-    type Ref = GCounterRef<Rid, Rkyv>;
-    type DiffRef = GCounter<Rid>;
-    async fn open_ref<S: DeserStore<Rkyv, Cid>>(
-        _store: &S,
-        _cid: &Cid,
-    ) -> Result<Self::Ref, StoreError> {
-        todo!()
-    }
-    async fn diff_ref<S: DeserStore<Rkyv, Cid>>(
-        &mut self,
-        _store: &S,
-        _other: &Cid,
-    ) -> Result<Self::DiffRef, StoreError> {
-        todo!()
-    }
-}
-impl<Rid> Default for GCounter<Rid> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 // TODO: Convert Vec back to BTree for faster lookups? This was made a Vec
 // due to difficulties in looking up `ArchivedRid`.
 // Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
 // in theory we can go back to a Rid.
-pub struct GCounterRef<Rid, D>(Repr<Vec<(Rid, GCounterInt)>, D>);
-impl<Rid> ContainerRefInto<GCounter<Rid>> for GCounterRef<Rid, Rkyv> {
+pub struct GCounterRef<D>(Repr<Vec<(Rid, GCounterInt)>, D>);
+impl ContainerRefInto<GCounter> for GCounterRef<Rkyv> {
     type Error = StoreError;
-    fn container_ref_into(self) -> Result<GCounter<Rid>, Self::Error> {
+    fn container_ref_into(self) -> Result<GCounter, Self::Error> {
         todo!()
     }
 }

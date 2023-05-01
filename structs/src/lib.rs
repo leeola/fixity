@@ -1,4 +1,3 @@
-pub mod appendlog;
 pub mod gcounter;
 pub mod prolly_tree;
 pub mod ptr;
