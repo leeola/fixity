@@ -117,17 +117,6 @@ impl ContainerV4 for GCounter {
         todo!()
     }
 }
-// TODO: Convert Vec back to BTree for faster lookups? This was made a Vec
-// due to difficulties in looking up `ArchivedRid`.
-// Once `ArchivedRid` and `Rid` are unified into a single Rkyv-friendly type,
-// in theory we can go back to a Rid.
-pub struct GCounterRef<D>(Repr<Vec<(Rid, GCounterInt)>, D>);
-impl ContainerRefInto<GCounter> for GCounterRef<Rkyv> {
-    type Error = StoreError;
-    fn container_ref_into(self) -> Result<GCounter, Self::Error> {
-        todo!()
-    }
-}
 #[cfg(test)]
 pub mod test {
     use fixity_store::{replicaid::Rid, stores::memory::Memory};

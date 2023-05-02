@@ -31,6 +31,9 @@ pub trait ContainerV4: Sized + Send + TypeDescription {
     // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
     // Container and all the cids within it.
 }
+// TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
+// Notably i'd really like to make the `Ref` type borrowed from whatever returned value `open_ref`
+// is.
 #[async_trait]
 pub trait ContainerRef: ContainerV4 {
     type Ref: ContainerRefInto<Self>;
