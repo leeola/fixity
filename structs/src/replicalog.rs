@@ -8,12 +8,11 @@ use fixity_store::{
     container::ContainerV4,
     content_store::ContentStore,
     contentid::Cid,
-    deser_store::deser_store_v4::{DeserExt, Serialize},
+    deser_store::deser_store_v4::DeserExt,
     replicaid::Rid,
     store::StoreError,
     type_desc::{TypeDescription, ValueDesc},
 };
-use rkyv::AlignedVec;
 
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
@@ -85,6 +84,22 @@ pub struct LogEntry {
     // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
     pub identity: Option<Identity>,
+}
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[derive(Debug)]
+pub struct Repos {
+    // TODO: add Repo type?
+    /// The name of the active/default repo.
+    pub default: String,
+    /// The content id of the active branch.
+    pub content: Cid,
+    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
+    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
+    // pub branches: Option<Cid>,
+    pub inactive: BTreeMap<String, Cid>,
 }
 #[cfg_attr(
     feature = "rkyv",
