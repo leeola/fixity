@@ -1,32 +1,23 @@
 use std::fmt::Display;
 
 use crate::{
-    contentid::NewContentId,
+    contentid::{Cid, NewContentId},
     mut_store::{MutStore, MutStoreError},
-    replicaid::NewReplicaId,
+    replicaid::{NewReplicaId, Rid},
 };
 use async_trait::async_trait;
 use multibase::Base;
 use thiserror::Error;
 
 #[async_trait]
-pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
+pub trait MetaStore: Send + Sync {
     /// List all Replicas under a specific Remote.
-    async fn replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError<Rid, Cid>>;
+    async fn replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError>;
     /// Get the head for the given Replica.
-    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError<Rid, Cid>>;
+    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError>;
     /// List the heads for the provided Replicas.
-    async fn heads(
-        &self,
-        remote: &str,
-        rids: &[Rid],
-    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>>;
-    async fn set_head(
-        &self,
-        remote: &str,
-        rid: &Rid,
-        head: Cid,
-    ) -> Result<(), MetaStoreError<Rid, Cid>>;
+    async fn heads(&self, remote: &str, rids: &[Rid]) -> Result<Vec<(Rid, Cid)>, MetaStoreError>;
+    async fn set_head(&self, remote: &str, rid: &Rid, head: Cid) -> Result<(), MetaStoreError>;
     // Not sure if i want to keep this. Need to handle config storage somewhere, but syncing
     // it to remotes feels wrong.
     //
@@ -34,14 +25,14 @@ pub trait MetaStore<Rid: NewReplicaId, Cid: NewContentId>: Send + Sync {
     //     &self,
     //     remote: &str,
     //     config: RemoteConfig,
-    // ) -> Result<(), MetaStoreError<Rid, Cid>>;
+    // ) -> Result<(), MetaStoreError>;
 }
-async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
+async fn get_cid_from_path<MS: MutStore>(
     ms: &MS,
     remote: &str,
     rid: &Rid,
     path: &str,
-) -> Result<Cid, MetaStoreError<Rid, Cid>> {
+) -> Result<Cid, MetaStoreError> {
     let cid_value = ms.get(&path).await.map_err(|err| match err {
         MutStoreError::NotFound => MetaStoreError::NotFound,
         err => MetaStoreError::Storage {
@@ -77,7 +68,7 @@ async fn get_cid_from_path<MS: MutStore, Rid: NewReplicaId, Cid: NewContentId>(
     })
 }
 #[derive(Error, Debug)]
-pub enum MetaStoreError<Rid, Cid> {
+pub enum MetaStoreError {
     #[error("resource not found")]
     NotFound,
     #[error("invalid replica id: {message}")]
@@ -161,13 +152,11 @@ const MUT_CID_RID_ENCODING: Base = Base::Base32HexLower;
 // IMPORTANT: This impl is not using any kind of escaping, so `/`
 // breaks the whole thing at the moment. POC impl, beware.
 #[async_trait]
-impl<T, Rid, Cid> MetaStore<Rid, Cid> for T
+impl<T> MetaStore for T
 where
     T: MutStore,
-    Rid: NewReplicaId,
-    Cid: NewContentId,
 {
-    async fn replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError<Rid, Cid>> {
+    async fn replicas(&self, remote: &str) -> Result<Vec<Rid>, MetaStoreError> {
         let remote_path = format!("{remote}/");
         let paths = self.list::<_, &str>(&remote_path, None).await.unwrap();
         let mut items = Vec::new();
@@ -179,7 +168,7 @@ where
         }
         Ok(items)
     }
-    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError<Rid, Cid>> {
+    async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError> {
         let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
         let path = format!("{remote}/{encoded_rid}");
         let (_, rid_bytes) =
@@ -196,7 +185,7 @@ where
         &self,
         remote: &str,
         replicas: &[Rid],
-    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError<Rid, Cid>> {
+    ) -> Result<Vec<(Rid, Cid)>, MetaStoreError> {
         let mut heads = Vec::with_capacity(replicas.len());
         for rid in replicas {
             let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
@@ -213,12 +202,7 @@ where
         }
         Ok(heads)
     }
-    async fn set_head(
-        &self,
-        remote: &str,
-        rid: &Rid,
-        head: Cid,
-    ) -> Result<(), MetaStoreError<Rid, Cid>> {
+    async fn set_head(&self, remote: &str, rid: &Rid, head: Cid) -> Result<(), MetaStoreError> {
         let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
         let encoded_head = multibase::encode(MUT_CID_RID_ENCODING, head.as_hash());
         let path = format!("{remote}/{encoded_rid}");
