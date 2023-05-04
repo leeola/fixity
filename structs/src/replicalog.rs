@@ -24,23 +24,26 @@ impl ReplicaLog {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn set_commit(&mut self, cid: Cid) {
-        match self.entry.as_mut() {
-            Some(entry) => {
-                entry.branches.content = cid;
-            },
-            None => {
-                self.entry = Some(LogEntry {
-                    previous_entry: None,
-                    branches: Branches {
-                        active: "main".to_string(),
-                        content: cid,
-                        inactive: Default::default(),
-                    },
-                    identity: Default::default(),
-                })
-            },
-        }
+    pub fn set_commit(&mut self, repo: String, cid: Cid) {
+        // let entry = self.entry.get_or_insert_default();
+        // let defaults = entry.defaults
+        // match self.entry.as_mut() {
+        //     Some(entry) => {
+        //         entry.branches.content = cid;
+        //     },
+        //     None => {
+        //         self.entry = Some(LogEntry {
+        //             previous_entry: None,
+        //             branches: Branches {
+        //                 active: "main".to_string(),
+        //                 content: cid,
+        //                 inactive: Default::default(),
+        //             },
+        //             identity: Default::default(),
+        //         })
+        //     },
+        // }
+        todo!()
     }
 }
 impl Default for ReplicaLog {
@@ -76,14 +79,29 @@ impl TypeDescription for ReplicaLog {
 )]
 #[derive(Debug)]
 pub struct LogEntry {
-    pub previous_entry: Option<Cid>,
-    // TODO: Move under a new `Repo<>` struct.
-    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    pub branches: Branches,
+    pub previous: Option<Cid>,
+    /// [`Defaults`] pointer.
+    pub defaults: Option<Cid>,
+    /// Embedded [`Repos`] where each [`Repo`] tracks the tip of the active branch.
+    pub repos: Repos,
     // /// An [`Identity`] pointer for this Replica.
-    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
+    // TODO: Move to a ptr, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
     pub identity: Option<Identity>,
+}
+/// Default state of selected repo/branch for stateless use cases, like CLI or app warmups.
+///
+/// Stateful apps may choose to not use this, so this is only a recommendation.
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[derive(Debug)]
+pub struct Defaults {
+    /// The name of the active/default repo, for use as the key in [`Repos::repos`].
+    pub repo: String,
+    /// A default branch per repo.
+    pub branches: BTreeMap<String, String>,
 }
 #[cfg_attr(
     feature = "rkyv",
@@ -91,15 +109,24 @@ pub struct LogEntry {
 )]
 #[derive(Debug)]
 pub struct Repos {
+    pub repos: BTreeMap<String, Repo>,
+}
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[derive(Debug)]
+pub struct Repo {
     // TODO: add Repo type?
-    /// The name of the active/default repo.
-    pub default: String,
-    /// The content id of the active branch.
-    pub content: Cid,
-    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
-    // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
-    // pub branches: Option<Cid>,
-    pub inactive: BTreeMap<String, Cid>,
+    /// The content id of the active branch. The type of this value will be as described by the
+    /// Repo.
+    ///
+    /// Corresponds to the value in [`Defaults::branches`] for the given repo name, as identified
+    /// by the key in [`Repos::repos`].
+    pub branch_tip: Cid,
+    /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks for the
+    /// given repo.
+    pub branches: Option<Cid>,
 }
 #[cfg_attr(
     feature = "rkyv",
@@ -107,14 +134,10 @@ pub struct Repos {
 )]
 #[derive(Debug)]
 pub struct Branches {
-    /// The name of the active branch.
-    pub active: String,
-    /// The content id of the active branch.
-    pub content: Cid,
     /// A map of `BranchName: HEAD`s to track the various branches that this Replica tracks.
     // TODO: Move to a sub container, as this data doesn't need to be stored in with active data.
     // pub branches: Option<Cid>,
-    pub inactive: BTreeMap<String, Cid>,
+    pub branches: BTreeMap<String, Cid>,
 }
 impl TypeDescription for Branches {
     fn type_desc() -> ValueDesc {
@@ -163,7 +186,7 @@ impl ContainerV4 for ReplicaLog {
         // TODO: standardized error, not initialized or something?
         let entry = self.entry.as_mut().unwrap();
         let cid = store.put(&*entry).await?;
-        entry.previous_entry = Some(cid.clone());
+        entry.previous = Some(cid.clone());
         Ok(cid)
     }
     async fn save_with_cids<S: ContentStore>(
@@ -176,7 +199,7 @@ impl ContainerV4 for ReplicaLog {
         store.put_with_cids(entry, cids_buf).await?;
         // TODO: add standardized error for cid missing from buf, store did not write to cid buf
         let cid = cids_buf.last().cloned().unwrap();
-        entry.previous_entry = Some(cid);
+        entry.previous = Some(cid);
         Ok(())
     }
     async fn merge<S: ContentStore>(&mut self, _store: &S, _other: &Cid) -> Result<(), StoreError> {
