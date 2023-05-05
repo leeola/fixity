@@ -70,6 +70,40 @@ pub trait ContainerWithStore: Send + TypeDescription {
     async fn merge(&mut self, other: &Cid) -> Result<(), StoreError>;
     async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError>;
 }
+/// A glue trait to borrow a container and store, allowing for an automatic implementation of
+/// [`ContainerWithStore`] for any [`Container`] that also contains a store.
+pub trait AsContainerAndStore: ContainerV4<Self::Store> + Sync {
+    type Store: ContentStore;
+    fn as_container_store(&mut self) -> (&mut Self, &Self::Store);
+}
+// NIT: How does this `for T` impl not conflict with the below `for WithStore` impl? :confused:
+#[async_trait]
+impl<T> ContainerWithStore for T
+where
+    T: AsContainerAndStore,
+{
+    type Store = T::Store;
+    type Container = T;
+    fn deser_type_desc() -> ValueDesc {
+        Self::Container::deser_type_desc()
+    }
+    async fn save(&mut self) -> Result<Cid, StoreError> {
+        let (container, store) = self.as_container_store();
+        container.save(store).await
+    }
+    async fn save_with_cids(&mut self, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError> {
+        let (container, store) = self.as_container_store();
+        container.save_with_cids(store, cids_buf).await
+    }
+    async fn merge(&mut self, other: &Cid) -> Result<(), StoreError> {
+        let (container, store) = self.as_container_store();
+        container.merge(store, other).await
+    }
+    async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError> {
+        let (container, store) = self.as_container_store();
+        container.diff(store, other).await
+    }
+}
 #[async_trait]
 impl<'s, T, S> ContainerWithStore for WithStore<'s, T, S>
 where
