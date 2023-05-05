@@ -56,29 +56,32 @@ impl TypeDescription for GCounter {
     }
 }
 #[async_trait]
-impl ContainerV4 for GCounter {
+impl<S> ContainerV4<S> for GCounter
+where
+    S: ContentStore,
+{
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
     }
-    fn new_container<S: ContentStore>(_: &S) -> Self {
+    fn new_container(_: &S) -> Self {
         Self::new()
     }
-    async fn open<S: ContentStore>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
+    async fn open(store: &S, cid: &Cid) -> Result<Self, StoreError> {
         let repr = store.get::<IVec>(cid).await?;
         let inner = repr.repr_to_owned()?;
         Ok(Self(inner))
     }
-    async fn save<S: ContentStore>(&mut self, store: &S) -> Result<Cid, StoreError> {
+    async fn save(&mut self, store: &S) -> Result<Cid, StoreError> {
         store.put::<IVec>(&self.0).await
     }
-    async fn save_with_cids<S: ContentStore>(
+    async fn save_with_cids(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
         store.put_with_cids::<IVec>(&self.0, cids_buf).await
     }
-    async fn merge<S: ContentStore>(&mut self, store: &S, other: &Cid) -> Result<(), StoreError> {
+    async fn merge(&mut self, store: &S, other: &Cid) -> Result<(), StoreError> {
         let other = {
             let repr = store.get::<IVec>(other).await?;
             repr.repr_to_owned()?
@@ -109,11 +112,7 @@ impl ContainerV4 for GCounter {
         debug_assert!(self.0.windows(2).all(|w| w[0] <= w[1]));
         Ok(())
     }
-    async fn diff<S: ContentStore>(
-        &mut self,
-        _store: &S,
-        _other: &Cid,
-    ) -> Result<Self, StoreError> {
+    async fn diff(&mut self, _store: &S, _other: &Cid) -> Result<Self, StoreError> {
         todo!()
     }
 }

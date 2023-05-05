@@ -171,25 +171,28 @@ impl TypeDescription for Identity {
     }
 }
 #[async_trait]
-impl ContainerV4 for ReplicaLog {
+impl<S> ContainerV4<S> for ReplicaLog
+where
+    S: ContentStore,
+{
     fn deser_type_desc() -> ValueDesc {
         Self::type_desc()
     }
-    fn new_container<S: ContentStore>(_: &S) -> Self {
+    fn new_container(_: &S) -> Self {
         Self::default()
     }
-    async fn open<S: ContentStore>(store: &S, cid: &Cid) -> Result<Self, StoreError> {
+    async fn open(store: &S, cid: &Cid) -> Result<Self, StoreError> {
         let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(Self { entry: Some(entry) })
     }
-    async fn save<S: ContentStore>(&mut self, store: &S) -> Result<Cid, StoreError> {
+    async fn save(&mut self, store: &S) -> Result<Cid, StoreError> {
         // TODO: standardized error, not initialized or something?
         let entry = self.entry.as_mut().unwrap();
         let cid = store.put(&*entry).await?;
         entry.previous = Some(cid.clone());
         Ok(cid)
     }
-    async fn save_with_cids<S: ContentStore>(
+    async fn save_with_cids(
         &mut self,
         store: &S,
         cids_buf: &mut Vec<Cid>,
@@ -202,14 +205,10 @@ impl ContainerV4 for ReplicaLog {
         entry.previous = Some(cid);
         Ok(())
     }
-    async fn merge<S: ContentStore>(&mut self, _store: &S, _other: &Cid) -> Result<(), StoreError> {
+    async fn merge(&mut self, _store: &S, _other: &Cid) -> Result<(), StoreError> {
         Err(StoreError::UnmergableType)
     }
-    async fn diff<S: ContentStore>(
-        &mut self,
-        _store: &S,
-        _other: &Cid,
-    ) -> Result<Self, StoreError> {
+    async fn diff(&mut self, _store: &S, _other: &Cid) -> Result<Self, StoreError> {
         Err(StoreError::UndiffableType)
     }
 }

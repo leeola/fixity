@@ -11,7 +11,7 @@ pub enum ContentStoreError {
     InvalidInput { message: String },
 }
 #[async_trait]
-pub trait ContentStore: Send + Sync {
+pub trait ContentStore: Sized + Send + Sync {
     // NIT: The conversion around the the generic byte types is .. annoying.
     // A single type (Into<Vec<u8>> for example) doesn't cover common cases.
     // So we either add a lot of conversions on the type, and hope they align..
