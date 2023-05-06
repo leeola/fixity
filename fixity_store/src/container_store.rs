@@ -11,11 +11,11 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait ContainerStoreExt: ContentStore {
-    fn new_container<T: ContainerV4<Self>>(&self) -> WithStore<'_, T, Self>;
-    async fn open<T: ContainerV4<Self>>(
-        &self,
+    fn new_container<'s, T: ContainerV4<'s, Self>>(&'s self) -> WithStore<'s, T, Self>;
+    async fn open<'s, T: ContainerV4<'s, Self>>(
+        &'s self,
         cid: &Cid,
-    ) -> Result<WithStore<'_, T, Self>, StoreError>;
+    ) -> Result<WithStore<'s, T, Self>, StoreError>;
 }
 #[async_trait]
 impl<S> ContainerStoreExt for S

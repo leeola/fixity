@@ -1,4 +1,4 @@
-pub mod gcounter;
+// pub mod gcounter;
 pub mod prolly_tree;
 pub mod ptr;
 pub mod replicalog;

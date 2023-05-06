@@ -7,7 +7,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
+pub trait ContainerV4<'s, S: ContentStore>: Sized + Send + TypeDescription {
     /// A description of the [de]serialized type(s) that this container manages.
     ///
     /// Used to determine / validate Fixity repository types.
@@ -16,31 +16,31 @@ pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
-    fn new_container(store: &S) -> Self;
-    async fn open(store: &S, cid: &Cid) -> Result<Self, StoreError>;
-    async fn save(&mut self, store: &S) -> Result<Cid, StoreError>;
+    fn new_container(store: &'s S) -> Self;
+    async fn open(store: &'s S, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save(&mut self, store: &'s S) -> Result<Cid, StoreError>;
     async fn save_with_cids(
         &mut self,
-        store: &S,
+        store: &'s S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError>;
-    async fn merge(&mut self, store: &S, other: &Cid) -> Result<(), StoreError>;
+    async fn merge(&mut self, store: &'s S, other: &Cid) -> Result<(), StoreError>;
     // TODO: Probably convert the return value to a `type Diff;`, to allow for container impls to
     // return a different type where that makes sense.
-    async fn diff(&mut self, store: &S, other: &Cid) -> Result<Self, StoreError>;
+    async fn diff(&mut self, store: &'s S, other: &Cid) -> Result<Self, StoreError>;
     // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
     // Container and all the cids within it.
 }
-// TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
-// Notably i'd really like to make the `Ref` type borrowed from whatever returned value `open_ref`
-// is.
-#[async_trait]
-pub trait ContainerRef<S: ContentStore>: ContainerV4<S> {
-    type Ref: ContainerRefInto<Self>;
-    type DiffRef: ContainerRefInto<Self>;
-    async fn open_ref(store: &S, cid: &Cid) -> Result<Self::Ref, StoreError>;
-    async fn diff_ref(&mut self, store: &S, other: &Cid) -> Result<Self::DiffRef, StoreError>;
-}
+// // TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
+// // Notably i'd really like to make the `Ref` type borrowed from whatever returned value
+// `open_ref` // is.
+// #[async_trait]
+// pub trait ContainerRef<S: ContentStore>: ContainerV4<S> {
+//     type Ref: ContainerRefInto<Self>;
+//     type DiffRef: ContainerRefInto<Self>;
+//     async fn open_ref(store: &S, cid: &Cid) -> Result<Self::Ref, StoreError>;
+//     async fn diff_ref(&mut self, store: &S, other: &Cid) -> Result<Self::DiffRef, StoreError>;
+// }
 // NIT: Infallible conversions were making `TryInto` awkward for `Ref` and `DiffRef` on
 // `ContainerRef`, so this trait fills that role without the infallible issues.
 // I must be misunderstanding how to deal with Infallible `TryInto`'s easily, while

@@ -10,7 +10,7 @@ pub mod store;
 pub use meta::Meta;
 pub mod type_desc;
 pub use storage::{ContentStorage, MutStorage};
-pub mod container_store;
+// pub mod container_store;
 pub mod content_store;
 pub mod deser_store;
 pub mod meta_store;

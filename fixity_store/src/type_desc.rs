@@ -7,6 +7,14 @@ use std::{
 pub trait TypeDescription {
     fn type_desc() -> ValueDesc;
 }
+// TODO: Prob worth revisiting the usage of TypeId. Notably it doesn't work with non'static (i
+// think[1][2]) lifetimes, so it's prob worth finding an alternate way to represent this information
+// here. Importantly though all we care about is a loose ability to describe and compare types,
+// notably anything that's [de]serialized, to check for compatibility.
+//
+// [1]: https://internals.rust-lang.org/t/would-non-static-typeid-be-at-all-possible/14258/6
+// [2]: https://docs.rs/better_any/latest/better_any
+//
 // TODO: a more concise Debug impl.
 #[derive(Debug)]
 pub enum ValueDesc {

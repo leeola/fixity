@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId,
+    any::{self, TypeId},
     collections::{BTreeMap, BTreeSet},
 };
 
@@ -17,13 +17,11 @@ use fixity_store::{
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 #[derive(Debug)]
-pub struct ReplicaLog {
+pub struct ReplicaLog<'s, S> {
     entry: Option<LogEntry>,
+    store: &'s S,
 }
-impl ReplicaLog {
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl<'s, S> ReplicaLog<'s, S> {
     pub fn set_commit(&mut self, repo: String, cid: Cid) {
         // let entry = self.entry.get_or_insert_default();
         // let defaults = entry.defaults
@@ -46,18 +44,12 @@ impl ReplicaLog {
         todo!()
     }
 }
-impl Default for ReplicaLog {
-    fn default() -> Self {
-        Self {
-            entry: Default::default(),
-        }
-    }
-}
-impl TypeDescription for ReplicaLog {
+impl<'s, S> TypeDescription for ReplicaLog<'s, S> {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
             name: "ReplicaLog",
-            type_id: TypeId::of::<Self>(),
+            // NIT: Inaccurate, but the lifetime is causing problems with TypeId :grim:
+            type_id: TypeId::of::<LogEntry>(),
             values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
         }
     }
@@ -73,6 +65,7 @@ impl TypeDescription for ReplicaLog {
 //     pub entry: LogEntry<Rid,Cid>,
 //     pub replica_sig: (),
 // }
+// TODO: Make this into an enum. A bit annoying perhaps, but correct, and that's nice.
 #[cfg_attr(
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
@@ -88,6 +81,15 @@ pub struct LogEntry {
     // TODO: Move to a ptr, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
     pub identity: Option<Identity>,
+}
+impl TypeDescription for LogEntry {
+    fn type_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "ReplicaLog",
+            type_id: TypeId::of::<LogEntry>(),
+            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
+        }
+    }
 }
 /// Default state of selected repo/branch for stateless use cases, like CLI or app warmups.
 ///
@@ -171,21 +173,27 @@ impl TypeDescription for Identity {
     }
 }
 #[async_trait]
-impl<S> ContainerV4<S> for ReplicaLog
+impl<'s, S> ContainerV4<'s, S> for ReplicaLog<'s, S>
 where
     S: ContentStore,
 {
     fn deser_type_desc() -> ValueDesc {
-        Self::type_desc()
+        LogEntry::type_desc()
     }
-    fn new_container(_: &S) -> Self {
-        Self::default()
+    fn new_container(store: &'s S) -> ReplicaLog<'s, S> {
+        ReplicaLog {
+            entry: Default::default(),
+            store,
+        }
     }
-    async fn open(store: &S, cid: &Cid) -> Result<Self, StoreError> {
+    async fn open(store: &'s S, cid: &Cid) -> Result<ReplicaLog<'s, S>, StoreError> {
         let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
-        Ok(Self { entry: Some(entry) })
+        Ok(ReplicaLog {
+            entry: Some(entry),
+            store,
+        })
     }
-    async fn save(&mut self, store: &S) -> Result<Cid, StoreError> {
+    async fn save(&mut self, store: &'s S) -> Result<Cid, StoreError> {
         // TODO: standardized error, not initialized or something?
         let entry = self.entry.as_mut().unwrap();
         let cid = store.put(&*entry).await?;
@@ -194,7 +202,7 @@ where
     }
     async fn save_with_cids(
         &mut self,
-        store: &S,
+        store: &'s S,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
         // TODO: standardized error, not initialized or something?
@@ -205,10 +213,10 @@ where
         entry.previous = Some(cid);
         Ok(())
     }
-    async fn merge(&mut self, _store: &S, _other: &Cid) -> Result<(), StoreError> {
+    async fn merge(&mut self, _store: &'s S, _other: &Cid) -> Result<(), StoreError> {
         Err(StoreError::UnmergableType)
     }
-    async fn diff(&mut self, _store: &S, _other: &Cid) -> Result<Self, StoreError> {
+    async fn diff(&mut self, _store: &'s S, _other: &Cid) -> Result<Self, StoreError> {
         Err(StoreError::UndiffableType)
     }
 }
