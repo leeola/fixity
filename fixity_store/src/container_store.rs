@@ -22,16 +22,16 @@ impl<S> ContainerStoreExt for S
 where
     S: ContentStore,
 {
-    fn new_container<T: ContainerV4<Self>>(&self) -> WithStore<'_, T, Self> {
+    fn new_container<'s, T: ContainerV4<'s, Self>>(&'s self) -> WithStore<'_, T, Self> {
         WithStore {
             container: T::new_container(self),
             store: self,
         }
     }
-    async fn open<T: ContainerV4<Self>>(
-        &self,
+    async fn open<'s, T: ContainerV4<'s, Self>>(
+        &'s self,
         cid: &Cid,
-    ) -> Result<WithStore<'_, T, Self>, StoreError> {
+    ) -> Result<WithStore<'s, T, Self>, StoreError> {
         let container = T::open(self, cid).await?;
         Ok(WithStore {
             container,
@@ -63,16 +63,19 @@ impl<'s, T, S> DerefMut for WithStore<'s, T, S> {
 #[async_trait]
 pub trait ContainerWithStore: Send + TypeDescription {
     type Store: ContentStore;
-    type Container: ContainerV4<Self::Store>;
+    type Container<'s>: ContainerV4<'s, Self::Store>;
     fn deser_type_desc() -> ValueDesc;
     async fn save(&mut self) -> Result<Cid, StoreError>;
     async fn save_with_cids(&mut self, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>;
     async fn merge(&mut self, other: &Cid) -> Result<(), StoreError>;
-    async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError>;
+    async fn diff<'s>(&mut self, other: &Cid) -> Result<Self::Container<'s>, StoreError>;
 }
 /// A glue trait to borrow a container and store, allowing for an automatic implementation of
 /// [`ContainerWithStore`] for any [`Container`] that also contains a store.
-pub trait AsContainerAndStore: ContainerV4<Self::Store> + Sync {
+pub trait AsContainerAndStore
+where
+    for<'s> Self: ContainerV4<'s, Self::Store> + Sync,
+{
     type Store: ContentStore;
     fn as_container_store(&mut self) -> (&mut Self, &Self::Store);
 }
@@ -99,7 +102,7 @@ where
         let (container, store) = self.as_container_store();
         container.merge(store, other).await
     }
-    async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError> {
+    async fn diff<'s>(&'s mut self, other: &Cid) -> Result<Self::Container<'s>, StoreError> {
         let (container, store) = self.as_container_store();
         container.diff(store, other).await
     }
@@ -107,11 +110,11 @@ where
 #[async_trait]
 impl<'s, T, S> ContainerWithStore for WithStore<'s, T, S>
 where
-    T: ContainerV4<S>,
+    T: ContainerV4<'s, S> + 's,
     S: ContentStore,
 {
     type Store = S;
-    type Container = T;
+    type Container<'s> = T;
     fn deser_type_desc() -> ValueDesc {
         T::deser_type_desc()
     }
@@ -124,7 +127,7 @@ where
     async fn merge(&mut self, other: &Cid) -> Result<(), StoreError> {
         self.container.merge(&self.store, other).await
     }
-    async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError> {
+    async fn diff<'s>(&'s mut self, other: &Cid) -> Result<Self::Container<'s>, StoreError> {
         self.container.diff(&self.store, other).await
     }
 }
