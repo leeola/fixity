@@ -1,6 +1,7 @@
 use std::{
     any::{self, TypeId},
     collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -17,11 +18,11 @@ use fixity_store::{
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 #[derive(Debug)]
-pub struct ReplicaLog<'s, S> {
+pub struct ReplicaLog<S> {
     entry: Option<LogEntry>,
-    store: &'s S,
+    store: Arc<S>,
 }
-impl<'s, S> ReplicaLog<'s, S> {
+impl<S> ReplicaLog<S> {
     pub fn set_commit(&mut self, repo: String, cid: Cid) {
         // let entry = self.entry.get_or_insert_default();
         // let defaults = entry.defaults
@@ -44,10 +45,11 @@ impl<'s, S> ReplicaLog<'s, S> {
         todo!()
     }
 }
-impl<'s, S> TypeDescription for ReplicaLog<'s, S> {
+impl<S> TypeDescription for ReplicaLog<S> {
     fn type_desc() -> ValueDesc {
         ValueDesc::Struct {
             name: "ReplicaLog",
+            // type_id: TypeId::of::<ReplicaLog<S>>(),
             // NIT: Inaccurate, but the lifetime is causing problems with TypeId :grim:
             type_id: TypeId::of::<LogEntry>(),
             values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
@@ -173,27 +175,27 @@ impl TypeDescription for Identity {
     }
 }
 #[async_trait]
-impl<'s, S> ContainerV4<'s, S> for ReplicaLog<'s, S>
+impl<S> ContainerV4<S> for ReplicaLog<S>
 where
     S: ContentStore,
 {
     fn deser_type_desc() -> ValueDesc {
         LogEntry::type_desc()
     }
-    fn new_container(store: &'s S) -> ReplicaLog<'s, S> {
+    fn new_container(store: &Arc<S>) -> ReplicaLog<S> {
         ReplicaLog {
             entry: Default::default(),
-            store,
+            store: Arc::clone(store),
         }
     }
-    async fn open(store: &'s S, cid: &Cid) -> Result<ReplicaLog<'s, S>, StoreError> {
+    async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
         let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(ReplicaLog {
             entry: Some(entry),
-            store,
+            store: Arc::clone(store),
         })
     }
-    async fn save(&mut self, store: &'s S) -> Result<Cid, StoreError> {
+    async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError> {
         // TODO: standardized error, not initialized or something?
         let entry = self.entry.as_mut().unwrap();
         let cid = store.put(&*entry).await?;
@@ -202,7 +204,7 @@ where
     }
     async fn save_with_cids(
         &mut self,
-        store: &'s S,
+        store: &Arc<S>,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
         // TODO: standardized error, not initialized or something?
@@ -213,10 +215,10 @@ where
         entry.previous = Some(cid);
         Ok(())
     }
-    async fn merge(&mut self, _store: &'s S, _other: &Cid) -> Result<(), StoreError> {
+    async fn merge(&mut self, _store: &Arc<S>, _other: &Cid) -> Result<(), StoreError> {
         Err(StoreError::UnmergableType)
     }
-    async fn diff(&mut self, _store: &'s S, _other: &Cid) -> Result<Self, StoreError> {
+    async fn diff(&mut self, _store: &Arc<S>, _other: &Cid) -> Result<Self, StoreError> {
         Err(StoreError::UndiffableType)
     }
 }

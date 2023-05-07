@@ -74,7 +74,7 @@ pub trait ContainerWithStore: Send + TypeDescription {
 /// [`ContainerWithStore`] for any [`Container`] that also contains a store.
 pub trait AsContainerAndStore: ContainerV4<Self::Store> + Sync {
     type Store: ContentStore;
-    fn as_container_store(&mut self) -> (&mut Self, &Self::Store);
+    fn as_container_store(&mut self) -> (&mut Self, &Arc<Self::Store>);
 }
 // NIT: How does this `for T` impl not conflict with the below `for WithStore` impl? :confused:
 #[async_trait]
