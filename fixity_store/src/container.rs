@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     content_store::ContentStore,
     contentid::Cid,
@@ -7,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait ContainerV4<'s, S: ContentStore>: Sized + Send + TypeDescription {
+pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
     /// A description of the [de]serialized type(s) that this container manages.
     ///
     /// Used to determine / validate Fixity repository types.
@@ -16,18 +18,18 @@ pub trait ContainerV4<'s, S: ContentStore>: Sized + Send + TypeDescription {
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
-    fn new_container(store: &'s S) -> Self;
-    async fn open(store: &'s S, cid: &Cid) -> Result<Self, StoreError>;
-    async fn save(&mut self, store: &'s S) -> Result<Cid, StoreError>;
+    fn new_container(store: &Arc<S>) -> Self;
+    async fn open(store: &Arc<S>, cid: &Cid) -> Result<Self, StoreError>;
+    async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError>;
     async fn save_with_cids(
         &mut self,
-        store: &'s S,
+        store: &Arc<S>,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError>;
-    async fn merge(&mut self, store: &'s S, other: &Cid) -> Result<(), StoreError>;
+    async fn merge(&mut self, store: &Arc<S>, other: &Cid) -> Result<(), StoreError>;
     // TODO: Probably convert the return value to a `type Diff;`, to allow for container impls to
     // return a different type where that makes sense.
-    async fn diff(&mut self, store: &'s S, other: &Cid) -> Result<Self, StoreError>;
+    async fn diff(&mut self, store: &Arc<S>, other: &Cid) -> Result<Self, StoreError>;
     // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
     // Container and all the cids within it.
 }
