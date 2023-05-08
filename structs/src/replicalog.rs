@@ -19,7 +19,7 @@ use fixity_store::{
 /// Replica. non-CRDT.
 #[derive(Debug)]
 pub struct ReplicaLog<S> {
-    entry: Option<LogEntry>,
+    entry: LogEntry,
     store: Arc<S>,
 }
 impl<S> ReplicaLog<S> {
@@ -72,7 +72,7 @@ impl<S> TypeDescription for ReplicaLog<S> {
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LogEntry {
     pub previous: Option<Cid>,
     /// [`Defaults`] pointer.
@@ -111,7 +111,7 @@ pub struct Defaults {
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Repos {
     pub repos: BTreeMap<String, Repo>,
 }
@@ -191,13 +191,13 @@ where
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
         let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(ReplicaLog {
-            entry: Some(entry),
+            entry,
             store: Arc::clone(store),
         })
     }
     async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError> {
         // TODO: standardized error, not initialized or something?
-        let entry = self.entry.as_mut().unwrap();
+        let entry = &mut self.entry;
         let cid = store.put(&*entry).await?;
         entry.previous = Some(cid.clone());
         Ok(cid)
@@ -208,7 +208,7 @@ where
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
         // TODO: standardized error, not initialized or something?
-        let entry = self.entry.as_mut().unwrap();
+        let entry = &mut self.entry;
         store.put_with_cids(entry, cids_buf).await?;
         // TODO: add standardized error for cid missing from buf, store did not write to cid buf
         let cid = cids_buf.last().cloned().unwrap();
