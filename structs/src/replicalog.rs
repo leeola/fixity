@@ -15,6 +15,8 @@ use fixity_store::{
     type_desc::{TypeDescription, ValueDesc},
 };
 
+const DEFAULT_BRANCH_NAME: &str = "main";
+
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 #[derive(Debug)]
@@ -22,10 +24,23 @@ pub struct ReplicaLog<S> {
     entry: LogEntry,
     store: Arc<S>,
 }
-impl<S> ReplicaLog<S> {
-    pub fn set_commit(&mut self, repo: String, cid: Cid) {
-        // let entry = self.entry.get_or_insert_default();
-        // let defaults = entry.defaults
+impl<S> ReplicaLog<S>
+where
+    S: ContentStore,
+{
+    pub async fn set_commit(&mut self, repo: String, cid: Cid) {
+        // Grab defaults, in case the repo doesn't have an active branch.
+        let branch = match self.entry.defaults.as_ref() {
+            None => DEFAULT_BRANCH_NAME.to_string(),
+            Some(cid) => {
+                let defaults: Defaults = self.store.get_owned_unchecked(cid).await.unwrap();
+                defaults
+                    .branches
+                    .get(&repo)
+                    .cloned()
+                    .unwrap_or_else(|| DEFAULT_BRANCH_NAME.to_string())
+            },
+        };
         // match self.entry.as_mut() {
         //     Some(entry) => {
         //         entry.branches.content = cid;
