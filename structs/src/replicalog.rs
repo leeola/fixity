@@ -1,6 +1,6 @@
 use std::{
     any::{self, TypeId},
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -29,35 +29,18 @@ where
     S: ContentStore,
 {
     pub async fn set_commit(&mut self, repo: String, cid: Cid) {
-        // Grab defaults, in case the repo doesn't have an active branch.
-        let branch = match self.entry.defaults.as_ref() {
-            None => DEFAULT_BRANCH_NAME.to_string(),
-            Some(cid) => {
-                let defaults: Defaults = self.store.get_owned_unchecked(cid).await.unwrap();
-                defaults
-                    .branches
-                    .get(&repo)
-                    .cloned()
-                    .unwrap_or_else(|| DEFAULT_BRANCH_NAME.to_string())
+        match self.entry.repos.repos.entry(repo) {
+            btree_map::Entry::Vacant(entry) => {
+                entry.insert(Repo {
+                    branch_tip: cid,
+                    branches: None,
+                });
             },
-        };
-        // match self.entry.as_mut() {
-        //     Some(entry) => {
-        //         entry.branches.content = cid;
-        //     },
-        //     None => {
-        //         self.entry = Some(LogEntry {
-        //             previous_entry: None,
-        //             branches: Branches {
-        //                 active: "main".to_string(),
-        //                 content: cid,
-        //                 inactive: Default::default(),
-        //             },
-        //             identity: Default::default(),
-        //         })
-        //     },
-        // }
-        todo!()
+            btree_map::Entry::Occupied(mut entry) => {
+                let repo = entry.get_mut();
+                repo.branch_tip = cid;
+            },
+        }
     }
 }
 impl<S> TypeDescription for ReplicaLog<S> {
