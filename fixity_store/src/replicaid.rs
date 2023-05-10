@@ -1,5 +1,5 @@
 use crate::{
-    contentid::{ContentId, NewContentId},
+    contentid::ContentId,
     deser::{Deserialize, Serialize},
     type_desc::{TypeDescription, ValueDesc},
 };

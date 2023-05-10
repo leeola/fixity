@@ -1,15 +1,13 @@
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use fixity_store::{
-    container::Container,
-    contentid::{Hasher, CID_LENGTH},
+    container::ContainerV4,
+    contentid::Cid,
     deser::{Deserialize, Rkyv, Serialize},
     meta::MetaStoreError,
-    storage,
-    store::{self, StoreImpl},
-    Meta, Store,
+    storage, ContentStore, DeserExt, MetaStore,
 };
-use fixity_structs::appendlog::{AppendLog, AppendNode};
+use fixity_structs::replicalog::ReplicaLog;
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -30,8 +28,8 @@ pub struct Fixity<Meta, Store> {
 }
 impl<M, S> Fixity<M, S>
 where
-    S: Store,
-    M: Meta<S::Cid>,
+    S: ContentStore,
+    M: MetaStore,
 {
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
