@@ -38,8 +38,8 @@ impl<S> ReplicaLog<S>
 where
     S: ContentStore,
 {
-    pub async fn set_commit(&mut self, repo: String, cid: Cid) {
-        let modified = match self.tip.repos.repos.entry(repo) {
+    pub fn set_commit(&mut self, repo: &str, cid: Cid) {
+        let modified = match self.tip.repos.repos.entry(repo.to_string()) {
             btree_map::Entry::Vacant(entry) => {
                 entry.insert(Repo {
                     branch_tip: cid,
@@ -272,13 +272,13 @@ pub mod test {
     use super::*;
     #[tokio::test]
     async fn poc() {
-        let store = Memory::default();
-        let mut rl = ReplicaLog::default();
-        rl.set_commit(1.into());
+        let store = Arc::new(Memory::default());
+        let mut rl = ReplicaLog::new_container(&store);
+        rl.set_commit("foo", 1.into());
         dbg!(&rl);
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
-        rl.set_commit(2.into());
+        rl.set_commit("foo", 2.into());
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
     }
