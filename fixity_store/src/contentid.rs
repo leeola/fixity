@@ -88,7 +88,7 @@ impl NewContentId for Cid<CID_LENGTH> {
         let multihash = multihash::Code::Blake2b256.digest(buf);
         Self(
             multihash
-                .digest()
+                .to_bytes()
                 .try_into()
                 .expect("Blake2b256 fits into 36 bytes"),
         )
