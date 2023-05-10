@@ -1,5 +1,5 @@
 use std::{
-    any::{self, TypeId},
+    any::TypeId,
     collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -15,32 +15,46 @@ use fixity_store::{
     type_desc::{TypeDescription, ValueDesc},
 };
 
-const DEFAULT_BRANCH_NAME: &str = "main";
+const DEFAULT_BRANCH: &str = "main";
 
 /// An append only log of all actions for an individual Replica on a Repo. The HEAD of a repo for a
 /// Replica. non-CRDT.
 #[derive(Debug)]
 pub struct ReplicaLog<S> {
-    entry: LogEntry,
-    store: Arc<S>,
+    clean: bool,
+    // NIT: Not sure if conceptually i want this to be the tip or the head.
+    // The difference being, do we allow a user to checkout an arbitrary point making this the head
+    // of that point.
+    //
+    // My gut is no, this is always the tip and for head tracking/exploration, we make it part of
+    // the log itself. Otherwise some higher level primitive, like MutStore, is keeping state
+    // of two values, the tip and the head. Seems better to have the primitive of only ever
+    // needing to track one thing, this value.
+    tip_cid: Option<Cid>,
+    tip: LogEntry,
+    _store: Arc<S>,
 }
 impl<S> ReplicaLog<S>
 where
     S: ContentStore,
 {
     pub async fn set_commit(&mut self, repo: String, cid: Cid) {
-        match self.entry.repos.repos.entry(repo) {
+        let modified = match self.tip.repos.repos.entry(repo) {
             btree_map::Entry::Vacant(entry) => {
                 entry.insert(Repo {
                     branch_tip: cid,
                     branches: None,
                 });
+                true
             },
             btree_map::Entry::Occupied(mut entry) => {
                 let repo = entry.get_mut();
+                let modified = repo.branch_tip != cid;
                 repo.branch_tip = cid;
+                modified
             },
-        }
+        };
+        self.clean = self.clean | modified;
     }
 }
 impl<S> TypeDescription for ReplicaLog<S> {
@@ -48,8 +62,9 @@ impl<S> TypeDescription for ReplicaLog<S> {
         ValueDesc::Struct {
             name: "ReplicaLog",
             // type_id: TypeId::of::<ReplicaLog<S>>(),
-            // NIT: Inaccurate, but the lifetime is causing problems with TypeId :grim:
+            // FIXME: Inaccurate, but the S lifetime is causing problems with TypeId :grim:
             type_id: TypeId::of::<LogEntry>(),
+            // FIXME: Inaccurate, reflects old replicalog generic design.
             values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
         }
     }
@@ -182,35 +197,65 @@ where
     }
     fn new_container(store: &Arc<S>) -> ReplicaLog<S> {
         ReplicaLog {
-            entry: Default::default(),
-            store: Arc::clone(store),
+            clean: true,
+            tip_cid: None,
+            tip: Default::default(),
+            _store: Arc::clone(store),
         }
     }
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
-        let entry = store.get_owned_unchecked::<LogEntry>(cid).await?;
+        let tip_cid = Some(cid.clone());
+        let tip = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(ReplicaLog {
-            entry,
-            store: Arc::clone(store),
+            clean: true,
+            tip_cid,
+            tip,
+            _store: Arc::clone(store),
         })
     }
     async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError> {
+        let previous = match (self.clean, self.tip_cid.take()) {
+            // Data is clean, and there is a previous cid, so we can return that and not bother
+            // writing an unchanged data structure.
+            (true, Some(tip)) => return Ok(tip),
+            // Data is clean, but there is no previous. Ie the data is default. Writing default
+            // values to the store feels odd, but it's either that or handle it through
+            // errors - and a default value can only be written once for any given
+            // schema, so this seems a sane behavior.
+            (true, None) => None,
+            // Data is dirty, write it.
+            (false, tip) => tip,
+        };
+        let entry = &mut self.tip;
+        entry.previous = previous;
         // TODO: standardized error, not initialized or something?
-        let entry = &mut self.entry;
-        let cid = store.put(&*entry).await?;
-        entry.previous = Some(cid.clone());
-        Ok(cid)
+        let tip_cid = store.put(&*entry).await?;
+        self.tip_cid = Some(tip_cid.clone());
+        self.clean = true;
+        Ok(tip_cid)
     }
     async fn save_with_cids(
         &mut self,
         store: &Arc<S>,
         cids_buf: &mut Vec<Cid>,
     ) -> Result<(), StoreError> {
+        let previous = match (self.clean, self.tip_cid.take()) {
+            (true, Some(tip)) => {
+                cids_buf.push(tip);
+                return Ok(());
+            },
+            (true, None) => None,
+            (false, tip) => tip,
+        };
+        let entry = &mut self.tip;
+        entry.previous = previous;
+        let entry = &mut self.tip;
         // TODO: standardized error, not initialized or something?
-        let entry = &mut self.entry;
         store.put_with_cids(entry, cids_buf).await?;
         // TODO: add standardized error for cid missing from buf, store did not write to cid buf
-        let cid = cids_buf.last().cloned().unwrap();
-        entry.previous = Some(cid);
+        let tip_cid = cids_buf.last().cloned().unwrap();
+        self.tip_cid = Some(tip_cid.clone());
+        self.clean = true;
         Ok(())
     }
     async fn merge(&mut self, _store: &Arc<S>, _other: &Cid) -> Result<(), StoreError> {

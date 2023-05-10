@@ -18,6 +18,9 @@ pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
+    // TODO: Prob rename this and/or move it to a sister type, `DefaultWithStore` or `StoreDefault`
+    // or something. Contextualizing it around the Default wording is probably more clear about the
+    // purpose of this.
     fn new_container(store: &Arc<S>) -> Self;
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<Self, StoreError>;
     async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError>;
