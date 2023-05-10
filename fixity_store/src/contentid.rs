@@ -49,11 +49,8 @@ pub trait ContentId:
         self.as_ref()
     }
     /// Encode this `ContentId` as a string.
-    fn encode(&self) -> Box<str> {
-        // TODO: bind the encoder to generic param perhaps?
-        // thereby letting the ContentStore or MetaStore choose the encoding.
-
-        multibase::encode(Base::Base58Btc, self.as_bytes()).into_boxed_str()
+    fn encode(&self) -> String {
+        multibase::encode(Base::Base58Btc, self.as_bytes())
     }
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
