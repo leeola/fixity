@@ -115,7 +115,8 @@ mod rkyv {
     {
         type Bytes = AlignedVec;
         fn serialize(&self) -> Result<Self::Bytes, deser::DeserError> {
-            todo!()
+            let aligned_vec = rkyv::to_bytes::<_, 256>(self).unwrap();
+            Ok(aligned_vec)
         }
     }
     impl<T> Deserialize for T
