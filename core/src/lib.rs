@@ -5,6 +5,7 @@ use fixity_store::{
     contentid::Cid,
     deser::{Deserialize, Rkyv, Serialize},
     meta::MetaStoreError,
+    replicaid::Rid,
     storage, ContentStore, DeserExt, MetaStore,
 };
 use fixity_structs::replicalog::ReplicaLog;
@@ -34,28 +35,13 @@ where
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
     }
-    pub async fn open<T>(&self, repo: &str) -> Result<Repo<M, S, T>, Error>
+    pub async fn open<T>(&self, repo: &str) -> Result<RepoReplica<M, S, T>, Error>
     where
-        S::Cid: Serialize<S::Deser> + Deserialize<S::Deser>,
-        for<'s> T: Container<'s, S> + Sync,
+        T: ContainerV4,
     {
-        // TODO: check stored repo type. Meta doesn't store
-        // repo signature yet.
-        Repo::<M, S, T>::new_open(Arc::clone(&self.meta), Arc::clone(&self.store), repo).await
-    }
-    pub async fn branch<T>(
-        &self,
-        repo: &str,
-        branch: &str,
-        replica: M::Rid,
-    ) -> Result<RepoReplica<M, S, T>, Error>
-    where
-        S::Cid: Serialize<S::Deser> + Deserialize<S::Deser>,
-        for<'s> T: Container<'s, S> + Sync,
-        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
-        S::Deser: 'static,
-    {
-        self.open::<T>(repo).await?.branch(branch, replica).await
+        // TODO: check stored repo type.
+        RepoReplica::<M, S, T>::new_open(Arc::clone(&self.meta), Arc::clone(&self.store), repo)
+            .await
     }
 }
 // Some type aliases for simplicity.
@@ -114,41 +100,36 @@ where
 // A: Try wrapping the inner `T` and `Defer/Mut` into it. Then `Replica::commit()` will
 // write it, and then update the pointer.
 // That also lets us track mut and do nothing if it was never mutated.
-pub struct RepoReplica<M, S, T>
-where
-    S: Store,
-    M: Meta<S::Cid>,
-{
+pub struct RepoReplica<M, S, T> {
     meta: Arc<M>,
     store: Arc<S>,
-    repo: Box<str>,
-    branch: Box<str>,
-    replica_id: M::Rid,
+    repo: String,
+    replica_id: Rid,
     /// Whether or not mutatable access has been granted for the value.
     ///
     /// If `true`, we can use the Head we have stored - if any.
+    //
+    // NIT: Not sure if needed in the latest iteration. ReplicaLog overlaps
+    // in this functionality, we could perhaps defer to it.
     clean: bool,
     /// The cid reported by the `MetaStore`, used to load the most recent
     /// value for this branch replica.
-    log_head: Option<S::Cid>,
+    log_head: Option<Cid>,
     /// A container or value,
     // value: T,
-    log: AppendLog<S::Cid, T, S::Deser>,
+    log: ReplicaLog<S>,
 }
 impl<M, S, T> RepoReplica<M, S, T>
 where
-    S: Store,
-    M: Meta<S::Cid>,
-    for<'s> T: Container<'s, S>,
-    for<'s> AppendLog<S::Cid, T, S::Deser>: Container<'s, S>,
-    AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
+    S: ContentStore,
+    M: MetaStore,
+    T: ContainerV4,
 {
     pub async fn new_open(
         meta: Arc<M>,
         store: Arc<S>,
         repo: &str,
-        branch: &str,
-        rid: M::Rid,
+        rid: Rid,
     ) -> Result<Self, Error> {
         let (appendlog, head) = match meta.head("local", repo, branch, &rid).await {
             Ok(head) => (AppendLog::open(&*store, &head).await.unwrap(), Some(head)),
