@@ -9,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
+pub trait ContainerV4<S: ContentStore>: Send + DefaultContainer<S> + TypeDescription {
     /// A description of the [de]serialized type(s) that this container manages.
     ///
     /// Used to determine / validate Fixity repository types.
@@ -18,10 +18,6 @@ pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
     /// which describes the `Container` itself - which may or may not be what is written
     /// to stores.
     fn deser_type_desc() -> ValueDesc;
-    // TODO: Prob rename this and/or move it to a sister type, `DefaultWithStore` or `StoreDefault`
-    // or something. Contextualizing it around the Default wording is probably more clear about the
-    // purpose of this.
-    fn new_container(store: &Arc<S>) -> Self;
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<Self, StoreError>;
     async fn save(&mut self, store: &Arc<S>) -> Result<Cid, StoreError>;
     async fn save_with_cids(
@@ -35,6 +31,11 @@ pub trait ContainerV4<S: ContentStore>: Sized + Send + TypeDescription {
     async fn diff(&mut self, store: &Arc<S>, other: &Cid) -> Result<Self, StoreError>;
     // TODO: Method to report contained Cids and/or Containers to allow correct syncing of a
     // Container and all the cids within it.
+}
+/// Like [`Default`], but with a store reference to keep as needed.
+pub trait DefaultContainer<S>: Sized {
+    /// Like [`Default::default`], but with a store reference to keep as needed.
+    fn default_container(store: &Arc<S>) -> Self;
 }
 // // TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
 // // Notably i'd really like to make the `Ref` type borrowed from whatever returned value

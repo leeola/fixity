@@ -1,7 +1,11 @@
 use anyhow::anyhow;
 use fixity_store::{
-    container::ContainerV4, contentid::Cid, meta_store::MetaStoreError, replicaid::Rid,
-    stores::memory::Memory, ContentStore, MetaStore,
+    container::{ContainerV4, DefaultContainer},
+    contentid::Cid,
+    meta_store::MetaStoreError,
+    replicaid::Rid,
+    stores::memory::Memory,
+    ContentStore, MetaStore,
 };
 use fixity_structs::replicalog::ReplicaLog;
 use std::{
@@ -97,12 +101,12 @@ where
     ) -> Result<Self, Error> {
         let log = match meta.head("local", &rid).await {
             Ok(log_tip) => ReplicaLog::open(&store, &log_tip).await.unwrap(),
-            Err(MetaStoreError::NotFound) => ReplicaLog::new_container(&store),
+            Err(MetaStoreError::NotFound) => ReplicaLog::default_container(&store),
             Err(err) => return Err(Error::Other(anyhow!(err))),
         };
         let (container, new) = match log.repo_tip(repo) {
             Some(tip) => (T::open(&store, &tip).await.unwrap(), false),
-            None => (T::new_container(&store), true),
+            None => (T::default_container(&store), true),
         };
         Ok(Self {
             meta,

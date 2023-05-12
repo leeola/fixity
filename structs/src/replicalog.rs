@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use fixity_store::{
-    container::ContainerV4,
+    container::{ContainerV4, DefaultContainer},
     content_store::ContentStore,
     contentid::Cid,
     deser_store::deser_store_v4::DeserExt,
@@ -190,6 +190,16 @@ impl TypeDescription for Identity {
         }
     }
 }
+impl<S> DefaultContainer<S> for ReplicaLog<S> {
+    fn default_container(store: &Arc<S>) -> ReplicaLog<S> {
+        ReplicaLog {
+            clean: true,
+            tip_cid: None,
+            tip: Default::default(),
+            _store: Arc::clone(store),
+        }
+    }
+}
 #[async_trait]
 impl<S> ContainerV4<S> for ReplicaLog<S>
 where
@@ -197,14 +207,6 @@ where
 {
     fn deser_type_desc() -> ValueDesc {
         LogEntry::type_desc()
-    }
-    fn new_container(store: &Arc<S>) -> ReplicaLog<S> {
-        ReplicaLog {
-            clean: true,
-            tip_cid: None,
-            tip: Default::default(),
-            _store: Arc::clone(store),
-        }
     }
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
         let tip_cid = Some(cid.clone());
@@ -276,7 +278,7 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let store = Arc::new(Memory::default());
-        let mut rl = ReplicaLog::new_container(&store);
+        let mut rl = ReplicaLog::default_container(&store);
         rl.set_repo_tip("foo", 1.into());
         dbg!(&rl);
         let cid = rl.save(&store).await.unwrap();

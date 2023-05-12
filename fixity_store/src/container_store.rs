@@ -27,7 +27,7 @@ where
 {
     fn new_container<T: ContainerV4<S>>(&self) -> WithStore<'_, T, S> {
         WithStore {
-            container: T::new_container(self),
+            container: T::default_container(self),
             store: self,
         }
     }
