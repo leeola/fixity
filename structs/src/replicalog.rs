@@ -38,7 +38,10 @@ impl<S> ReplicaLog<S>
 where
     S: ContentStore,
 {
-    pub fn set_commit(&mut self, repo: &str, cid: Cid) {
+    pub fn repo_tip(&self, repo: &str) -> Option<Cid> {
+        todo!()
+    }
+    pub fn set_repo_tip(&mut self, repo: &str, cid: Cid) {
         let modified = match self.tip.repos.repos.entry(repo.to_string()) {
             btree_map::Entry::Vacant(entry) => {
                 entry.insert(Repo {

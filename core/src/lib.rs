@@ -1,16 +1,10 @@
-use anyhow::{anyhow, bail};
-use async_trait::async_trait;
+use anyhow::anyhow;
 use fixity_store::{
-    container::ContainerV4,
-    contentid::Cid,
-    deser::{Deserialize, Rkyv, Serialize},
-    meta::MetaStoreError,
-    replicaid::Rid,
-    storage, ContentStore, DeserExt, MetaStore,
+    container::ContainerV4, contentid::Cid, meta_store::MetaStoreError, replicaid::Rid,
+    ContentStore, MetaStore,
 };
 use fixity_structs::replicalog::ReplicaLog;
 use std::{
-    marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -35,58 +29,16 @@ where
     pub fn new(meta: Arc<M>, store: Arc<S>) -> Self {
         Self { meta, store }
     }
-    pub async fn open<T>(&self, repo: &str) -> Result<RepoReplica<M, S, T>, Error>
+    pub async fn open<T>(&self, repo: &str, replica_id: Rid) -> Result<RepoReplica<M, S, T>, Error>
     where
-        T: ContainerV4,
+        T: ContainerV4<S>,
     {
         // TODO: check stored repo type.
-        RepoReplica::<M, S, T>::new_open(Arc::clone(&self.meta), Arc::clone(&self.store), repo)
-            .await
-    }
-}
-// Some type aliases for simplicity.
-type MemStorage = storage::Memory;
-type MemStore = store::StoreImpl<Arc<MemStorage>, Rkyv, Hasher>;
-type MemFixity = Fixity<MemStorage, MemStore>;
-impl MemFixity {
-    pub fn memory() -> MemFixity {
-        let storage = Arc::new(storage::Memory::default());
-        let store = Arc::new(StoreImpl::new(Arc::clone(&storage)));
-        MemFixity::new(storage, store)
-    }
-}
-pub struct Repo<Meta, Store, T> {
-    meta: Arc<Meta>,
-    store: Arc<Store>,
-    repo: Box<str>,
-    _phantom_t: PhantomData<T>,
-}
-impl<M, S, T> Repo<M, S, T>
-where
-    S: Store,
-    M: Meta<S::Cid>,
-    S::Cid: Serialize<S::Deser> + Deserialize<S::Deser>,
-    for<'s> T: Container<'s, S> + Sync,
-{
-    pub async fn new_open(meta: Arc<M>, store: Arc<S>, repo: &str) -> Result<Self, Error> {
-        Ok(Repo {
-            repo: Box::from(repo),
-            meta,
-            store,
-            _phantom_t: PhantomData,
-        })
-    }
-    pub async fn branch(&self, branch: &str, replica: M::Rid) -> Result<RepoReplica<M, S, T>, Error>
-    where
-        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser> + Deserialize<S::Deser>,
-        S::Deser: 'static,
-    {
-        RepoReplica::new_open(
+        RepoReplica::<M, S, T>::new_open(
             Arc::clone(&self.meta),
             Arc::clone(&self.store),
-            &self.repo,
-            branch,
-            replica,
+            repo,
+            replica_id,
         )
         .await
     }
@@ -110,20 +62,23 @@ pub struct RepoReplica<M, S, T> {
     /// If `true`, we can use the Head we have stored - if any.
     //
     // NIT: Not sure if needed in the latest iteration. ReplicaLog overlaps
-    // in this functionality, we could perhaps defer to it.
+    // in this functionality, we could perhaps defer to it. Though ReplicaLog is just tracking
+    // commits, so maybe not enough because mutable access could have been granted for T without
+    // ReplicaLog being affected.
+    //
+    // ReplicaLog perhaps should not bother to track clean then.. /shrug
     clean: bool,
-    /// The cid reported by the `MetaStore`, used to load the most recent
-    /// value for this branch replica.
-    log_head: Option<Cid>,
-    /// A container or value,
-    // value: T,
     log: ReplicaLog<S>,
+    /// A container or value,
+    container: T,
 }
 impl<M, S, T> RepoReplica<M, S, T>
+// NIT: Breakup methods by where clauses. Eg tip() doesn't need ..
+// anything.
 where
     S: ContentStore,
     M: MetaStore,
-    T: ContainerV4,
+    T: ContainerV4<S>,
 {
     pub async fn new_open(
         meta: Arc<M>,
@@ -131,100 +86,51 @@ where
         repo: &str,
         rid: Rid,
     ) -> Result<Self, Error> {
-        let (appendlog, head) = match meta.head("local", repo, branch, &rid).await {
-            Ok(head) => (AppendLog::open(&*store, &head).await.unwrap(), Some(head)),
-            Err(MetaStoreError::NotFound) => (AppendLog::new(&*store), None),
+        let log = match meta.head("local", &rid).await {
+            Ok(log_tip) => ReplicaLog::open(&store, &log_tip).await.unwrap(),
+            Err(MetaStoreError::NotFound) => ReplicaLog::new_container(&store),
             Err(err) => return Err(Error::Other(anyhow!(err))),
+        };
+        let (container, new) = match log.repo_tip(repo) {
+            Some(tip) => (T::open(&store, &tip).await.unwrap(), false),
+            None => (T::new_container(&store), true),
         };
         Ok(Self {
             meta,
             store,
-            repo: Box::from(repo),
-            branch: Box::from(branch),
+            repo: repo.to_string(),
             replica_id: rid,
-            clean: true,
-            log_head: head,
-            log: appendlog,
+            // If the container is new, we start in a modified state.
+            // This allows us to commit a zero value, which may make sense depending on some
+            // container types.
+            //
+            // Regardless, starting unclear allows the container to handle zero value writing.
+            clean: !new,
+            log,
+            container,
         })
     }
-    pub async fn head(&self) -> Option<S::Cid> {
-        self.log_head.clone()
+    /// Return the tip of the associated `Repo`'s `T`.
+    pub fn tip(&self) -> Option<Cid> {
+        self.log.repo_tip(&self.repo)
     }
-    pub async fn commit(&mut self) -> Result<S::Cid, Error>
-    where
-        S: Store<Deser = Rkyv>,
-        T: Deserialize<Rkyv>,
-        S::Cid: Deserialize<Rkyv>,
-    {
+    // TODO: Add a method to save_with_inner_cid or something, to allow for reporting
+    // both the log_head and inner_head.
+    pub async fn commit(&mut self) -> Result<Cid, Error> {
         if self.clean {
-            if let Some(head) = self.log_head.clone() {
-                return Ok(head);
-            }
-            // if clean, but no head - this is an initial value, eg T::init(),
-            // We prevent writing init data by default, as that's likely useless
-            // state. Adding a future `commit_init` would bypass this.
-            return Err(Error::CommitInitValue);
-        }
-        // TODO: Add a method to save_with_inner_cid or something, to allow for reporting
-        // both the log_head and inner_head.
-        let log_head = self.log.save(&*self.store).await.unwrap();
-        if let Some(current_log_head) = self.log_head.clone() {
-            if log_head == current_log_head {
-                // TODO: save the data cid alongside the log_head, methinks. Avoid this.
-                let data_cid = self.log.inner_cid(&*self.store).await.unwrap();
-                let data_cid = data_cid.unwrap();
-                return Ok(data_cid);
+            if let Some(tip) = self.tip() {
+                return Ok(tip);
             }
         }
+        let container_tip = self.container.save(&self.store).await.unwrap();
+        self.log.set_repo_tip(&self.repo, container_tip);
+        let log_tip = self.log.save(&self.store).await.unwrap();
         self.meta
-            .set_head(
-                "local",
-                &self.repo,
-                &self.branch,
-                &self.replica_id,
-                log_head.clone(),
-            )
+            .set_head("local", &self.replica_id, log_tip)
             .await
             .unwrap();
-        self.log_head = Some(log_head.clone());
         self.clean = true;
-        let data_cid = self.log.inner_cid(&*self.store).await.unwrap();
-        let data_cid = data_cid.unwrap();
-        Ok(data_cid)
-    }
-}
-// NIT: Rkyv specific impls. Required current because AppendLog only impls for Rkyv.
-//
-// AppendLog should probably make it fully generic for the health of the primary APIs,
-// since it's such a core type.
-impl<M, S, T> RepoReplica<M, S, T>
-where
-    S: Store<Deser = Rkyv>,
-    M: Meta<S::Cid>,
-    S::Cid: Deserialize<S::Deser>,
-    T: Deserialize<S::Deser>,
-    AppendNode<S::Cid, S::Cid>: Deserialize<S::Deser>,
-{
-    // NIT: requiring mut on a inner() method feels bad. AppendLog should be changed
-    // so it's not so abusive. Even if for less perf, perhaps.
-    pub async fn inner(&mut self) -> Result<&T, Error> {
-        let t = self.log.inner(&*self.store).await.unwrap();
-        Ok(t)
-    }
-    pub async fn inner_mut(&mut self) -> Result<&mut T, Error> {
-        self.clean = false;
-        let t = self.log.inner_mut(&*self.store).await.unwrap();
-        Ok(t)
-    }
-    pub async fn commit_value<U: Into<T>>(&mut self, value: U) -> Result<S::Cid, Error>
-    where
-        for<'s> T: Container<'s, S>,
-        for<'s> AppendLog<S::Cid, T, S::Deser>: Container<'s, S>,
-        AppendNode<S::Cid, S::Cid>: Serialize<S::Deser>,
-    {
-        let self_inner = self.inner_mut().await?;
-        *self_inner = value.into();
-        self.commit().await
+        Ok(container_tip)
     }
 }
 #[cfg(test)]
