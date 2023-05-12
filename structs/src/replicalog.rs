@@ -270,18 +270,18 @@ where
 }
 #[cfg(test)]
 pub mod test {
+    use super::*;
     use fixity_store::stores::memory::Memory;
 
-    use super::*;
     #[tokio::test]
     async fn poc() {
         let store = Arc::new(Memory::default());
         let mut rl = ReplicaLog::new_container(&store);
-        rl.set_commit("foo", 1.into());
+        rl.set_repo_tip("foo", 1.into());
         dbg!(&rl);
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
-        rl.set_commit("foo", 2.into());
+        rl.set_repo_tip("foo", 2.into());
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
     }

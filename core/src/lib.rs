@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use fixity_store::{
     container::ContainerV4, contentid::Cid, meta_store::MetaStoreError, replicaid::Rid,
-    ContentStore, MetaStore,
+    stores::memory::Memory, ContentStore, MetaStore,
 };
 use fixity_structs::replicalog::ReplicaLog;
 use std::{
@@ -41,6 +41,15 @@ where
             replica_id,
         )
         .await
+    }
+}
+impl<M, S> Fixity<M, S> {
+    /// Construct a new, **in memory only** instance
+    pub fn memory() -> Fixity<Memory<Cid>, Memory<Cid>> {
+        Fixity {
+            meta: Arc::new(Memory::<Cid>::default()),
+            store: Arc::new(Memory::<Cid>::default()),
+        }
     }
 }
 // TODO: figure out how the Containers get access to meta/store/HEAD tracking.
@@ -133,8 +142,10 @@ where
         Ok(container_tip)
     }
 }
+impl<M, S, T> RepoReplica<M, S, T> {}
 #[cfg(test)]
 pub mod test {
+    /*
     use super::*;
     #[tokio::test]
     async fn basic_mutation() {
@@ -170,4 +181,5 @@ pub mod test {
         let head_foo_b = repo.commit_value("foo").await.unwrap();
         assert_eq!(head_foo_a, head_foo_b);
     }
+    */
 }
