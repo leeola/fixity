@@ -147,6 +147,17 @@ where
     }
 }
 impl<M, S, T> RepoReplica<M, S, T> {}
+impl<M, S, T> Deref for RepoReplica<M, S, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.container
+    }
+}
+impl<M, S, T> DerefMut for RepoReplica<M, S, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.container
+    }
+}
 #[cfg(test)]
 pub mod test {
     /*
