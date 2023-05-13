@@ -39,6 +39,7 @@ pub enum FromBufError {
 // TODO: Remove bounds, impl methods manually - so ReplicaId doesn't impl ContentId,
 // since they have no direct relation.
 pub trait ReplicaId: ContentId {}
+pub const DEFAULT_RID_LENGTH: usize = 32;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 // TODO: Serde doesn't impl for const :(. Can i impl manually perhaps?
 // #[cfg(feature = "serde")]
@@ -49,7 +50,7 @@ pub trait ReplicaId: ContentId {}
 #[archive(compare(PartialEq, PartialOrd))]
 // #[cfg(feature = "rkyv")]
 // #[archive_attr(derive(From))]
-pub struct Rid<const N: usize = 34>([u8; N]);
+pub struct Rid<const N: usize = DEFAULT_RID_LENGTH>([u8; N]);
 impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
@@ -89,9 +90,9 @@ impl<const N: usize> TypeDescription for Rid<N> {
         }
     }
 }
-impl<const N: usize> Default for Rid<N>
+impl Default for Rid<DEFAULT_RID_LENGTH>
 where
-    [u8; N]: Default,
+    [u8; DEFAULT_RID_LENGTH]: Default,
 {
     fn default() -> Self {
         Self(Default::default())
@@ -128,34 +129,6 @@ impl<const N: usize> From<[u8; N]> for Rid<N> {
 impl<const N: usize> PartialEq<[u8; N]> for Rid<N> {
     fn eq(&self, other: &[u8; N]) -> bool {
         &self.0 == other
-    }
-}
-#[cfg(any(test, feature = "test"))]
-mod test_rids {
-    //! Test focused `ReplicaId` implementations over integers and conversions from integers
-    //! for `Rid<N>`.
-    //!
-    //! ## Endian
-    //! Note that all integer representations use Big Endian to ensure stable representations
-    //! and thus Replica IDs when written to test stores.
-    use super::Rid;
-
-    // TODO: macro these impls.
-    impl<const N: usize> From<i32> for Rid<N> {
-        fn from(i: i32) -> Self {
-            let mut buf = [0; N];
-            let size = N.min((i32::BITS / 8) as usize);
-            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
-            Self(buf)
-        }
-    }
-    impl<const N: usize> From<i64> for Rid<N> {
-        fn from(i: i64) -> Self {
-            let mut buf = [0; N];
-            let size = N.min((i64::BITS / 8) as usize);
-            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
-            Self(buf)
-        }
     }
 }
 #[cfg(feature = "rkyv")]
@@ -212,6 +185,34 @@ mod rkyv_impls {
     impl<const N: usize> Ord for ArchivedRid<N> {
         fn cmp(&self, other: &Self) -> std::cmp::Ordering {
             self.0.cmp(&other.0)
+        }
+    }
+}
+#[cfg(any(test, feature = "test"))]
+mod test_rids {
+    //! Test focused `ReplicaId` implementations over integers and conversions from integers
+    //! for `Rid<N>`.
+    //!
+    //! ## Endian
+    //! Note that all integer representations use Big Endian to ensure stable representations
+    //! and thus Replica IDs when written to test stores.
+    use super::Rid;
+
+    // TODO: macro these impls.
+    impl<const N: usize> From<i32> for Rid<N> {
+        fn from(i: i32) -> Self {
+            let mut buf = [0; N];
+            let size = N.min((i32::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
+        }
+    }
+    impl<const N: usize> From<i64> for Rid<N> {
+        fn from(i: i64) -> Self {
+            let mut buf = [0; N];
+            let size = N.min((i64::BITS / 8) as usize);
+            buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
+            Self(buf)
         }
     }
 }

@@ -149,8 +149,8 @@ where
 
 #[cfg(any(test, feature = "test"))]
 pub mod test {
-    //! Test focused `ReplicaId` implementations over integers and conversions from integers
-    //! for `Rid<N>`.
+    //! Test focused `ContentId` implementations over integers and conversions from integers
+    //! for `Cid<N>`.
     //!
     //! ## Endian
     //! Note that all integer representations use Big Endian to ensure stable representations
