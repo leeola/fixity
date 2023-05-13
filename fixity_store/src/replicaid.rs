@@ -50,6 +50,7 @@ pub const DEFAULT_RID_LENGTH: usize = 32;
 #[archive(compare(PartialEq, PartialOrd))]
 // #[cfg(feature = "rkyv")]
 // #[archive_attr(derive(From))]
+// TODO: Remove length param.
 pub struct Rid<const N: usize = DEFAULT_RID_LENGTH>([u8; N]);
 impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {

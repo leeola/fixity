@@ -61,6 +61,7 @@ pub trait ContentId:
     feature = "rkyv",
     derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
 )]
+// TODO: Remove length param.
 pub struct Cid<const N: usize = CID_LENGTH>([u8; N]);
 impl<const N: usize> ContentId for Cid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {

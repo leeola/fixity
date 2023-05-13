@@ -9,6 +9,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[async_trait]
+// TODO: impl for T: [de]Serialize
 pub trait ContainerV4<S: ContentStore>: Send + DefaultContainer<S> + TypeDescription {
     /// A description of the [de]serialized type(s) that this container manages.
     ///
@@ -33,6 +34,7 @@ pub trait ContainerV4<S: ContentStore>: Send + DefaultContainer<S> + TypeDescrip
     // Container and all the cids within it.
 }
 /// Like [`Default`], but with a store reference to keep as needed.
+// TODO: impl for T: [de]Serialize
 pub trait DefaultContainer<S>: Sized {
     /// Like [`Default::default`], but with a store reference to keep as needed.
     fn default_container(store: &Arc<S>) -> Self;
