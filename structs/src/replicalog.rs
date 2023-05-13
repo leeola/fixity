@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use fixity_store::{
-    container::{ContainerV4, DefaultContainer},
+    container::{ContainerV4, DefaultContainer, DescribeContainer, ReconcileContainer},
     content_store::ContentStore,
     contentid::Cid,
     deser_store::deser_store_v4::DeserExt,
@@ -70,6 +70,22 @@ impl<S> TypeDescription for ReplicaLog<S> {
             // FIXME: Inaccurate, reflects old replicalog generic design.
             values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
         }
+    }
+}
+// TODO: Actually impl. I've yet to solidify type description.
+impl<S> DescribeContainer for ReplicaLog<S> {
+    fn container_desc() -> ValueDesc {
+        ValueDesc::Struct {
+            name: "ReplicaLog",
+            // type_id: TypeId::of::<ReplicaLog<S>>(),
+            // FIXME: Inaccurate, but the S lifetime is causing problems with TypeId :grim:
+            type_id: TypeId::of::<LogEntry>(),
+            // FIXME: Inaccurate, reflects old replicalog generic design.
+            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
+        }
+    }
+    fn deser_desc() -> ValueDesc {
+        Self::container_desc()
     }
 }
 // // TODO: Placeholder for signature chain. Need to mock up
@@ -201,13 +217,10 @@ impl<S> DefaultContainer<S> for ReplicaLog<S> {
     }
 }
 #[async_trait]
-impl<S> ContainerV4<S> for ReplicaLog<S>
+impl<S> PersistContainer<S> for ReplicaLog<S>
 where
     S: ContentStore,
 {
-    fn deser_type_desc() -> ValueDesc {
-        LogEntry::type_desc()
-    }
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
         let tip_cid = Some(cid.clone());
         let tip = store.get_owned_unchecked::<LogEntry>(cid).await?;
@@ -263,6 +276,12 @@ where
         self.clean = true;
         Ok(())
     }
+}
+#[async_trait]
+impl<S> ReconcileContainer<S> for ReplicaLog<S>
+where
+    S: ContentStore,
+{
     async fn merge(&mut self, _store: &Arc<S>, _other: &Cid) -> Result<(), StoreError> {
         Err(StoreError::UnmergableType)
     }

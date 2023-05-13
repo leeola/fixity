@@ -61,7 +61,7 @@ impl<'s, T, S> DerefMut for WithStore<'s, T, S> {
 }
 /// A trait to wrap a [`Container`] and pass in an associated store to container methods..
 #[async_trait]
-pub trait ContainerWithStore: Send + TypeDescription {
+pub trait ContainerWithStore: Send {
     type Store: ContentStore;
     type Container: ContainerV4<Self::Store>;
     fn deser_type_desc() -> ValueDesc;
