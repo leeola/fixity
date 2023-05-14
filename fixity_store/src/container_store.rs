@@ -64,7 +64,7 @@ impl<'s, T, S> DerefMut for WithStore<'s, T, S> {
 pub trait ContainerWithStore: Send {
     type Store: ContentStore;
     type Container: ContainerV4<Self::Store>;
-    fn deser_type_desc() -> ValueDesc;
+    // fn deser_type_desc() -> ValueDesc;
     async fn save(&mut self) -> Result<Cid, StoreError>;
     async fn save_with_cids(&mut self, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>;
     async fn merge(&mut self, other: &Cid) -> Result<(), StoreError>;
@@ -84,9 +84,9 @@ where
 {
     type Store = T::Store;
     type Container = T;
-    fn deser_type_desc() -> ValueDesc {
-        Self::Container::deser_type_desc()
-    }
+    // fn deser_type_desc() -> ValueDesc {
+    //     Self::Container::deser_type_desc()
+    // }
     async fn save(&mut self) -> Result<Cid, StoreError> {
         let (container, store) = self.as_container_store();
         container.save(store).await
@@ -112,9 +112,9 @@ where
 {
     type Store = S;
     type Container = T;
-    fn deser_type_desc() -> ValueDesc {
-        T::deser_type_desc()
-    }
+    // fn deser_type_desc() -> ValueDesc {
+    //     T::deser_type_desc()
+    // }
     async fn save(&mut self) -> Result<Cid, StoreError> {
         self.container.save(&self.store).await
     }

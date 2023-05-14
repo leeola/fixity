@@ -6,7 +6,9 @@ use std::{
 
 use async_trait::async_trait;
 use fixity_store::{
-    container::{ContainerV4, DefaultContainer, DescribeContainer, ReconcileContainer},
+    container::{
+        ContainerV4, DefaultContainer, DescribeContainer, PersistContainer, ReconcileContainer,
+    },
     content_store::ContentStore,
     contentid::Cid,
     deser_store::deser_store_v4::DeserExt,

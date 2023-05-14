@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use fixity_store::{
-    container::{ContainerV4, DefaultContainer},
+    container::{ContainerV4, DefaultContainer, PersistContainer},
     contentid::Cid,
     meta_store::MetaStoreError,
     replicaid::Rid,
