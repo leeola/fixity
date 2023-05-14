@@ -24,7 +24,7 @@ where
     T: PersistContainer<S> + ReconcileContainer<S> + DescribeContainer,
 {
 }
-/// Container [default](DefaultContainer) and IO behavior of a [`Container`].
+/// Container [default](DefaultContainer) and save/open behavior of a [`Container`].
 #[async_trait]
 pub trait PersistContainer<S: ContentStore>: Send + DefaultContainer<S> {
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<Self, StoreError>;
