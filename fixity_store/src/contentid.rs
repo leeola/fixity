@@ -1,13 +1,9 @@
 pub mod multihash_256;
 
-use crate::{
-    deser::{Deserialize, Serialize},
-    type_desc::{TypeDescription, ValueDesc},
-};
+use crate::deser::{Deserialize, Serialize};
 use multibase::Base;
 use multihash::MultihashDigest;
 use std::{
-    any::TypeId,
     convert::TryFrom,
     fmt::{Debug, Display},
     hash::Hash,
@@ -17,7 +13,7 @@ use thiserror::Error;
 pub const CID_LENGTH: usize = 36;
 
 pub trait NewContentId:
-    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
 {
     type Hash<'a>: AsRef<[u8]>;
     /// Hash the given bytes and producing a content identifier.
@@ -69,15 +65,6 @@ impl<const N: usize> ContentId for Cid<N> {
     }
     fn len(&self) -> usize {
         self.0.len()
-    }
-}
-impl<const N: usize> TypeDescription for Cid<N> {
-    fn type_desc() -> ValueDesc {
-        ValueDesc::Struct {
-            name: "Cid",
-            type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::of::<[u8; N]>()],
-        }
     }
 }
 impl NewContentId for Cid<CID_LENGTH> {

@@ -7,14 +7,14 @@ use std::{
 use async_trait::async_trait;
 use fixity_store::{
     container::{
-        ContainerV4, DefaultContainer, DescribeContainer, PersistContainer, ReconcileContainer,
+        ContainerDescription, DefaultContainer, DescribeContainer, PersistContainer,
+        ReconcileContainer,
     },
     content_store::ContentStore,
     contentid::Cid,
     deser_store::deser_store_v4::DeserExt,
     replicaid::Rid,
     store::StoreError,
-    type_desc::{TypeDescription, ValueDesc},
 };
 
 const DEFAULT_BRANCH: &str = "main";
@@ -62,32 +62,12 @@ where
         self.clean = self.clean | modified;
     }
 }
-impl<S> TypeDescription for ReplicaLog<S> {
-    fn type_desc() -> ValueDesc {
-        ValueDesc::Struct {
-            name: "ReplicaLog",
-            // type_id: TypeId::of::<ReplicaLog<S>>(),
-            // FIXME: Inaccurate, but the S lifetime is causing problems with TypeId :grim:
-            type_id: TypeId::of::<LogEntry>(),
-            // FIXME: Inaccurate, reflects old replicalog generic design.
-            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
-        }
-    }
-}
-// TODO: Actually impl. I've yet to solidify type description.
 impl<S> DescribeContainer for ReplicaLog<S> {
-    fn container_desc() -> ValueDesc {
-        ValueDesc::Struct {
+    fn description() -> ContainerDescription {
+        ContainerDescription {
             name: "ReplicaLog",
-            // type_id: TypeId::of::<ReplicaLog<S>>(),
-            // FIXME: Inaccurate, but the S lifetime is causing problems with TypeId :grim:
-            type_id: TypeId::of::<LogEntry>(),
-            // FIXME: Inaccurate, reflects old replicalog generic design.
-            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
+            params: Default::default(),
         }
-    }
-    fn deser_desc() -> ValueDesc {
-        Self::container_desc()
     }
 }
 // // TODO: Placeholder for signature chain. Need to mock up
@@ -117,15 +97,6 @@ pub struct LogEntry {
     // TODO: Move to a ptr, as this data doesn't need to be stored in with active data.
     // pub identity: Option<Cid>,
     pub identity: Option<Identity>,
-}
-impl TypeDescription for LogEntry {
-    fn type_desc() -> ValueDesc {
-        ValueDesc::Struct {
-            name: "ReplicaLog",
-            type_id: TypeId::of::<LogEntry>(),
-            values: vec![ValueDesc::of::<Rid>(), ValueDesc::of::<Cid>()],
-        }
-    }
 }
 /// Default state of selected repo/branch for stateless use cases, like CLI or app warmups.
 ///
@@ -177,19 +148,6 @@ pub struct Branches {
     // pub branches: Option<Cid>,
     pub branches: BTreeMap<String, Cid>,
 }
-impl TypeDescription for Branches {
-    fn type_desc() -> ValueDesc {
-        ValueDesc::Struct {
-            name: "Branches",
-            type_id: TypeId::of::<Self>(),
-            values: vec![
-                ValueDesc::of::<String>(),
-                ValueDesc::of::<Cid>(),
-                ValueDesc::of::<BTreeMap<String, Cid>>(),
-            ],
-        }
-    }
-}
 #[cfg_attr(
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
@@ -198,15 +156,6 @@ impl TypeDescription for Branches {
 pub struct Identity {
     pub claimed_replicas: BTreeSet<Rid>,
     // pub metadata: CrdtMap<String, Value>
-}
-impl TypeDescription for Identity {
-    fn type_desc() -> ValueDesc {
-        ValueDesc::Struct {
-            name: "Identity",
-            type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::of::<BTreeSet<Rid>>()],
-        }
-    }
 }
 impl<S> DefaultContainer<S> for ReplicaLog<S> {
     fn default_container(store: &Arc<S>) -> ReplicaLog<S> {

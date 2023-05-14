@@ -4,11 +4,10 @@ use std::{
 };
 
 use crate::{
-    container::ContainerV4,
+    container::{ContainerDescription, ContainerV4, DescribeContainer},
     content_store::ContentStore,
     contentid::Cid,
     store::StoreError,
-    type_desc::{TypeDescription, ValueDesc},
 };
 use async_trait::async_trait;
 
@@ -128,11 +127,11 @@ where
         self.container.diff(&self.store, other).await
     }
 }
-impl<'s, T, S> TypeDescription for WithStore<'s, T, S>
+impl<'s, T, S> DescribeContainer for WithStore<'s, T, S>
 where
-    T: TypeDescription,
+    T: DescribeContainer,
 {
-    fn type_desc() -> ValueDesc {
-        T::type_desc()
+    fn description() -> ContainerDescription {
+        T::description()
     }
 }

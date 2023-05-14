@@ -3,7 +3,6 @@ use crate::{
     contentid::Cid,
     deser_store::deser_store_v4::{Deserialize, Serialize},
     store::StoreError,
-    type_desc::{TypeDescription, ValueDesc},
     DeserExt,
 };
 use async_trait::async_trait;
@@ -15,15 +14,14 @@ use std::sync::Arc;
 /// By splitting the behaviors into sub-traits, we can automatically implement sections of
 /// containers behavior in certain situations.
 #[async_trait]
-pub trait ContainerV4<S: ContentStore>: PersistContainer<S> + ReconcileContainer<S>
-// TODO: Re-enable container description once the TypeDescription impl is better defined.
-//  + DescribeContainer
+pub trait ContainerV4<S: ContentStore>:
+    PersistContainer<S> + ReconcileContainer<S> + DescribeContainer
 {
 }
 impl<T, S> ContainerV4<S> for T
 where
     S: ContentStore,
-    T: PersistContainer<S> + ReconcileContainer<S>, // + DescribeContainer,
+    T: PersistContainer<S> + ReconcileContainer<S> + DescribeContainer,
 {
 }
 /// Container [default](DefaultContainer) and IO behavior of a [`Container`].
@@ -87,30 +85,15 @@ pub trait ReconcileContainer<S: ContentStore>: Sized + Send {
 /// Describe the type signature of the container and any [de]serialized types the container writes
 /// to the store.
 pub trait DescribeContainer {
-    fn container_desc() -> ValueDesc;
-    /// A description of the [de]serialized type(s) that this container manages.
-    ///
-    /// Used to determine / validate Fixity repository types.
-    ///
-    /// This is in contrast to the `Container: TypeDescription` bound for `Self`,
-    /// which describes the `Container` itself - which may or may not be what is written
-    /// to stores.
-    fn deser_desc() -> ValueDesc;
+    fn description() -> ContainerDescription;
 }
-// NIT: Not convinced this is the correct implementation. The attempt is an assumption over
-// conditions of Self where if true, then the Self is the same value being [de]serialized. Given the
-// right condition it seems sane to assume Self is the same thing being written, but perhaps there's
-// edge cases where this will be problematic/annoying/incorrect.
-impl<T> DescribeContainer for T
-where
-    T: TypeDescription + Serialize + Deserialize,
-{
-    fn container_desc() -> ValueDesc {
-        Self::type_desc()
-    }
-    fn deser_desc() -> ValueDesc {
-        Self::type_desc()
-    }
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ContainerDescription {
+    pub name: &'static str,
+    // NIT: Ideally this would be a const array, but nesting them is awkward (maybe impossible?) in
+    // the current type system without entirely obfuscating a standard type like
+    // ContainerDescription.
+    pub params: Vec<ContainerDescription>,
 }
 // // TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
 // // Notably i'd really like to make the `Ref` type borrowed from whatever returned value

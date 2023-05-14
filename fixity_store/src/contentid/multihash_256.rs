@@ -1,5 +1,3 @@
-use crate::type_desc::{TypeDescription, ValueDesc};
-
 use super::{FromHashError, NewContentId};
 use multibase::Base;
 use multihash::MultihashDigest;
@@ -41,20 +39,6 @@ impl NewContentId for Multihash256 {
     }
     fn size(&self) -> usize {
         self.0.len()
-    }
-}
-impl TypeDescription for Multihash256 {
-    fn type_desc() -> ValueDesc {
-        // TODO: use the inner TypeDescription impls ..
-        ValueDesc::Struct {
-            name: "Multihash256",
-            type_id: TypeId::of::<Multihash256>(),
-            values: vec![ValueDesc::Array {
-                value: Box::new(ValueDesc::Number(TypeId::of::<u8>())),
-                type_id: TypeId::of::<<Self as NewContentId>::Hash<'_>>(),
-                len: MULTIHASH_256_LEN,
-            }],
-        }
     }
 }
 impl Debug for Multihash256 {

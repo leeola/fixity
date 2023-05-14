@@ -1,7 +1,6 @@
 use crate::{
     contentid::ContentId,
     deser::{Deserialize, Serialize},
-    type_desc::{TypeDescription, ValueDesc},
 };
 use std::{
     any::TypeId,
@@ -13,8 +12,9 @@ use thiserror::Error;
 pub trait RandReplicaBuf {
     fn new(&mut self, len: usize) -> Vec<u8>;
 }
+// TODO: Add Container impls?
 pub trait NewReplicaId:
-    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static + TypeDescription
+    Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
 {
     type Buf<'a>: AsRef<[u8]>;
     fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError>;
@@ -75,20 +75,6 @@ impl<const N: usize> NewReplicaId for Rid<N> {
     }
     fn len(&self) -> usize {
         self.0.len()
-    }
-}
-impl<const N: usize> TypeDescription for Rid<N> {
-    fn type_desc() -> ValueDesc {
-        // TODO: use the inner TypeDescription impls ..
-        ValueDesc::Struct {
-            name: "Rid",
-            type_id: TypeId::of::<Self>(),
-            values: vec![ValueDesc::Array {
-                value: Box::new(ValueDesc::Number(TypeId::of::<u8>())),
-                type_id: TypeId::of::<<Self as NewReplicaId>::Buf<'_>>(),
-                len: N,
-            }],
-        }
     }
 }
 impl Default for Rid<DEFAULT_RID_LENGTH>
