@@ -47,7 +47,7 @@ where
         .await
     }
 }
-impl<M, S> Fixity<M, S> {
+impl Fixity<Memory<Cid>, Memory<Cid>> {
     /// Construct a new, **in memory only** instance
     pub fn memory() -> Fixity<Memory<Cid>, Memory<Cid>> {
         Fixity {
@@ -160,32 +160,29 @@ impl<M, S, T> DerefMut for RepoReplica<M, S, T> {
 }
 #[cfg(test)]
 pub mod test {
-    /*
     use super::*;
     #[tokio::test]
     async fn basic_mutation() {
         use fixity_store::replicaid::Rid;
         let rid = Rid::default();
-        let mut repo_a = Fixity::memory()
-            .open::<String>("foo", "main", rid)
-            .await
-            .unwrap();
-        let t = repo_a.deref_mut().await.unwrap();
-        *t = String::from("value");
-        let head_a = repo_a.commit().await.unwrap();
-        dbg!(head_a);
-        {
-            let mut branch = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-            let t = branch.inner().await.unwrap();
-            assert_eq!("value", t);
-        }
-        let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
-        let t = repo_b.inner_mut().await.unwrap();
-        assert_eq!("", t);
-        *t = String::from("value");
-        let head_b = repo_b.commit().await.unwrap();
-        assert_eq!(head_a, head_b);
+        let mut repo_a = Fixity::memory().open::<String>("foo", rid).await.unwrap();
+        // let t = repo_a.deref_mut().await.unwrap();
+        // *t = String::from("value");
+        // let head_a = repo_a.commit().await.unwrap();
+        // dbg!(head_a);
+        // {
+        //     let mut branch = fixi.branch::<String>("foo", "main", rid).await.unwrap();
+        //     let t = branch.inner().await.unwrap();
+        //     assert_eq!("value", t);
+        // }
+        // let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
+        // let t = repo_b.inner_mut().await.unwrap();
+        // assert_eq!("", t);
+        // *t = String::from("value");
+        // let head_b = repo_b.commit().await.unwrap();
+        // assert_eq!(head_a, head_b);
     }
+    /*
     #[tokio::test]
     async fn reports_inner_cid() {
         use fixity_store::replicaid::Rid;

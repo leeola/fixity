@@ -82,6 +82,32 @@ pub trait ReconcileContainer<S: ContentStore>: Sized + Send {
     // return a different type where that makes sense.
     async fn diff(&mut self, store: &Arc<S>, other: &Cid) -> Result<Self, StoreError>;
 }
+#[async_trait]
+impl<S> ReconcileContainer<S> for String
+where
+    S: ContentStore,
+{
+    async fn merge(&mut self, _: &Arc<S>, _: &Cid) -> Result<(), StoreError> {
+        Err(StoreError::UnmergableType)
+    }
+    async fn diff(&mut self, _: &Arc<S>, _: &Cid) -> Result<Self, StoreError> {
+        // NIT: Maybe not true for simple types, but we'd have to pick an algo to diff a string
+        // and assuming one seems wrong.
+        Err(StoreError::UndiffableType)
+    }
+}
+// #[macro_export]
+// macro_rules! impl_not_reconcilable {
+//     ( $type:ty ) => {
+//         {
+//             let mut p = Path::new();
+//             $(
+//                 p.push_map($x);
+//             )*
+//             p
+//         }
+//     };
+// }
 /// Describe the type signature of the container and any [de]serialized types the container writes
 /// to the store.
 pub trait DescribeContainer {
@@ -94,6 +120,14 @@ pub struct ContainerDescription {
     // the current type system without entirely obfuscating a standard type like
     // ContainerDescription.
     pub params: Vec<ContainerDescription>,
+}
+impl DescribeContainer for String {
+    fn description() -> ContainerDescription {
+        ContainerDescription {
+            name: std::any::type_name::<Self>(),
+            params: Default::default(),
+        }
+    }
 }
 // // TODO: revisit before new usage. Make a v4 version, any desired changes, etc.
 // // Notably i'd really like to make the `Ref` type borrowed from whatever returned value
@@ -121,15 +155,3 @@ impl<Owned> ContainerRefInto<Owned> for Owned {
         Ok(self)
     }
 }
-// #[macro_export]
-// macro_rules! impl_not_reconcilable {
-//     ( $type:ty ) => {
-//         {
-//             let mut p = Path::new();
-//             $(
-//                 p.push_map($x);
-//             )*
-//             p
-//         }
-//     };
-// }
