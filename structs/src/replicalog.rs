@@ -40,8 +40,13 @@ impl<S> ReplicaLog<S>
 where
     S: ContentStore,
 {
-    pub fn repo_tip(&self, repo: &str) -> Option<Cid> {
-        todo!()
+    pub fn repo_tip(&self, repo_name: &str) -> Option<Cid> {
+        self.tip
+            .repos
+            .repos
+            .get(repo_name)
+            .map(|repo| repo.branch_tip)
+            .clone()
     }
     pub fn set_repo_tip(&mut self, repo: &str, cid: Cid) {
         let modified = match self.tip.repos.repos.entry(repo.to_string()) {
