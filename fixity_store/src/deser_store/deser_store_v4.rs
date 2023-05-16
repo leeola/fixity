@@ -110,7 +110,7 @@ mod rkyv {
 
     impl<T> Serialize for T
     where
-        T: rkyv::Archive + rkyv::Serialize<AllocSerializer<256>> + Send + Sync + 'static,
+        T: rkyv::Archive + rkyv::Serialize<AllocSerializer<256>>,
         T::Archived: rkyv::Deserialize<T, Infallible>,
     {
         type Bytes = AlignedVec;
