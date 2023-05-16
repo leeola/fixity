@@ -20,6 +20,13 @@ pub trait NewContentId:
     fn hash(buf: &[u8]) -> Self;
     /// Construct a content identifier from the given hash.
     fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError>;
+    /// Encode this `ContentId` as a string.
+    fn encode(&self) -> String;
+    /// Construct a `ContentId` from an encoded string. The encoding is expected to be that of it's
+    /// own construction, aka the returned value of [`Self::encode`].
+    //
+    // TODO: Error type? :thinking:
+    fn decode(encoded: &str) -> Result<Self, FromHashError>;
     fn as_hash(&self) -> Self::Hash<'_>;
     fn size(&self) -> usize {
         self.as_hash().as_ref().len()
@@ -81,6 +88,13 @@ impl NewContentId for Cid<CID_LENGTH> {
     fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError> {
         let arr = <[u8; CID_LENGTH]>::try_from(hash).map_err(|_| FromHashError::Length)?;
         Ok(Self(arr))
+    }
+    fn encode(&self) -> String {
+        multibase::encode(Base::Base58Btc, self.as_hash())
+    }
+    fn decode(encoded: &str) -> Result<Self, FromHashError> {
+        let (_, buf) = multibase::decode(encoded).unwrap();
+        <Self as NewContentId>::from_hash(buf)
     }
     fn as_hash(&self) -> Self::Hash<'_> {
         &self.0

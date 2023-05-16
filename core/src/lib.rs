@@ -161,15 +161,21 @@ impl<M, S, T> DerefMut for RepoReplica<M, S, T> {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use fixity_store::contentid::NewContentId;
+
     #[tokio::test]
     async fn basic_mutation() {
         use fixity_store::replicaid::Rid;
         let rid = Rid::default();
         let mut repo_a = Fixity::memory().open::<String>("foo", rid).await.unwrap();
-        // let t = repo_a.deref_mut().await.unwrap();
-        // *t = String::from("value");
-        // let head_a = repo_a.commit().await.unwrap();
-        // dbg!(head_a);
+        let t = repo_a.deref_mut();
+        *t = String::from("value");
+        let tip_a = repo_a.commit().await.unwrap();
+        dbg!(tip_a);
+        assert_eq!(
+            tip_a,
+            Cid::decode("z2DrjgbEQUqvwxzXvMhf4aTFEevdwMr8sQ62V4VP4fDNZRXWKxn").unwrap()
+        );
         // {
         //     let mut branch = fixi.branch::<String>("foo", "main", rid).await.unwrap();
         //     let t = branch.inner().await.unwrap();

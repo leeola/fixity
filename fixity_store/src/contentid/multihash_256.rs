@@ -3,10 +3,7 @@ use multibase::Base;
 use multihash::MultihashDigest;
 #[cfg(feature = "serde")]
 use serde_big_array::BigArray;
-use std::{
-    any::TypeId,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 
 const MULTIHASH_256_LEN: usize = 34;
 const MULTIBASE_ENCODE: Base = Base::Base58Btc;
@@ -39,6 +36,13 @@ impl NewContentId for Multihash256 {
     }
     fn size(&self) -> usize {
         self.0.len()
+    }
+    fn encode(&self) -> String {
+        multibase::encode(Base::Base58Btc, self.as_hash())
+    }
+    fn decode(encoded: &str) -> Result<Self, FromHashError> {
+        let (_, buf) = multibase::decode(encoded).unwrap();
+        <Self as NewContentId>::from_hash(buf)
     }
 }
 impl Debug for Multihash256 {
