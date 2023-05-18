@@ -103,6 +103,11 @@ impl NewContentId for Cid<CID_LENGTH> {
         self.0.len()
     }
 }
+impl<const N: usize> Default for Cid<N> {
+    fn default() -> Self {
+        Self([0; N])
+    }
+}
 impl<const N: usize> Debug for Cid<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // PERF: Can we fork multibase to make a non-allocating display? I would think
