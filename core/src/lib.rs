@@ -155,51 +155,43 @@ impl<M, S, T> Deref for RepoReplica<M, S, T> {
 }
 impl<M, S, T> DerefMut for RepoReplica<M, S, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.clean = false;
         &mut self.container
     }
 }
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use fixity_store::contentid::NewContentId;
 
     #[tokio::test]
     async fn basic_mutation() {
         use fixity_store::replicaid::Rid;
         let rid = Rid::default();
-        let mut repo_a = Fixity::memory().open::<String>("foo", rid).await.unwrap();
-        let t = repo_a.deref_mut();
-        *t = String::from("value");
-        let tip_a = repo_a.commit().await.unwrap();
-        dbg!(tip_a);
-        assert_eq!(
-            tip_a,
-            Cid::decode("z2DrjgbEQUqvwxzXvMhf4aTFEevdwMr8sQ62V4VP4fDNZRXWKxn").unwrap()
-        );
-        // {
-        //     let mut branch = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-        //     let t = branch.inner().await.unwrap();
-        //     assert_eq!("value", t);
-        // }
-        // let mut repo_b = fixi.branch::<String>("bar", "main", rid).await.unwrap();
-        // let t = repo_b.inner_mut().await.unwrap();
-        // assert_eq!("", t);
-        // *t = String::from("value");
-        // let head_b = repo_b.commit().await.unwrap();
-        // assert_eq!(head_a, head_b);
-    }
-    /*
-    #[tokio::test]
-    async fn reports_inner_cid() {
-        use fixity_store::replicaid::Rid;
-        let rid = Rid::<8>::default();
+        let repo_name = "repo name";
         let fixi = Fixity::memory();
-        let mut repo = fixi.branch::<String>("foo", "main", rid).await.unwrap();
-        let head_foo_a = repo.commit_value("foo").await.unwrap();
-        let head_bar = repo.commit_value("bar").await.unwrap();
-        assert_ne!(head_foo_a, head_bar);
-        let head_foo_b = repo.commit_value("foo").await.unwrap();
-        assert_eq!(head_foo_a, head_foo_b);
+        // TODO: Snapshot Cids, maybe?
+        let cida = {
+            let mut repo = fixi.open::<String>(repo_name, rid).await.unwrap();
+            let t = repo.deref_mut();
+            *t = String::from("foo");
+            let cida = repo.commit().await.unwrap();
+            dbg!(cida)
+        };
+        let cidb = {
+            let mut repo = fixi.open::<String>(repo_name, rid).await.unwrap();
+            let t = repo.deref_mut();
+            assert_eq!(t, "foo");
+            *t = String::from("bar");
+            let cidb = repo.commit().await.unwrap();
+            cidb
+        };
+        assert_ne!(cida, cidb, "different content should have a different cid");
+
+        let mut repo = fixi.open::<String>(repo_name, rid).await.unwrap();
+        let t = repo.deref_mut();
+        assert_eq!(t, "bar");
+        *t = String::from("foo");
+        let cidc = repo.commit().await.unwrap();
+        assert_eq!(cida, cidc, "same content should have the same cid");
     }
-    */
 }
