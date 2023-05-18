@@ -23,6 +23,10 @@ const DEFAULT_BRANCH: &str = "main";
 /// Replica. non-CRDT.
 #[derive(Debug)]
 pub struct ReplicaLog<S> {
+    /// Tracking mutations accurate to ReplicaLog helps prevent (hopefully entirely?) false appends
+    /// onto the log. Ie where the caller thinks that there _might_ have been a mutation, like
+    /// a mutable borrow on a container, but when the Tip is written it turns out to be the
+    /// same Cid as the previous Tip.
     clean: bool,
     // NIT: Not sure if conceptually i want this to be the tip or the head.
     // The difference being, do we allow a user to checkout an arbitrary point making this the head
@@ -64,7 +68,7 @@ where
                 modified
             },
         };
-        self.clean = self.clean | modified;
+        self.clean = self.clean && !modified;
     }
 }
 impl<S> DescribeContainer for ReplicaLog<S> {
@@ -261,5 +265,23 @@ pub mod test {
         rl.set_repo_tip("foo", 2.into());
         let cid = rl.save(&store).await.unwrap();
         dbg!(cid, &rl);
+    }
+    #[tokio::test]
+    async fn set_repo_tip() {
+        let store = Arc::new(Memory::default());
+        let mut rl = ReplicaLog::default_container(&store);
+        assert!(rl.clean);
+        assert_eq!(rl.repo_tip("foo"), None);
+        rl.set_repo_tip("foo", 1.into());
+        assert!(!rl.clean);
+        assert_eq!(rl.repo_tip("foo"), Some(Cid::from(1)));
+        rl.save(&store).await.unwrap();
+        assert!(rl.clean);
+        rl.set_repo_tip("foo", 1.into());
+        assert_eq!(rl.repo_tip("foo"), Some(Cid::from(1)));
+        assert!(rl.clean);
+        rl.set_repo_tip("foo", 2.into());
+        assert_eq!(rl.repo_tip("foo"), Some(Cid::from(2)));
+        assert!(!rl.clean);
     }
 }
