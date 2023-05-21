@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    container::{ContainerDescription, ContainerV4, DescribeContainer},
+    container::{Container, ContainerDescription, DescribeContainer},
     content_store::ContentStore,
     contentid::Cid,
     store::StoreError,
@@ -16,21 +16,21 @@ pub trait ContainerStoreExt<S>
 where
     S: ContentStore,
 {
-    fn new_container<T: ContainerV4<S>>(&self) -> WithStore<T, S>;
-    async fn open<T: ContainerV4<S>>(&self, cid: &Cid) -> Result<WithStore<T, S>, StoreError>;
+    fn new_container<T: Container<S>>(&self) -> WithStore<T, S>;
+    async fn open<T: Container<S>>(&self, cid: &Cid) -> Result<WithStore<T, S>, StoreError>;
 }
 #[async_trait]
 impl<S> ContainerStoreExt<S> for Arc<S>
 where
     S: ContentStore,
 {
-    fn new_container<T: ContainerV4<S>>(&self) -> WithStore<'_, T, S> {
+    fn new_container<T: Container<S>>(&self) -> WithStore<'_, T, S> {
         WithStore {
             container: T::default_container(self),
             store: self,
         }
     }
-    async fn open<T: ContainerV4<S>>(&self, cid: &Cid) -> Result<WithStore<T, S>, StoreError> {
+    async fn open<T: Container<S>>(&self, cid: &Cid) -> Result<WithStore<T, S>, StoreError> {
         let container = T::open(self, cid).await?;
         Ok(WithStore {
             container,
@@ -62,7 +62,7 @@ impl<'s, T, S> DerefMut for WithStore<'s, T, S> {
 #[async_trait]
 pub trait ContainerWithStore: Send {
     type Store: ContentStore;
-    type Container: ContainerV4<Self::Store>;
+    type Container: Container<Self::Store>;
     // fn deser_type_desc() -> ValueDesc;
     async fn save(&mut self) -> Result<Cid, StoreError>;
     async fn save_with_cids(&mut self, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError>;
@@ -71,7 +71,7 @@ pub trait ContainerWithStore: Send {
 }
 /// A glue trait to borrow a container and store, allowing for an automatic implementation of
 /// [`ContainerWithStore`] for any [`Container`] that also contains a store.
-pub trait AsContainerAndStore: ContainerV4<Self::Store> + Sync {
+pub trait AsContainerAndStore: Container<Self::Store> + Sync {
     type Store: ContentStore;
     fn as_container_store(&mut self) -> (&mut Self, &Arc<Self::Store>);
 }
@@ -106,7 +106,7 @@ where
 #[async_trait]
 impl<'s, T, S> ContainerWithStore for WithStore<'s, T, S>
 where
-    T: ContainerV4<S>,
+    T: Container<S>,
     S: ContentStore,
 {
     type Store = S;

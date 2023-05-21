@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use fixity_store::{
-    container::{ContainerV4, DefaultContainer, PersistContainer},
+    container::{Container, DefaultContainer, PersistContainer},
     content_store::ContentStore,
     contentid::Cid,
     meta_store::{MetaStore, MetaStoreError},
@@ -35,7 +35,7 @@ where
     }
     pub async fn open<T>(&self, repo: &str, replica_id: Rid) -> Result<RepoReplica<M, S, T>, Error>
     where
-        T: ContainerV4<S>,
+        T: Container<S>,
     {
         // TODO: check stored repo type.
         RepoReplica::<M, S, T>::new_open(
@@ -91,7 +91,7 @@ impl<M, S, T> RepoReplica<M, S, T>
 where
     S: ContentStore,
     M: MetaStore,
-    T: ContainerV4<S>,
+    T: Container<S>,
 {
     pub async fn new_open(
         meta: Arc<M>,

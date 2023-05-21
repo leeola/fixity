@@ -14,11 +14,11 @@ use std::sync::Arc;
 /// By splitting the behaviors into sub-traits, we can automatically implement sections of
 /// containers behavior in certain situations.
 #[async_trait]
-pub trait ContainerV4<S: ContentStore>:
+pub trait Container<S: ContentStore>:
     PersistContainer<S> + ReconcileContainer<S> + DescribeContainer
 {
 }
-impl<T, S> ContainerV4<S> for T
+impl<T, S> Container<S> for T
 where
     S: ContentStore,
     T: PersistContainer<S> + ReconcileContainer<S> + DescribeContainer,
