@@ -42,19 +42,6 @@ pub enum FromHashError {
     Length,
 }
 
-pub trait ContentId:
-    Clone + Sized + Send + Sync + Eq + Ord + AsRef<[u8]> + Debug + Display
-{
-    fn from_hash(hash: Vec<u8>) -> Option<Self>;
-    fn len(&self) -> usize;
-    fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-    /// Encode this `ContentId` as a string.
-    fn encode(&self) -> String {
-        multibase::encode(Base::Base58Btc, self.as_bytes())
-    }
-}
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 // TODO: Serde doesn't impl for const :(. Can i impl manually perhaps?
 // #[cfg(feature = "serde")]
@@ -64,14 +51,6 @@ pub trait ContentId:
     derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
 )]
 pub struct Cid(CidArray);
-impl ContentId for Cid {
-    fn from_hash(hash: Vec<u8>) -> Option<Self> {
-        CidArray::try_from(hash).ok().map(Self)
-    }
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
 impl NewContentId for Cid {
     type Hash<'a> = &'a CidArray;
     fn hash(buf: &[u8]) -> Self {
@@ -139,13 +118,13 @@ impl PartialEq<CidArray> for Cid {
         &self.0 == other
     }
 }
-pub trait ContainedCids<Cid: ContentId> {
+pub trait ContainedCids<Cid: NewContentId> {
     fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Cid> + Send + 'a>;
 }
 // NIT: Maybe move to a macro and explicitly impl for common types?
 impl<T, C> ContainedCids<C> for T
 where
-    C: ContentId,
+    C: NewContentId,
 {
     fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a C> + Send + 'a> {
         Box::new(std::iter::empty())

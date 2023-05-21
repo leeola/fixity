@@ -1,5 +1,5 @@
 use crate::{
-    contentid::ContentId,
+    contentid::NewContentId,
     replicaid::{NewReplicaId, Rid},
     storage::{MutStorage, StorageError},
 };
@@ -57,7 +57,7 @@ where
         limit: usize,
     ) -> Result<Vec<Log<Self::Rid, Cid>>, MetaStoreError<Self::Rid, Cid>>;
 }
-async fn get_cid_from_path<MS: MutStorage, Rid: NewReplicaId, Cid: ContentId>(
+async fn get_cid_from_path<MS: MutStorage, Rid: NewReplicaId, Cid: NewContentId>(
     ms: &MS,
     remote: &str,
     repo: &str,
@@ -91,7 +91,7 @@ async fn get_cid_from_path<MS: MutStorage, Rid: NewReplicaId, Cid: ContentId>(
         rid: Some(rid.clone()),
         message: format!("decoding head cid: {}", err).into_boxed_str(),
     })?;
-    Cid::from_hash(head_bytes).ok_or_else(|| MetaStoreError::Cid {
+    Cid::from_hash(head_bytes).map_err(|_| MetaStoreError::Cid {
         remote: Some(Box::from(remote)),
         repo: Some(Box::from(repo)),
         branch: Some(Box::from(branch)),
@@ -187,7 +187,7 @@ const MUT_CID_RID_ENCODING: Base = Base::Base32HexLower;
 impl<T, Cid> Meta<Cid> for T
 where
     T: MutStorage,
-    Cid: ContentId + 'static,
+    Cid: NewContentId + 'static,
 {
     type Rid = Rid<8>;
     async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>> {
@@ -249,7 +249,7 @@ where
                     branch: Some(Box::from(branch)),
                     message: format!("decoding rid: {}", err).into_boxed_str(),
                 })?;
-            let rid = Self::Rid::from_hash(rid_bytes).ok_or_else(|| MetaStoreError::Rid {
+            let rid = Self::Rid::from_buf(rid_bytes).map_err(|_| MetaStoreError::Rid {
                 remote: Some(Box::from(remote)),
                 repo: Some(Box::from(repo)),
                 branch: Some(Box::from(branch)),
@@ -267,7 +267,7 @@ where
         branch: &str,
         rid: &Self::Rid,
     ) -> Result<Cid, MetaStoreError<Self::Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_bytes());
+        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         get_cid_from_path(self, remote, repo, branch, rid, &path).await
     }
@@ -279,8 +279,8 @@ where
         rid: &Self::Rid,
         head: Cid,
     ) -> Result<(), MetaStoreError<Self::Rid, Cid>> {
-        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_bytes());
-        let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_bytes());
+        let replica = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
+        let head = multibase::encode(MUT_CID_RID_ENCODING, head.as_hash());
         let path = format!("{remote}/{repo}/{branch}/{replica}");
         self.put(path, head)
             .await
@@ -340,7 +340,7 @@ pub mod meta_mut_storage {
     #[rstest]
     #[case::test_storage(Memory::<Cid<4>>::default())]
     #[tokio::test]
-    async fn basic<S: Meta<Cid<4>, Rid = Rid<8>>>(#[case] s: S) {
+    async fn basic<S: Meta<Cid, Rid = Rid<8>>>(#[case] s: S) {
         let rida = Rid::from([10u8; 8]);
         let ridb = Rid::from([20u8; 8]);
         s.set_head("remote", "repo", "branch", &rida, [1u8; 4].into())

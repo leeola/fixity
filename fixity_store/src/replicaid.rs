@@ -1,7 +1,5 @@
-use crate::{
-    contentid::ContentId,
-    deser::{Deserialize, Serialize},
-};
+use crate::deser::{Deserialize, Serialize};
+use multibase::Base;
 use std::{
     any::TypeId,
     fmt::{Debug, Display},
@@ -21,6 +19,13 @@ pub trait NewReplicaId:
     /// Construct a replica identifier from the given buffer.
     fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError>;
     fn as_buf(&self) -> Self::Buf<'_>;
+    /// Encode this `ReplicaId` as a string.
+    fn encode(&self) -> String;
+    /// Construct a `ReplicaId` from an encoded string. The encoding is expected to be that of it's
+    /// own construction, aka the returned value of [`Self::encode`].
+    //
+    // TODO: Error type? :thinking:
+    fn decode(encoded: &str) -> Result<Self, FromBufError>;
     fn len(&self) -> usize {
         self.as_buf().as_ref().len()
     }
@@ -45,18 +50,13 @@ pub const DEFAULT_RID_LENGTH: usize = 32;
 #[derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 #[cfg(feature = "rkyv")]
 #[archive(compare(PartialEq, PartialOrd))]
+// FIXME: Derives should work.. right? But they weren't for some reason, so i impl'd manually.
+// #[cfg(feature = "rkyv")]
+// #[archive_attr(derive(Hash))]
 // #[cfg(feature = "rkyv")]
 // #[archive_attr(derive(From))]
 // TODO: Remove length param.
 pub struct Rid<const N: usize = DEFAULT_RID_LENGTH>([u8; N]);
-impl<const N: usize> ContentId for Rid<N> {
-    fn from_hash(hash: Vec<u8>) -> Option<Self> {
-        <[u8; N]>::try_from(hash).ok().map(Self)
-    }
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
 impl<const N: usize> NewReplicaId for Rid<N> {
     type Buf<'a> = &'a [u8; N];
     fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError> {
@@ -68,6 +68,13 @@ impl<const N: usize> NewReplicaId for Rid<N> {
     }
     fn as_buf(&self) -> Self::Buf<'_> {
         &self.0
+    }
+    fn encode(&self) -> String {
+        multibase::encode(Base::Base58Btc, self.as_buf())
+    }
+    fn decode(encoded: &str) -> Result<Self, FromBufError> {
+        let (_, buf) = multibase::decode(encoded).unwrap();
+        <Self as NewReplicaId>::from_buf(buf)
     }
     fn len(&self) -> usize {
         self.0.len()
@@ -87,7 +94,7 @@ impl<const N: usize> Debug for Rid<N> {
         // yes offhand, so i think this Display is okay for now - hoping that in the nearish
         // future we can provide an alt impl of encode that writes chars to the formatter
         // directly.
-        write!(f, "Rid<{}>({})", self.0.len(), self.encode())
+        write!(f, "Rid({})", self.encode())
     }
 }
 impl<const N: usize> Display for Rid<N> {
@@ -116,15 +123,9 @@ impl<const N: usize> PartialEq<[u8; N]> for Rid<N> {
 }
 #[cfg(feature = "rkyv")]
 mod rkyv_impls {
+    use std::hash::Hasher;
+
     use super::*;
-    impl<const N: usize> ContentId for ArchivedRid<N> {
-        fn from_hash(hash: Vec<u8>) -> Option<Self> {
-            <[u8; N]>::try_from(hash).ok().map(Self)
-        }
-        fn len(&self) -> usize {
-            self.0.len()
-        }
-    }
     impl<const N: usize> AsRef<[u8]> for ArchivedRid<N> {
         fn as_ref(&self) -> &[u8] {
             self.0.as_ref()
@@ -135,13 +136,41 @@ mod rkyv_impls {
             Self(self.0.clone())
         }
     }
+    impl<const N: usize> NewReplicaId for ArchivedRid<N> {
+        type Buf<'a> = &'a [u8; N];
+        fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError> {
+            Self::from_buf(rand.new(N))
+        }
+        fn from_buf(buf: Vec<u8>) -> Result<Self, FromBufError> {
+            let inner = <[u8; N]>::try_from(buf).map_err(|_| FromBufError::Length)?;
+            Ok(Self(inner))
+        }
+        fn as_buf(&self) -> Self::Buf<'_> {
+            &self.0
+        }
+        fn encode(&self) -> String {
+            multibase::encode(Base::Base58Btc, self.as_buf())
+        }
+        fn decode(encoded: &str) -> Result<Self, FromBufError> {
+            let (_, buf) = multibase::decode(encoded).unwrap();
+            <Self as NewReplicaId>::from_buf(buf)
+        }
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+    }
+    impl<const N: usize> Hash for ArchivedRid<N> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.0.hash(state);
+        }
+    }
     impl<const N: usize> Debug for ArchivedRid<N> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             // PERF: Can we fork multibase to make a non-allocating display? I would think
             // yes offhand, so i think this Display is okay for now - hoping that in the nearish
             // future we can provide an alt impl of encode that writes chars to the formatter
             // directly.
-            write!(f, "Rid<{}>({})", self.0.len(), self.encode())
+            write!(f, "Rid({})", self.encode())
         }
     }
     impl<const N: usize> Display for ArchivedRid<N> {
