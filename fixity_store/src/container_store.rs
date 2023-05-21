@@ -115,16 +115,16 @@ where
     //     T::deser_type_desc()
     // }
     async fn save(&mut self) -> Result<Cid, StoreError> {
-        self.container.save(&self.store).await
+        self.container.save(self.store).await
     }
     async fn save_with_cids(&mut self, cids_buf: &mut Vec<Cid>) -> Result<(), StoreError> {
-        self.container.save_with_cids(&self.store, cids_buf).await
+        self.container.save_with_cids(self.store, cids_buf).await
     }
     async fn merge(&mut self, other: &Cid) -> Result<(), StoreError> {
-        self.container.merge(&self.store, other).await
+        self.container.merge(self.store, other).await
     }
     async fn diff(&mut self, other: &Cid) -> Result<Self::Container, StoreError> {
-        self.container.diff(&self.store, other).await
+        self.container.diff(self.store, other).await
     }
 }
 impl<'s, T, S> DescribeContainer for WithStore<'s, T, S>

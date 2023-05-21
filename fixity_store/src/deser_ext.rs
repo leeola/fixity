@@ -1,7 +1,7 @@
 use crate::{
     content_store::ContentStore,
     contentid::{Cid, ContentId},
-    deser::{DeserError, Deserialize, Serialize},
+    deser::{Deserialize, Serialize},
     store::StoreError,
 };
 use async_trait::async_trait;

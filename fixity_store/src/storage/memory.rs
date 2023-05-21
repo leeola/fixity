@@ -25,7 +25,7 @@ where
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Content, StorageError> {
         let lock = self.content.lock().unwrap();
         let buf = lock.get(cid).unwrap();
-        Ok(Arc::clone(&buf))
+        Ok(Arc::clone(buf))
     }
     async fn write_unchecked<B>(&self, cid: Cid, bytes: B) -> Result<(), StorageError>
     where
@@ -91,7 +91,7 @@ where
     {
         let lock = self.mut_.lock().unwrap();
         let buf = lock.get(key.as_ref()).ok_or(StorageError::NotFound)?;
-        Ok(Arc::clone(&buf))
+        Ok(Arc::clone(buf))
     }
     async fn put<K, V>(&self, key: K, value: V) -> Result<(), StorageError>
     where

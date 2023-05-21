@@ -1,6 +1,5 @@
 use multibase::Base;
 use std::{
-    any::TypeId,
     fmt::{Debug, Display},
     hash::Hash,
 };
@@ -127,7 +126,7 @@ mod rkyv_impls {
     }
     impl<const N: usize> Clone for ArchivedRid<N> {
         fn clone(&self) -> Self {
-            Self(self.0.clone())
+            Self(self.0)
         }
     }
     impl<const N: usize> ReplicaId for ArchivedRid<N> {

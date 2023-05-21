@@ -1,6 +1,6 @@
-use crate::storage::StorageError;
+
 use async_trait::async_trait;
-use std::{ops::Deref, sync::Arc};
+use std::{sync::Arc};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

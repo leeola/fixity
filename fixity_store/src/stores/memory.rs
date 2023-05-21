@@ -12,6 +12,7 @@ use std::{
 
 /// A (currently) test focused in-memory only storage.
 #[derive(Debug)]
+#[derive(Default)]
 pub struct Memory {
     // TODO: change to faster concurrency primitives. At
     // the very least, RwLock instead of Mutex.
@@ -33,14 +34,14 @@ impl ContentStore for Memory {
     async fn read_unchecked(&self, cid: &Cid) -> Result<Self::Bytes, ContentStoreError> {
         let lock = self.bytes.lock().unwrap();
         let buf = lock.get(cid).unwrap();
-        Ok(Arc::clone(&buf))
+        Ok(Arc::clone(buf))
     }
     async fn write_unchecked<B>(&self, cid: &Cid, bytes: B) -> Result<(), ContentStoreError>
     where
         B: AsRef<[u8]> + Into<Arc<[u8]>> + Send,
     {
         let mut lock = self.bytes.lock().unwrap();
-        let _ = lock.insert(cid.clone(), bytes.into());
+        let _ = lock.insert(*cid, bytes.into());
         Ok(())
     }
 }
@@ -102,7 +103,7 @@ where
     {
         let lock = self.mut_.lock().unwrap();
         let buf = lock.get(key.as_ref()).ok_or(MutStoreError::NotFound)?;
-        Ok(Arc::clone(&buf))
+        Ok(Arc::clone(buf))
     }
     async fn put<K, V>(&self, key: K, value: V) -> Result<(), MutStoreError>
     where
@@ -114,14 +115,7 @@ where
         Ok(())
     }
 }
-impl Default for Memory {
-    fn default() -> Self {
-        Self {
-            bytes: Default::default(),
-            mut_: Default::default(),
-        }
-    }
-}
+
 /// A helper fn to page through a BTreeMap without hitting all the results delimited
 /// "folders".
 fn delim_cursor<V, R>(

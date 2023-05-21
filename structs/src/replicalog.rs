@@ -11,7 +11,6 @@ use fixity_store::{
     store::StoreError,
 };
 use std::{
-    any::TypeId,
     collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -49,7 +48,6 @@ where
             .repos
             .get(repo_name)
             .map(|repo| repo.branch_tip)
-            .clone()
     }
     pub fn set_repo_tip(&mut self, repo: &str, cid: Cid) {
         let modified = match self.tip.repos.repos.entry(repo.to_string()) {
@@ -181,7 +179,7 @@ where
     S: ContentStore,
 {
     async fn open(store: &Arc<S>, cid: &Cid) -> Result<ReplicaLog<S>, StoreError> {
-        let tip_cid = Some(cid.clone());
+        let tip_cid = Some(*cid);
         let tip = store.get_owned_unchecked::<LogEntry>(cid).await?;
         Ok(ReplicaLog {
             clean: true,
@@ -207,7 +205,7 @@ where
         entry.previous = previous;
         // TODO: standardized error, not initialized or something?
         let tip_cid = store.put(&*entry).await?;
-        self.tip_cid = Some(tip_cid.clone());
+        self.tip_cid = Some(tip_cid);
         self.clean = true;
         Ok(tip_cid)
     }
@@ -231,7 +229,7 @@ where
         store.put_with_cids(entry, cids_buf).await?;
         // TODO: add standardized error for cid missing from buf, store did not write to cid buf
         let tip_cid = cids_buf.last().cloned().unwrap();
-        self.tip_cid = Some(tip_cid.clone());
+        self.tip_cid = Some(tip_cid);
         self.clean = true;
         Ok(())
     }

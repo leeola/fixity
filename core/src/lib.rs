@@ -182,8 +182,8 @@ pub mod test {
             let t = repo.deref_mut();
             assert_eq!(t, "foo");
             *t = String::from("bar");
-            let cidb = repo.commit().await.unwrap();
-            cidb
+            
+            repo.commit().await.unwrap()
         };
         assert_ne!(cida, cidb, "different content should have a different cid");
 

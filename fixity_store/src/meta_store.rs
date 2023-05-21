@@ -33,13 +33,13 @@ async fn get_cid_from_path<MS: MutStore>(
     rid: &Rid,
     path: &str,
 ) -> Result<Cid, MetaStoreError> {
-    let cid_value = ms.get(&path).await.map_err(|err| match err {
+    let cid_value = ms.get(path).await.map_err(|err| match err {
         MutStoreError::NotFound => MetaStoreError::NotFound,
         err => MetaStoreError::Storage {
             remote: Some(String::from(remote)),
             repo: None,
             branch: None,
-            rid: Some(rid.clone()),
+            rid: Some(*rid),
             cid: None,
             err,
         },
@@ -49,21 +49,21 @@ async fn get_cid_from_path<MS: MutStore>(
             remote: Some(String::from(remote)),
             repo: None,
             branch: None,
-            rid: Some(rid.clone()),
+            rid: Some(*rid),
             message: format!("verifying cid utf8: {}", err),
         })?;
     let (_, head_bytes) = multibase::decode(encoded_cid).map_err(|err| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
         repo: None,
         branch: None,
-        rid: Some(rid.clone()),
+        rid: Some(*rid),
         message: format!("decoding head cid: {}", err),
     })?;
     Cid::from_hash(head_bytes).map_err(|_| MetaStoreError::Cid {
         remote: Some(String::from(remote)),
         repo: None,
         branch: None,
-        rid: Some(rid.clone()),
+        rid: Some(*rid),
         message: String::from("creating cid from head bytes"),
     })
 }
@@ -162,7 +162,7 @@ where
         let mut items = Vec::new();
         for path in paths {
             let encoded_rid = path.strip_prefix(&remote_path).unwrap();
-            let (_, rid_bytes) = multibase::decode(&encoded_rid).unwrap();
+            let (_, rid_bytes) = multibase::decode(encoded_rid).unwrap();
             let rid = Rid::from_buf(rid_bytes).unwrap();
             items.push(rid);
         }
@@ -171,7 +171,7 @@ where
     async fn head(&self, remote: &str, rid: &Rid) -> Result<Cid, MetaStoreError> {
         let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
         let path = format!("{remote}/{encoded_rid}");
-        let (_, rid_bytes) =
+        let (_, _rid_bytes) =
             multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::Rid {
                 remote: Some(String::from(remote)),
                 repo: None,
@@ -190,7 +190,7 @@ where
         for rid in replicas {
             let encoded_rid = multibase::encode(MUT_CID_RID_ENCODING, rid.as_buf());
             let path = format!("{remote}/{encoded_rid}");
-            let (_, rid_bytes) =
+            let (_, _rid_bytes) =
                 multibase::decode(&encoded_rid).map_err(|err| MetaStoreError::Rid {
                     remote: Some(String::from(remote)),
                     repo: None,
@@ -198,7 +198,7 @@ where
                     message: format!("decoding rid: {}", err),
                 })?;
             let head: Cid = get_cid_from_path(self, remote, rid, &path).await?;
-            heads.push((rid.clone(), head));
+            heads.push((*rid, head));
         }
         Ok(heads)
     }
@@ -212,7 +212,7 @@ where
                 remote: Some(String::from(remote)),
                 repo: None,
                 branch: None,
-                rid: Some(rid.clone()),
+                rid: Some(*rid),
                 cid: None,
                 err,
             })?;
