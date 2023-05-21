@@ -36,9 +36,6 @@ pub enum FromBufError {
     Length,
 }
 
-// TODO: Remove bounds, impl methods manually - so ReplicaId doesn't impl ContentId,
-// since they have no direct relation.
-pub trait ReplicaId: ContentId {}
 pub const DEFAULT_RID_LENGTH: usize = 32;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 // TODO: Serde doesn't impl for const :(. Can i impl manually perhaps?
@@ -52,7 +49,6 @@ pub const DEFAULT_RID_LENGTH: usize = 32;
 // #[archive_attr(derive(From))]
 // TODO: Remove length param.
 pub struct Rid<const N: usize = DEFAULT_RID_LENGTH>([u8; N]);
-impl<const N: usize> ReplicaId for Rid<N> {}
 impl<const N: usize> ContentId for Rid<N> {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
         <[u8; N]>::try_from(hash).ok().map(Self)
@@ -121,7 +117,6 @@ impl<const N: usize> PartialEq<[u8; N]> for Rid<N> {
 #[cfg(feature = "rkyv")]
 mod rkyv_impls {
     use super::*;
-    impl<const N: usize> ReplicaId for ArchivedRid<N> {}
     impl<const N: usize> ContentId for ArchivedRid<N> {
         fn from_hash(hash: Vec<u8>) -> Option<Self> {
             <[u8; N]>::try_from(hash).ok().map(Self)

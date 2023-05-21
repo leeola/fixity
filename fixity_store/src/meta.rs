@@ -1,6 +1,6 @@
 use crate::{
     contentid::ContentId,
-    replicaid::{ReplicaId, Rid},
+    replicaid::{NewReplicaId, Rid},
     storage::{MutStorage, StorageError},
 };
 use async_trait::async_trait;
@@ -13,7 +13,7 @@ pub trait Meta<Cid>: Send + Sync
 where
     Cid: Send + Sync + 'static,
 {
-    type Rid: ReplicaId + 'static;
+    type Rid: NewReplicaId + 'static;
     async fn repos(&self, remote: &str) -> Result<Vec<String>, MetaStoreError<Self::Rid, Cid>>;
     async fn branches(
         &self,
@@ -57,7 +57,7 @@ where
         limit: usize,
     ) -> Result<Vec<Log<Self::Rid, Cid>>, MetaStoreError<Self::Rid, Cid>>;
 }
-async fn get_cid_from_path<MS: MutStorage, Rid: ReplicaId, Cid: ContentId>(
+async fn get_cid_from_path<MS: MutStorage, Rid: NewReplicaId, Cid: ContentId>(
     ms: &MS,
     remote: &str,
     repo: &str,
