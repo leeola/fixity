@@ -47,12 +47,12 @@ where
         .await
     }
 }
-impl Fixity<Memory<Cid>, Memory<Cid>> {
+impl Fixity<Memory, Memory> {
     /// Construct a new, **in memory only** instance
-    pub fn memory() -> Fixity<Memory<Cid>, Memory<Cid>> {
+    pub fn memory() -> Fixity<Memory, Memory> {
         Fixity {
-            meta: Arc::new(Memory::<Cid>::default()),
-            store: Arc::new(Memory::<Cid>::default()),
+            meta: Arc::new(Memory::default()),
+            store: Arc::new(Memory::default()),
         }
     }
 }

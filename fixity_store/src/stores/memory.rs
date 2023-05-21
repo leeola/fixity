@@ -12,20 +12,20 @@ use std::{
 
 /// A (currently) test focused in-memory only storage.
 #[derive(Debug)]
-pub struct Memory<Cid> {
+pub struct Memory {
     // TODO: change to faster concurrency primitives. At
     // the very least, RwLock instead of Mutex.
     bytes: Mutex<HashMap<Cid, Arc<[u8]>>>,
     mut_: Mutex<BTreeMap<String, Arc<[u8]>>>,
 }
 #[cfg(any(test, feature = "test"))]
-impl Memory<Cid> {
+impl Memory {
     pub fn test() -> Self {
         Self::default()
     }
 }
 #[async_trait]
-impl ContentStore for Memory<Cid> {
+impl ContentStore for Memory {
     type Bytes = Arc<[u8]>;
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError> {
         Ok(self.bytes.lock().unwrap().contains_key(cid))
@@ -45,7 +45,7 @@ impl ContentStore for Memory<Cid> {
     }
 }
 #[async_trait]
-impl<Cid> MutStore for Memory<Cid>
+impl MutStore for Memory
 where
     Cid: Send,
 {
@@ -114,7 +114,7 @@ where
         Ok(())
     }
 }
-impl<C> Default for Memory<C> {
+impl Default for Memory {
     fn default() -> Self {
         Self {
             bytes: Default::default(),
