@@ -3,11 +3,9 @@
 pub mod container;
 pub mod contentid;
 pub mod deser;
-pub mod meta;
 pub mod replicaid;
 pub mod storage;
 pub mod store;
-pub use meta::Meta;
 pub use storage::{ContentStorage, MutStorage};
 pub mod container_store;
 pub mod content_store;
