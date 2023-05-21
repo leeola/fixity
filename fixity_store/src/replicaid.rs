@@ -11,7 +11,7 @@ pub trait RandReplicaBuf {
     fn new(&mut self, len: usize) -> Vec<u8>;
 }
 // TODO: Add Container impls?
-pub trait NewReplicaId:
+pub trait ReplicaId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
 {
     type Buf<'a>: AsRef<[u8]>;
@@ -30,11 +30,9 @@ pub trait NewReplicaId:
         self.as_buf().as_ref().len()
     }
 }
-pub trait ReplicaIdDeser<Deser>: NewReplicaId + Serialize<Deser> + Deserialize<Deser> {}
-impl<Deser, T> ReplicaIdDeser<Deser> for T where
-    T: NewReplicaId + Serialize<Deser> + Deserialize<Deser>
-{
-}
+pub trait ReplicaIdDeser<Deser>: ReplicaId + Serialize<Deser> + Deserialize<Deser> {}
+impl<Deser, T> ReplicaIdDeser<Deser> for T where T: ReplicaId + Serialize<Deser> + Deserialize<Deser>
+{}
 #[derive(Error, Debug)]
 pub enum FromBufError {
     #[error("invalid length")]
@@ -57,7 +55,7 @@ pub const DEFAULT_RID_LENGTH: usize = 32;
 // #[archive_attr(derive(From))]
 // TODO: Remove length param.
 pub struct Rid<const N: usize = DEFAULT_RID_LENGTH>([u8; N]);
-impl<const N: usize> NewReplicaId for Rid<N> {
+impl<const N: usize> ReplicaId for Rid<N> {
     type Buf<'a> = &'a [u8; N];
     fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError> {
         Self::from_buf(rand.new(N))
@@ -74,7 +72,7 @@ impl<const N: usize> NewReplicaId for Rid<N> {
     }
     fn decode(encoded: &str) -> Result<Self, FromBufError> {
         let (_, buf) = multibase::decode(encoded).unwrap();
-        <Self as NewReplicaId>::from_buf(buf)
+        <Self as ReplicaId>::from_buf(buf)
     }
     fn len(&self) -> usize {
         self.0.len()
@@ -136,7 +134,7 @@ mod rkyv_impls {
             Self(self.0.clone())
         }
     }
-    impl<const N: usize> NewReplicaId for ArchivedRid<N> {
+    impl<const N: usize> ReplicaId for ArchivedRid<N> {
         type Buf<'a> = &'a [u8; N];
         fn new<R: RandReplicaBuf>(rand: &mut R) -> Result<Self, FromBufError> {
             Self::from_buf(rand.new(N))
@@ -153,7 +151,7 @@ mod rkyv_impls {
         }
         fn decode(encoded: &str) -> Result<Self, FromBufError> {
             let (_, buf) = multibase::decode(encoded).unwrap();
-            <Self as NewReplicaId>::from_buf(buf)
+            <Self as ReplicaId>::from_buf(buf)
         }
         fn len(&self) -> usize {
             self.0.len()

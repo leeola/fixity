@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::{
     contentid::{Cid, ContentId},
     mut_store::{MutStore, MutStoreError},
-    replicaid::{NewReplicaId, Rid},
+    replicaid::{ReplicaId, Rid},
 };
 use async_trait::async_trait;
 use multibase::Base;
