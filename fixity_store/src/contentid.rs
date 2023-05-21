@@ -1,5 +1,3 @@
-pub mod multihash_256;
-
 use crate::deser::{Deserialize, Serialize};
 use multibase::Base;
 use multihash::MultihashDigest;
