@@ -1,8 +1,8 @@
 use crate::{
     content_store::ContentStore,
     contentid::Cid,
+    deser::{Deserialize, Serialize},
     deser_ext::DeserExt,
-    deser_store::deser_store_v4::{Deserialize, Serialize},
     store::StoreError,
 };
 use async_trait::async_trait;

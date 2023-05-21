@@ -10,15 +10,14 @@ pub mod store;
 pub use storage::{ContentStorage, MutStorage};
 pub mod container_store;
 pub mod content_store;
-pub mod deser_store;
 pub mod meta_store;
 pub mod mut_store;
 pub mod stores;
 pub mod prelude {
     pub use crate::{
         content_store::ContentStore,
+        deser::{Deserialize, Serialize},
         deser_ext::DeserExt,
-        deser_store::deser_store_v4::{Deserialize, Serialize},
         meta_store::MetaStore,
     };
 }
