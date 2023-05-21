@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    contentid::{Cid, NewContentId},
+    contentid::{Cid, ContentId},
     mut_store::{MutStore, MutStoreError},
     replicaid::{NewReplicaId, Rid},
 };

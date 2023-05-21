@@ -11,7 +11,7 @@ use thiserror::Error;
 const CID_LENGTH: usize = 36;
 type CidArray = [u8; CID_LENGTH];
 
-pub trait NewContentId:
+pub trait ContentId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
 {
     type Hash<'a>: AsRef<[u8]>;
@@ -31,11 +31,9 @@ pub trait NewContentId:
         self.as_hash().as_ref().len()
     }
 }
-pub trait ContentIdDeser<Deser>: NewContentId + Serialize<Deser> + Deserialize<Deser> {}
-impl<Deser, T> ContentIdDeser<Deser> for T where
-    T: NewContentId + Serialize<Deser> + Deserialize<Deser>
-{
-}
+pub trait ContentIdDeser<Deser>: ContentId + Serialize<Deser> + Deserialize<Deser> {}
+impl<Deser, T> ContentIdDeser<Deser> for T where T: ContentId + Serialize<Deser> + Deserialize<Deser>
+{}
 #[derive(Error, Debug)]
 pub enum FromHashError {
     #[error("invalid length")]
@@ -51,7 +49,7 @@ pub enum FromHashError {
     derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
 )]
 pub struct Cid(CidArray);
-impl NewContentId for Cid {
+impl ContentId for Cid {
     type Hash<'a> = &'a CidArray;
     fn hash(buf: &[u8]) -> Self {
         let multihash = multihash::Code::Blake2b256.digest(buf);
@@ -71,7 +69,7 @@ impl NewContentId for Cid {
     }
     fn decode(encoded: &str) -> Result<Self, FromHashError> {
         let (_, buf) = multibase::decode(encoded).unwrap();
-        <Self as NewContentId>::from_hash(buf)
+        <Self as ContentId>::from_hash(buf)
     }
     fn as_hash(&self) -> Self::Hash<'_> {
         &self.0
@@ -91,7 +89,7 @@ impl Debug for Cid {
         // yes offhand, so i think this Display is okay for now - hoping that in the nearish
         // future we can provide an alt impl of encode that writes chars to the formatter
         // directly.
-        write!(f, "Cid({})", NewContentId::encode(self))
+        write!(f, "Cid({})", ContentId::encode(self))
     }
 }
 impl Display for Cid {
@@ -100,7 +98,7 @@ impl Display for Cid {
         // yes offhand, so i think this Display is okay for now - hoping that in the nearish
         // future we can provide an alt impl of encode that writes chars to the formatter
         // directly.
-        write!(f, "{}", NewContentId::encode(self))
+        write!(f, "{}", ContentId::encode(self))
     }
 }
 impl AsRef<[u8]> for Cid {
@@ -118,13 +116,13 @@ impl PartialEq<CidArray> for Cid {
         &self.0 == other
     }
 }
-pub trait ContainedCids<Cid: NewContentId> {
+pub trait ContainedCids<Cid: ContentId> {
     fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Cid> + Send + 'a>;
 }
 // NIT: Maybe move to a macro and explicitly impl for common types?
 impl<T, C> ContainedCids<C> for T
 where
-    C: NewContentId,
+    C: ContentId,
 {
     fn contained_cids<'a>(&'a self) -> Box<dyn Iterator<Item = &'a C> + Send + 'a> {
         Box::new(std::iter::empty())

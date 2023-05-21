@@ -1,4 +1,4 @@
-use crate::contentid::{Cid, NewContentId};
+use crate::contentid::{Cid, ContentId};
 use async_trait::async_trait;
 use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
@@ -47,7 +47,7 @@ where
     }
 }
 #[async_trait]
-pub trait ContentStoreV2<Cid: NewContentId>: Send + Sync {
+pub trait ContentStoreV2<Cid: ContentId>: Send + Sync {
     async fn exists(&self, cid: &Cid) -> Result<bool, ContentStoreError>;
     // NIT: This return type will probably need to change to work with mmap.
     async fn read_unchecked(&self, cid: &Cid) -> Result<Arc<[u8]>, ContentStoreError>;

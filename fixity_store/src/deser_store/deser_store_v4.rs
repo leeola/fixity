@@ -1,6 +1,6 @@
 use crate::{
     content_store::ContentStore,
-    contentid::{Cid, NewContentId},
+    contentid::{Cid, ContentId},
     deser::DeserError,
     store::StoreError,
 };
@@ -68,7 +68,7 @@ where
         T: Serialize + Send + Sync,
     {
         let buf = t.serialize().unwrap();
-        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        let cid = <Cid as ContentId>::hash(buf.as_ref());
         self.write_unchecked(&cid, buf.into()).await.unwrap();
         Ok(cid)
     }
@@ -77,7 +77,7 @@ where
         T: Serialize + Send + Sync,
     {
         let buf = t.serialize().unwrap();
-        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        let cid = <Cid as ContentId>::hash(buf.as_ref());
         self.write_unchecked(&cid, buf.into()).await.unwrap();
         cids_buf.push(cid);
         Ok(())

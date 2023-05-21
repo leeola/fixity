@@ -3,7 +3,7 @@ pub mod deser_store_v4;
 
 use crate::{
     content_store::ContentStore,
-    contentid::{Cid, NewContentId},
+    contentid::{Cid, ContentId},
     deser::{Deserialize, Serialize},
     store::StoreError,
 };
@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use std::{marker::PhantomData, sync::Arc};
 
 #[async_trait]
-pub trait DeserStore<Deser, Cid: NewContentId>: ContentStore {
+pub trait DeserStore<Deser, Cid: ContentId>: ContentStore {
     async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
     where
         T: Deserialize<Deser>;
@@ -25,7 +25,7 @@ pub trait DeserStore<Deser, Cid: NewContentId>: ContentStore {
 #[async_trait]
 impl<Deser, U> DeserStore<Deser, Cid> for U
 where
-    Cid: NewContentId,
+    Cid: ContentId,
     U: ContentStore,
 {
     async fn get<T>(&self, cid: &Cid) -> Result<Repr<T, Deser>, StoreError>
@@ -45,7 +45,7 @@ where
         T: Serialize<Deser> + Send + Sync,
     {
         let buf = t.serialize().unwrap();
-        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        let cid = <Cid as ContentId>::hash(buf.as_ref());
         self.write_unchecked(&cid, buf.into()).await.unwrap();
         Ok(cid)
     }
@@ -55,7 +55,7 @@ where
         T: Serialize<Deser> + Send + Sync,
     {
         let buf = t.serialize().unwrap();
-        let cid = <Cid as NewContentId>::hash(buf.as_ref());
+        let cid = <Cid as ContentId>::hash(buf.as_ref());
         self.write_unchecked(&cid, buf.into()).await.unwrap();
         cids_buf.push(cid);
         Ok(())
