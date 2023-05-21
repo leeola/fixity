@@ -1,4 +1,3 @@
-use crate::deser::{Deserialize, Serialize};
 use multibase::Base;
 use std::{
     any::TypeId,
@@ -30,9 +29,6 @@ pub trait ReplicaId:
         self.as_buf().as_ref().len()
     }
 }
-pub trait ReplicaIdDeser<Deser>: ReplicaId + Serialize<Deser> + Deserialize<Deser> {}
-impl<Deser, T> ReplicaIdDeser<Deser> for T where T: ReplicaId + Serialize<Deser> + Deserialize<Deser>
-{}
 #[derive(Error, Debug)]
 pub enum FromBufError {
     #[error("invalid length")]

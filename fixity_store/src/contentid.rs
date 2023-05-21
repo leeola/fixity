@@ -1,4 +1,3 @@
-use crate::deser::{Deserialize, Serialize};
 use multibase::Base;
 use multihash::MultihashDigest;
 use std::{
@@ -31,9 +30,6 @@ pub trait ContentId:
         self.as_hash().as_ref().len()
     }
 }
-pub trait ContentIdDeser<Deser>: ContentId + Serialize<Deser> + Deserialize<Deser> {}
-impl<Deser, T> ContentIdDeser<Deser> for T where T: ContentId + Serialize<Deser> + Deserialize<Deser>
-{}
 #[derive(Error, Debug)]
 pub enum FromHashError {
     #[error("invalid length")]
