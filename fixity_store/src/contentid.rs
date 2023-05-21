@@ -10,7 +10,8 @@ use std::{
 };
 use thiserror::Error;
 
-pub const CID_LENGTH: usize = 36;
+const CID_LENGTH: usize = 36;
+type CidArray = [u8; CID_LENGTH];
 
 pub trait NewContentId:
     Clone + Sized + Send + Sync + Eq + Ord + Hash + Debug + Display + 'static
@@ -64,18 +65,17 @@ pub trait ContentId:
     feature = "rkyv",
     derive(rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)
 )]
-// TODO: Remove length param.
-pub struct Cid<const N: usize = CID_LENGTH>([u8; N]);
-impl<const N: usize> ContentId for Cid<N> {
+pub struct Cid(CidArray);
+impl ContentId for Cid {
     fn from_hash(hash: Vec<u8>) -> Option<Self> {
-        <[u8; N]>::try_from(hash).ok().map(Self)
+        CidArray::try_from(hash).ok().map(Self)
     }
     fn len(&self) -> usize {
         self.0.len()
     }
 }
-impl NewContentId for Cid<CID_LENGTH> {
-    type Hash<'a> = &'a [u8; CID_LENGTH];
+impl NewContentId for Cid {
+    type Hash<'a> = &'a CidArray;
     fn hash(buf: &[u8]) -> Self {
         let multihash = multihash::Code::Blake2b256.digest(buf);
         Self(
@@ -86,7 +86,7 @@ impl NewContentId for Cid<CID_LENGTH> {
         )
     }
     fn from_hash(hash: Vec<u8>) -> Result<Self, FromHashError> {
-        let arr = <[u8; CID_LENGTH]>::try_from(hash).map_err(|_| FromHashError::Length)?;
+        let arr = CidArray::try_from(hash).map_err(|_| FromHashError::Length)?;
         Ok(Self(arr))
     }
     fn encode(&self) -> String {
@@ -103,41 +103,41 @@ impl NewContentId for Cid<CID_LENGTH> {
         self.0.len()
     }
 }
-impl<const N: usize> Default for Cid<N> {
+impl Default for Cid {
     fn default() -> Self {
-        Self([0; N])
+        Self([0; CID_LENGTH])
     }
 }
-impl<const N: usize> Debug for Cid<N> {
+impl Debug for Cid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // PERF: Can we fork multibase to make a non-allocating display? I would think
         // yes offhand, so i think this Display is okay for now - hoping that in the nearish
         // future we can provide an alt impl of encode that writes chars to the formatter
         // directly.
-        write!(f, "Cid<{}>({})", self.0.len(), self.encode())
+        write!(f, "Cid({})", NewContentId::encode(self))
     }
 }
-impl<const N: usize> Display for Cid<N> {
+impl Display for Cid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // PERF: Can we fork multibase to make a non-allocating display? I would think
         // yes offhand, so i think this Display is okay for now - hoping that in the nearish
         // future we can provide an alt impl of encode that writes chars to the formatter
         // directly.
-        write!(f, "{}", self.encode())
+        write!(f, "{}", NewContentId::encode(self))
     }
 }
-impl<const N: usize> AsRef<[u8]> for Cid<N> {
+impl AsRef<[u8]> for Cid {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
-impl<const N: usize> From<[u8; N]> for Cid<N> {
-    fn from(arr: [u8; N]) -> Self {
+impl From<CidArray> for Cid {
+    fn from(arr: CidArray) -> Self {
         Self(arr)
     }
 }
-impl<const N: usize> PartialEq<[u8; N]> for Cid<N> {
-    fn eq(&self, other: &[u8; N]) -> bool {
+impl PartialEq<CidArray> for Cid {
+    fn eq(&self, other: &CidArray) -> bool {
         &self.0 == other
     }
 }
@@ -162,21 +162,21 @@ pub mod test {
     //! ## Endian
     //! Note that all integer representations use Big Endian to ensure stable representations
     //! and thus Content IDs when written to test stores.
-    use super::Cid;
+    use super::{Cid, CID_LENGTH};
 
     // TODO: macro these impls.
-    impl<const N: usize> From<i32> for Cid<N> {
+    impl From<i32> for Cid {
         fn from(i: i32) -> Self {
-            let mut buf = [0; N];
-            let size = N.min((i32::BITS / 8) as usize);
+            let mut buf = [0; CID_LENGTH];
+            let size = CID_LENGTH.min((i32::BITS / 8) as usize);
             buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
             Self(buf)
         }
     }
-    impl<const N: usize> From<i64> for Cid<N> {
+    impl From<i64> for Cid {
         fn from(i: i64) -> Self {
-            let mut buf = [0; N];
-            let size = N.min((i64::BITS / 8) as usize);
+            let mut buf = [0; CID_LENGTH];
+            let size = CID_LENGTH.min((i64::BITS / 8) as usize);
             buf[..size].copy_from_slice(&i.to_be_bytes()[..size]);
             Self(buf)
         }
