@@ -1,9 +1,3 @@
-use std::{
-    any::TypeId,
-    collections::{btree_map, BTreeMap, BTreeSet},
-    sync::Arc,
-};
-
 use async_trait::async_trait;
 use fixity_store::{
     container::{
@@ -12,9 +6,14 @@ use fixity_store::{
     },
     content_store::ContentStore,
     contentid::Cid,
-    deser_store::deser_store_v4::DeserExt,
+    deser_ext::DeserExt,
     replicaid::Rid,
     store::StoreError,
+};
+use std::{
+    any::TypeId,
+    collections::{btree_map, BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 const DEFAULT_BRANCH: &str = "main";

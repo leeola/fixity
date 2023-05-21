@@ -1,11 +1,11 @@
 use anyhow::anyhow;
 use fixity_store::{
     container::{ContainerV4, DefaultContainer, PersistContainer},
+    content_store::ContentStore,
     contentid::Cid,
-    meta_store::MetaStoreError,
+    meta_store::{MetaStore, MetaStoreError},
     replicaid::Rid,
     stores::memory::Memory,
-    ContentStore, MetaStore,
 };
 use fixity_structs::replicalog::ReplicaLog;
 use std::{

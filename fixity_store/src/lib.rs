@@ -3,6 +3,7 @@
 pub mod container;
 pub mod contentid;
 pub mod deser;
+pub mod deser_ext;
 pub mod replicaid;
 pub mod storage;
 pub mod store;
@@ -13,9 +14,14 @@ pub mod deser_store;
 pub mod meta_store;
 pub mod mut_store;
 pub mod stores;
-pub use content_store::ContentStore;
-pub use deser_store::deser_store_v4::DeserExt;
-pub use meta_store::MetaStore;
+pub mod prelude {
+    pub use crate::{
+        content_store::ContentStore,
+        deser_ext::DeserExt,
+        deser_store::deser_store_v4::{Deserialize, Serialize},
+        meta_store::MetaStore,
+    };
+}
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

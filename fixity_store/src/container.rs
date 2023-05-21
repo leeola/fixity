@@ -1,9 +1,9 @@
 use crate::{
     content_store::ContentStore,
     contentid::Cid,
+    deser_ext::DeserExt,
     deser_store::deser_store_v4::{Deserialize, Serialize},
     store::StoreError,
-    DeserExt,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
