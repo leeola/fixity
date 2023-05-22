@@ -11,8 +11,7 @@ use std::{
 };
 
 /// A (currently) test focused in-memory only storage.
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Memory {
     // TODO: change to faster concurrency primitives. At
     // the very least, RwLock instead of Mutex.
@@ -21,8 +20,8 @@ pub struct Memory {
 }
 #[cfg(any(test, feature = "test"))]
 impl Memory {
-    pub fn test() -> Self {
-        Self::default()
+    pub fn test() -> Arc<Self> {
+        Arc::new(Self::default())
     }
 }
 #[async_trait]

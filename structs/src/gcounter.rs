@@ -3,8 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use fixity_store::{
     container::{
-        Container, ContainerDescription, ContainerRef, ContainerRefInto, DefaultContainer,
-        DescribeContainer, PersistContainer, ReconcileContainer,
+        ContainerDescription, DefaultContainer, DescribeContainer, PersistContainer,
+        ReconcileContainer,
     },
     content_store::ContentStore,
     contentid::Cid,
@@ -126,13 +126,13 @@ pub mod test {
     #[tokio::test]
     async fn poc() {
         let store = Memory::test();
-        let mut a = GCounter::<Rid>::default();
+        let mut a = GCounter::default_container(&store);
         a.inc(1.into());
         assert_eq!(a.value(), 1);
         a.inc(1.into());
         a.inc(0.into());
         assert_eq!(a.value(), 3);
-        let mut b = GCounter::<Rid>::default();
+        let mut b = GCounter::default_container(&store);
         b.inc(1.into());
         b.inc(1.into());
         let b_cid = b.save(&store).await.unwrap();
