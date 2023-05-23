@@ -1,6 +1,6 @@
 pub mod gcounter;
 pub mod prolly_tree;
-pub mod ptr;
+// pub mod ptr;
 pub mod replicalog;
 /*
 pub mod vclock {
