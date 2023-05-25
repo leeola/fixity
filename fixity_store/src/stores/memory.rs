@@ -169,8 +169,8 @@ pub mod test {
     use super::*;
     use rstest::*;
     #[fixture]
-    async fn test_data() -> Memory<()> {
-        let s = Memory::<()>::default();
+    async fn test_data() -> Memory {
+        let s = Memory::default();
         for k in vec![
             "/foo",
             "/foo/bar",
@@ -191,7 +191,7 @@ pub mod test {
     #[case::delim_empty(Some(""))]
     #[tokio::test]
     async fn listing_no_delim(#[case] not_a_delim: Option<&str>) {
-        let s: Memory<()> = test_data().await;
+        let s: Memory = test_data().await;
         assert_eq!(
             s.list::<_, &str>("/", not_a_delim).await.unwrap(),
             vec![
@@ -220,7 +220,7 @@ pub mod test {
     #[rstest]
     #[tokio::test]
     async fn listing_delim() {
-        let s: Memory<()> = test_data().await;
+        let s: Memory = test_data().await;
         let d = Some("/");
         assert_eq!(s.list("/fo", d).await.unwrap(), vec!["/foo", "/foo/"],);
         assert_eq!(s.list("/foo", d).await.unwrap(), vec!["/foo", "/foo/"],);
