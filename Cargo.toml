@@ -87,3 +87,6 @@ members = [
 
 [workspace.dependencies]
 ambassador = "0.3.5" 
+proptest = "1.2"
+proptest-derive = "0.3"
+test-strategy = "0.3"
