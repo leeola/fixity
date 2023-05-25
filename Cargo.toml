@@ -88,5 +88,9 @@ members = [
 [workspace.dependencies]
 ambassador = "0.3.5" 
 proptest = "1.2"
-proptest-derive = "0.3"
 test-strategy = "0.3"
+
+# TODO: This is a fake dependency, used to change the dep version in proptest. Not sure how to do
+# this with standard
+[workspace.dependencies.rustix]
+version = "=0.37.15"

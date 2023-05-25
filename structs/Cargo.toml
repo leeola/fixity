@@ -31,3 +31,9 @@ tokio = { version = "1.17", features = ["test-util", "macros"] }
 rstest = "0.12"
 proptest.workspace = true
 test-strategy.workspace = true
+
+
+# TODO: This is a fake dependency, used to change the dep version in proptest. Not sure how to do
+# this with standard
+[dependencies.rustix]
+workspace = true
