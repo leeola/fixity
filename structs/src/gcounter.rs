@@ -14,13 +14,12 @@ use fixity_store::{
 };
 
 type GCounterInt = u32;
-type IVec = Vec<(Rid, GCounterInt)>;
 
 #[derive(Debug)]
-pub struct GCounter(IVec);
+pub struct GCounter(Vec<(Rid, GCounterInt)>);
 impl GCounter {
     pub fn new() -> Self {
-        Self(IVec::default())
+        Self(Default::default())
     }
 }
 impl GCounter {
@@ -142,5 +141,29 @@ pub mod test {
         let b_cid = b.save(&store).await.unwrap();
         a.merge(&store, &b_cid).await.unwrap();
         assert_eq!(a.value(), 4);
+    }
+
+    use proptest::collection::size_range;
+    use test_strategy::{proptest, Arbitrary};
+
+    #[derive(Arbitrary, Debug)]
+    struct TestInput {
+        x: u32,
+        #[strategy(0..=#x)]
+        y: u32,
+    }
+    #[proptest]
+    fn my_test(
+        #[strategy(1..10u32)] rid_count: u32,
+        #[any(size_range(0..16).lift())] y: Vec<Vec<i32>>,
+        #[strategy(0..#rid_count)] z: u32,
+        ti: TestInput,
+    ) {
+        dbg!(
+            // &y,
+            y.len(),
+            ti.x,
+            ti.y,
+        );
     }
 }
